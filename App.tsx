@@ -25,6 +25,7 @@ export default function App() {
   const [language, setLanguage] = useState<Language>('es');
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<string>('');
+  const [roleReady, setRoleReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showLanding, setShowLanding] = useState(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
 
@@ -43,6 +44,7 @@ export default function App() {
 
       console.log(`App: User role fetched: "${role}" for ID: ${userId}`);
       setUserRole(role);
+      setRoleReady(true);
 
       // Set default view based on role
       if (role === 'client') {
@@ -59,17 +61,19 @@ export default function App() {
       // Fallback
       setUserRole('client');
       setCurrentView(ViewState.CLIENT_PORTAL);
+      setRoleReady(true);
     }
   };
 
   useEffect(() => {
     console.log("App: useEffect start");
 
-    // Failsafe timeout in case Supabase hangs
+    // Failsafe timeout in case Supabase hangs (8s for production cold starts)
     const failsafe = setTimeout(() => {
       console.log("App: failsafe triggered");
       setLoading(false);
-    }, 2500);
+      setRoleReady(true); // unblock rendering even if role fetch fails
+    }, 8000);
 
     const checkSession = async () => {
       try {
@@ -83,6 +87,7 @@ export default function App() {
         } else {
           console.log("App: no session, using default client role");
           setUserRole('client');
+          setRoleReady(true);
           setCurrentView(ViewState.CLIENT_PORTAL);
         }
       } catch (err: any) {
@@ -106,6 +111,7 @@ export default function App() {
       } else {
         setShowLanding(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
         setUserRole('client');
+        setRoleReady(true);
         setCurrentView(ViewState.CLIENT_PORTAL);
       }
       setLoading(false);
@@ -155,6 +161,16 @@ export default function App() {
 
   if (!session) {
     return <Auth language={language} />;
+  }
+
+  // Wait for role to be fetched before rendering admin views
+  if (!roleReady) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white flex-col gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
+        <p className="text-brand-platinum/50 text-xs uppercase tracking-widest font-bold">Cargando perfil...</p>
+      </div>
+    );
   }
 
   return (
