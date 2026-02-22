@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/container-queries";
+
+@theme {
+    --color-brand-black: #050505;
+    --color-brand-white: #fcfcfc;
+    --color-brand-gold: #c5a059;
+    --color-brand-platinum: #8E9196;
+    --color-brand-charcoal: #1a1a1a;
+}
+
+@layer base {
+    :root {
+        --color-brand-black: #050505;
+        --color-brand-white: #fcfcfc;
+        --color-brand-gold: #c5a059;
+        --color-brand-platinum: #8E9196;
+        --color-brand-charcoal: #1a1a1a;
+        --bg-primary: #050505;
+        --text-primary: #fcfcfc;
+        --accent: #c5a059;
+    }
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.premium-gradient {
+    background: linear-gradient(135deg, #1a1a1a 0%, #050505 100%);
+}
+
+.bg-clip-text {
+    -webkit-background-clip: text;
+    background-clip: text;
+}
+
+.platinum-text {
+    background: linear-gradient(to right, #8E9196, #D1D5DB, #8E9196);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.gold-border {
+    border-color: rgba(197, 160, 89, 0.2);
+}
+
+.gold-glow {
+    box-shadow: 0 0 20px rgba(197, 160, 89, 0.1);
+}
