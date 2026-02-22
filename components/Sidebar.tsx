@@ -172,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
         <div className="p-4 flex items-center gap-3 px-2 justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-charcoal border border-white/5 flex items-center justify-center font-bold text-brand-platinum">
-              {userRole[0].toUpperCase()}
+              {(userRole?.[0] || '?').toUpperCase()}
             </div>
             <div className="hidden md:block">
               <p className="text-xs font-bold text-white uppercase tracking-widest">{userRole}</p>
