@@ -148,7 +148,19 @@ export default function App() {
     );
   }
 
-  if (showLanding) {
+  // If session exists but role is still loading, wait before rendering anything
+  if (session && !roleReady) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white flex-col gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
+        <p className="text-brand-platinum/50 text-xs uppercase tracking-widest font-bold">Cargando perfil...</p>
+      </div>
+    );
+  }
+
+  // Authenticated staff: skip landing page entirely (handles F5 refresh case)
+  const isStaffRole = session && roleReady && userRole !== 'client' && userRole !== '';
+  if (showLanding && !isStaffRole) {
     return (
       <LandingPage
         onEnterApp={() => setShowLanding(false)}
@@ -161,16 +173,6 @@ export default function App() {
 
   if (!session) {
     return <Auth language={language} />;
-  }
-
-  // Wait for role to be fetched before rendering admin views
-  if (!roleReady) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white flex-col gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
-        <p className="text-brand-platinum/50 text-xs uppercase tracking-widest font-bold">Cargando perfil...</p>
-      </div>
-    );
   }
 
   return (
