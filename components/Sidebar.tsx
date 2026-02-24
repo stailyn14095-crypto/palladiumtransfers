@@ -39,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
       extras: { es: 'Extras de Servicio', en: 'Service Extras' },
       municipalities: { es: 'Municipios', en: 'Municipalities' },
       clientPortal: { es: 'Mi Portal', en: 'My Portal' },
+      timeTracking: { es: 'Registro Horario', en: 'Time Tracking' }
     };
     return dict[key]?.[language] || key;
   };
@@ -119,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
             <NavItem view={ViewState.TURNOS} icon="timer" labelKey="shifts" />
 
             <SectionLabel labelKey="fleet" />
-            <NavItem view={ViewState.FICHAJES} icon="history_edu" labelKey="reports" />
+            <NavItem view={ViewState.FICHAJES} icon="history_edu" labelKey="timeTracking" />
             <NavItem view={ViewState.CONDUCTORES} icon="badge" labelKey="drivers" />
             <NavItem view={ViewState.VEHICULOS} icon="directions_car" labelKey="vehicles" />
             <NavItem view={ViewState.TALLER} icon="build" labelKey="workshop" />

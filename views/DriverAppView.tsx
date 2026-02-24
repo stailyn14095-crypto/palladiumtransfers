@@ -33,6 +33,11 @@ export const DriverAppView: React.FC = () => {
    const [tpvAmount, setTpvAmount] = useState('');
    const [actualPaymentMethod, setActualPaymentMethod] = useState<'Efectivo' | 'TPV' | 'Mixto'>('Efectivo');
 
+   // KM Prompt State
+   const [kmModalOpen, setKmModalOpen] = useState(false);
+   const [currentKm, setCurrentKm] = useState('');
+   const [pendingAction, setPendingAction] = useState<'clockIn' | 'clockOut' | null>(null);
+
    const driverBookings = allBookings?.filter((b: any) => b.driver_id === selectedDriverId && b.status !== 'Completed' && b.status !== 'Cancelled') || [];
    const completedThisWeek = allBookings?.filter((b: any) => {
       if (b.driver_id !== selectedDriverId || b.status !== 'Completed') return false;
@@ -139,17 +144,40 @@ export const DriverAppView: React.FC = () => {
       setWeeklyEarnings(total);
    };
 
+   const { updateItem: updateVehicle } = useSupabaseData('vehicles');
+
    const handleClockIn = async () => {
-      const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK' }]).select().single();
-      await updateDriver(selectedDriverId!, { current_status: 'Working' });
-      setCurrentLog(data);
+      setPendingAction('clockIn');
+      setCurrentKm(assignedVehicle?.km?.toString() || '');
+      setKmModalOpen(true);
    };
 
    const handleClockOut = async () => {
       if (!currentLog) return;
-      await supabase.from('driver_logs').update({ clock_out: new Date().toISOString() }).eq('id', currentLog.id);
-      await updateDriver(selectedDriverId!, { current_status: 'Off' });
-      setCurrentLog(null);
+      setPendingAction('clockOut');
+      setCurrentKm(assignedVehicle?.km?.toString() || '');
+      setKmModalOpen(true);
+   };
+
+   const confirmKmAndProceed = async () => {
+      const kmValue = parseInt(currentKm);
+      if (!isNaN(kmValue) && assignedVehicle) {
+         await updateVehicle(assignedVehicle.id, { km: kmValue });
+      }
+
+      if (pendingAction === 'clockIn') {
+         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK' }]).select().single();
+         await updateDriver(selectedDriverId!, { current_status: 'Working' });
+         setCurrentLog(data);
+      } else if (pendingAction === 'clockOut') {
+         if (!currentLog) return;
+         await supabase.from('driver_logs').update({ clock_out: new Date().toISOString() }).eq('id', currentLog.id);
+         await updateDriver(selectedDriverId!, { current_status: 'Off' });
+         setCurrentLog(null);
+      }
+
+      setKmModalOpen(false);
+      setPendingAction(null);
    };
 
    const handlePauseToggle = async () => {
@@ -552,6 +580,49 @@ export const DriverAppView: React.FC = () => {
                            className="w-full py-4 text-brand-platinum/30 hover:text-white font-black uppercase text-[10px] tracking-widest transition-all"
                         >
                            Volver
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* KM Prompt Modal */}
+         {kmModalOpen && (
+            <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-center justify-center p-4">
+               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5/50 shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+                  <div className="text-center mb-6">
+                     <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="material-icons-round text-blue-500 text-3xl">speed</span>
+                     </div>
+                     <h2 className="text-xl font-black text-white px-4">Actualizar Kilometraje</h2>
+                     <p className="text-xs text-brand-platinum/50 mt-2">Por favor, indica los kilómetros actuales del vehículo antes de fichar.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                     <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-brand-platinum/30 uppercase text-xs">KM</span>
+                        <input
+                           type="number"
+                           value={currentKm}
+                           onChange={(e) => setCurrentKm(e.target.value)}
+                           className="w-full bg-brand-black border border-white/5/50 rounded-2xl pl-12 pr-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all placeholder-white/10"
+                           placeholder="0"
+                        />
+                     </div>
+
+                     <div className="pt-2 grid gap-3">
+                        <button
+                           onClick={confirmKmAndProceed}
+                           className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-500 active:scale-95 shadow-lg shadow-blue-900/40 transition-all"
+                        >
+                           Confirmar y Fichar
+                        </button>
+                        <button
+                           onClick={() => { setKmModalOpen(false); setPendingAction(null); }}
+                           className="w-full py-3 text-brand-platinum/50 hover:text-white font-bold uppercase text-[10px] tracking-widest transition-all"
+                        >
+                           Cancelar
                         </button>
                      </div>
                   </div>

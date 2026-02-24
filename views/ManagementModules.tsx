@@ -86,11 +86,20 @@ export const ConductoresView = () => {
       { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive', 'On Leave'], required: true },
    ] as any;
 
+   const { addToast } = useToast();
+
    const handleSave = async (data: any) => {
-      if (editingItem) {
-         await updateItem(editingItem.id, data);
-      } else {
-         await addItem(data);
+      try {
+         if (editingItem) {
+            await updateItem(editingItem.id, data);
+            addToast({ title: 'Conductor Actualizado', description: 'Los datos se han guardado correctamente.', type: 'success' });
+         } else {
+            await addItem(data);
+            addToast({ title: 'Conductor Añadido', description: 'El conductor se ha registrado correctamente.', type: 'success' });
+         }
+         setIsModalOpen(false);
+      } catch (err: any) {
+         addToast({ title: 'Error al Guardar', description: err.message || 'No se pudo guardar el conductor.', type: 'error' });
       }
    };
 
@@ -119,7 +128,16 @@ export const ConductoresView = () => {
                   </td>
                   <td className="px-6 py-4 cursor-pointer">
                      <EditButton onClick={() => { setEditingItem(d); setIsModalOpen(true); }} />
-                     <DeleteButton onClick={() => { if (confirm('¿Eliminar conductor?')) deleteItem(d.id); }} />
+                     <DeleteButton onClick={async () => {
+                        if (confirm('¿Eliminar conductor?')) {
+                           try {
+                              await deleteItem(d.id);
+                              addToast({ title: 'Conductor Eliminado', description: 'El conductor se ha eliminado correctamente.', type: 'success' });
+                           } catch (err: any) {
+                              addToast({ title: 'Error al Eliminar', description: 'No se puede eliminar porque tiene historial asociado. Prueba a cambiar su estado a "Inactive".', type: 'error' });
+                           }
+                        }
+                     }} />
                   </td>
                </tr>
             )}
@@ -136,6 +154,156 @@ export const ConductoresView = () => {
    );
 };
 
+// --- VEHICLE EXPENSES MODAL ---
+const VehicleExpensesModal = ({ isOpen, onClose, vehicle }: { isOpen: boolean, onClose: () => void, vehicle: any }) => {
+   const { data: expenses, addItem, deleteItem, loading } = useSupabaseData('vehicle_expenses');
+   const [amount, setAmount] = useState('');
+   const [type, setType] = useState('Combustible');
+   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+   const [description, setDescription] = useState('');
+
+   if (!isOpen || !vehicle) return null;
+
+   const vehicleExpenses = (expenses || []).filter((e: any) => e.vehicle_id === vehicle.id).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+   const totalExpenses = vehicleExpenses.reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
+
+   const handleAdd = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!amount) return;
+      await addItem({
+         vehicle_id: vehicle.id,
+         expense_type: type,
+         amount: parseFloat(amount),
+         date,
+         description
+      });
+      setAmount('');
+      setDescription('');
+   };
+
+   return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+         <div className="bg-[#1a2533] border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-8 border-b border-white/5 bg-[#141e2b]">
+               <div>
+                  <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                     <span className="material-icons-round text-brand-gold">payments</span>
+                     Gastos del Vehículo
+                  </h2>
+                  <p className="text-brand-platinum/50 text-sm mt-1 uppercase tracking-widest font-bold">
+                     <span className="text-white">{vehicle.model}</span> <span className="text-brand-gold ml-2">{vehicle.plate}</span>
+                  </p>
+               </div>
+               <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+                  <span className="material-icons-round">close</span>
+               </button>
+            </div>
+
+            <div className="p-8 flex-1 overflow-hidden flex flex-col md:flex-row gap-8">
+               {/* Fixed Form Section */}
+               <div className="w-full md:w-1/3 space-y-6">
+                  <div className="bg-brand-black/50 border border-white/5 rounded-2xl p-6">
+                     <h3 className="text-xs font-black text-brand-gold uppercase tracking-widest mb-6 border-b border-white/5 pb-4">Añadir Gasto</h3>
+                     <form onSubmit={handleAdd} className="space-y-4">
+                        <div>
+                           <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Tipo de Gasto</label>
+                           <select value={type} onChange={(e) => setType(e.target.value)} className="w-full bg-[#101822] border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-gold appearance-none">
+                              <option value="Combustible">Combustible</option>
+                              <option value="Taller / Mantenimiento">Taller / Mantenimiento</option>
+                              <option value="Seguro">Seguro</option>
+                              <option value="Peaje">Peaje</option>
+                              <option value="ITV">ITV</option>
+                              <option value="Otro">Otro</option>
+                           </select>
+                        </div>
+                        <div>
+                           <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Importe (€)</label>
+                           <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required className="w-full bg-[#101822] border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-gold placeholder-white/20" placeholder="0.00" />
+                        </div>
+                        <div>
+                           <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Fecha</label>
+                           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="w-full bg-[#101822] border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-gold" />
+                        </div>
+                        <div>
+                           <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Descripción (Opcional)</label>
+                           <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-[#101822] border border-white/10 rounded-2xl px-4 py-3 text-white text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-gold resize-none" rows={3} placeholder="Detalles del ticket o factura..."></textarea>
+                        </div>
+                        <button type="submit" disabled={!amount} className="w-full py-4 bg-brand-gold text-brand-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-brand-gold/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">
+                           Añadir Gasto
+                        </button>
+                     </form>
+                  </div>
+               </div>
+
+               {/* Scrollable List Section */}
+               <div className="w-full md:w-2/3 flex flex-col bg-brand-black/30 border border-white/5 rounded-2xl overflow-hidden">
+                  <div className="bg-[#141e2b] p-6 border-b border-white/5 flex justify-between items-center z-10">
+                     <h3 className="text-xs font-black text-white uppercase tracking-widest">Historial de Gastos</h3>
+                     <div className="bg-brand-black/50 border border-white/10 rounded-xl px-4 py-2">
+                        <span className="text-[10px] text-brand-platinum/50 uppercase tracking-widest font-bold mr-3">Total</span>
+                        <span className="text-xl font-black text-white">{totalExpenses.toFixed(2)}</span>
+                        <span className="text-brand-gold text-xs font-bold ml-1">€</span>
+                     </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3">
+                     {loading ? (
+                        <div className="text-center py-10 text-brand-platinum/30 animate-pulse">Cargando...</div>
+                     ) : vehicleExpenses.length === 0 ? (
+                        <div className="text-center py-20 text-brand-platinum/30 italic text-sm">No hay gastos registrados para este vehículo.</div>
+                     ) : (
+                        vehicleExpenses.map((exp: any) => (
+                           <div key={exp.id} className="bg-brand-charcoal border border-white/5 hover:border-white/10 rounded-2xl p-5 flex items-center justify-between group transition-all">
+                              <div className="flex items-center gap-5">
+                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${exp.expense_type === 'Combustible' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' :
+                                    exp.expense_type === 'Taller / Mantenimiento' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
+                                       exp.expense_type === 'Seguro' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                                          exp.expense_type === 'Peaje' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                                             'bg-brand-platinum/10 text-brand-platinum border border-brand-platinum/20'
+                                    }`}>
+                                    <span className="material-icons-round">
+                                       {exp.expense_type === 'Combustible' ? 'local_gas_station' :
+                                          exp.expense_type === 'Taller / Mantenimiento' ? 'build' :
+                                             exp.expense_type === 'Seguro' ? 'gavel' :
+                                                exp.expense_type === 'Peaje' ? 'toll' : 'receipt'}
+                                    </span>
+                                 </div>
+                                 <div>
+                                    <p className="text-sm font-bold text-white tracking-tight">{exp.expense_type}</p>
+                                    <div className="flex items-center gap-3 mt-1">
+                                       <p className="text-[10px] text-brand-platinum/50 font-bold uppercase tracking-widest flex items-center gap-1">
+                                          <span className="material-icons-round text-[10px]">calendar_today</span>
+                                          {new Date(exp.date).toLocaleDateString()}
+                                       </p>
+                                       {exp.description && (
+                                          <p className="text-[10px] text-slate-400 truncate max-w-[150px] shadow-sm">• {exp.description}</p>
+                                       )}
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                 <div className="text-right">
+                                    <p className="text-lg font-black text-white">{Number(exp.amount).toFixed(2)} <span className="text-brand-gold text-xs">€</span></p>
+                                 </div>
+                                 <button onClick={async () => {
+                                    if (confirm('¿Eliminar este gasto?')) {
+                                       await deleteItem(exp.id);
+                                    }
+                                 }} className="w-8 h-8 rounded-lg hover:bg-rose-500/20 text-rose-500/50 hover:text-rose-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                                    <span className="material-icons-round text-sm">delete</span>
+                                 </button>
+                              </div>
+                           </div>
+                        ))
+                     )}
+                  </div>
+               </div>
+            </div>
+         </div>
+      </div>
+   );
+};
+
 // --- VEHICULOS VIEW ---
 export const VehiculosView = () => {
    const { data: cars, loading, addItem, updateItem, deleteItem } = useSupabaseData('vehicles');
@@ -143,22 +311,37 @@ export const VehiculosView = () => {
    const [editingItem, setEditingItem] = useState<any>(null);
 
    const fields = [
-      { name: 'plate', label: 'Matrícula', type: 'text', required: true },
-      { name: 'model', label: 'Modelo', type: 'text', required: true },
-      { name: 'category', label: 'Tipo Vehículo', type: 'select', options: ['Standard', 'Luxury', 'Van', 'Minibus', 'Bus'], required: true },
-      { name: 'capacity', label: 'Max Pax', type: 'number', required: true },
-      { name: 'year', label: 'Año', type: 'number', required: true },
-      { name: 'km', label: 'Kilometraje', type: 'number', required: true },
-      { name: 'itv', label: 'Próxima ITV', type: 'date', required: true },
-      { name: 'image_url', label: 'URL de la Foto', type: 'text' },
-      { name: 'status', label: 'Estado', type: 'select', options: ['Operativo', 'Taller', 'Baja'], required: true },
+      { name: 'plate', label: 'Matrícula', type: 'text', required: true, section: 'Datos Básicos' },
+      { name: 'model', label: 'Modelo', type: 'text', required: true, section: 'Datos Básicos' },
+      { name: 'category', label: 'Tipo Vehículo', type: 'select', options: ['Standard', 'Premium', 'Minivan', 'Minibus'], required: true, section: 'Especificaciones' },
+      { name: 'capacity', label: 'Max Pax', type: 'number', required: true, section: 'Especificaciones' },
+      { name: 'year', label: 'Año', type: 'number', required: true, section: 'Especificaciones' },
+      { name: 'km', label: 'Kilometraje Actual', type: 'number', required: true, section: 'Mantenimiento' },
+      { name: 'last_maintenance_km', label: 'Km Último Mantenimiento', type: 'number', section: 'Mantenimiento' },
+      { name: 'maintenance_interval', label: 'Intervalo de Mantenimiento (Ej: 15.000)', type: 'number', defaultValue: 15000, section: 'Mantenimiento' },
+      { name: 'itv', label: 'Próxima ITV', type: 'date', section: 'Documentación' },
+      { name: 'insurance_expiry', label: 'Renovación Seguro', type: 'date', section: 'Documentación' },
+      { name: 'image_url', label: 'URL de la foto', type: 'text', section: 'Datos Básicos' },
+      { name: 'status', label: 'Estado', type: 'select', options: ['Operativo', 'Taller', 'Baja'], required: true, section: 'Datos Básicos' },
    ] as any;
 
+   const [expensesModalOpen, setExpensesModalOpen] = useState(false);
+   const [selectedVehicleForExpenses, setSelectedVehicleForExpenses] = useState<any>(null);
+
+   const { addToast } = useToast();
+
    const handleSave = async (data: any) => {
-      if (editingItem) {
-         await updateItem(editingItem.id, data);
-      } else {
-         await addItem(data);
+      try {
+         if (editingItem) {
+            await updateItem(editingItem.id, data);
+            addToast({ title: 'Vehículo Actualizado', description: 'Los datos se han guardado correctamente.', type: 'success' });
+         } else {
+            await addItem(data);
+            addToast({ title: 'Vehículo Añadido', description: 'El vehículo se ha registrado correctamente.', type: 'success' });
+         }
+         setIsModalOpen(false);
+      } catch (err: any) {
+         addToast({ title: 'Error al Guardar', description: err.message || 'No se pudo guardar el vehículo.', type: 'error' });
       }
    };
 
@@ -166,39 +349,91 @@ export const VehiculosView = () => {
       <>
          <GenericListView
             title="Flota de Vehículos"
-            subtitle="Control de Kilometraje e ITV"
-            columns={['ID', 'Matrícula', 'Modelo / Año', 'Tipo', 'Pax', 'KM Actuales', 'Estado', 'Acciones']}
+            subtitle="CONTROL DE KILOMETRAJE E ITV"
+            columns={['ID', 'Matrícula', 'Modelo / Año', 'Tipo', 'Pax', 'KM Actuales', 'Mantenimiento / Seguro', 'Estado', 'Acciones']}
             data={cars}
             loading={loading}
-            actions={<AddButton label="Nuevo Vehículo" onClick={() => { setEditingItem(null); setIsModalOpen(true); }} />}
-            renderRow={(c: any, i: number) => (
-               <tr key={c.id || i} className="hover:bg-slate-800/30">
-                  <td className="px-6 py-4 font-mono text-blue-400 text-xs text-nowrap">#{c.display_id || (c.id && c.id.slice(0, 4)) || i + 1}</td>
-                  <td className="px-6 py-4 font-mono text-white font-bold">{c.plate}</td>
-                  <td className="px-6 py-4 text-slate-300 flex items-center gap-3">
-                     {c.image_url && (
-                        <img src={c.image_url} alt={c.model} className="w-10 h-7 object-cover rounded shadow-lg border border-white/10" />
-                     )}
-                     <div>
-                        {c.model} <span className="text-slate-500">({c.year})</span>
-                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-300 text-xs uppercase font-bold">{c.category || 'Standard'}</td>
-                  <td className="px-6 py-4 text-slate-300 font-mono center">
-                     <span className="bg-slate-700 text-white px-2 py-1 rounded text-xs">{c.capacity || 4} <span className="text-slate-500">pax</span></span>
-                  </td>
-                  <td className="px-6 py-4 text-white font-mono bg-slate-800/50 rounded-lg">
-                     {(c.km || 0).toLocaleString()} km
-                  </td>
-                  <td className="px-6 py-4">
-                     <span className={`px-2 py-0.5 rounded-full text-xs border ${c.status === 'Operativo' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{c.status}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                     <EditButton onClick={() => { setEditingItem(c); setIsModalOpen(true); }} />
-                     <DeleteButton onClick={() => { if (confirm('¿Eliminar vehículo?')) deleteItem(c.id); }} />
-                  </td>
-               </tr>
-            )}
+            onAdd={() => { setEditingItem(null); setIsModalOpen(true); }}
+            renderRow={(c: any, displayId: string) => {
+               const interval = c.maintenance_interval || 15000;
+               const nextMaintenance = (c.last_maintenance_km || 0) + interval;
+               const kmToMaintenance = nextMaintenance - (c.km || 0);
+               const needsMaintenance = kmToMaintenance <= 1000;
+
+               const expiry = c.insurance_expiry ? new Date(c.insurance_expiry) : null;
+               const daysToInsurance = expiry ? Math.ceil((expiry.getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : null;
+               const needsInsurance = daysToInsurance !== null && daysToInsurance <= 30;
+
+               return (
+                  <tr key={c.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                     <td className="px-6 py-4 text-brand-gold font-bold text-xs uppercase tracking-widest">#{displayId}</td>
+                     <td className="px-6 py-4"><span className="font-bold text-white bg-white/5 px-3 py-1 rounded-lg border border-white/10">{c.plate}</span></td>
+                     <td className="px-6 py-4">
+                        <span className="font-bold text-slate-200 uppercase text-xs">{c.model}</span>
+                        <span className="text-brand-platinum/50 text-[10px] ml-2 tracking-widest">({c.year})</span>
+                     </td>
+                     <td className="px-6 py-4 font-bold text-xs uppercase tracking-widest text-slate-400">{c.category}</td>
+                     <td className="px-6 py-4"><span className="bg-blue-600/20 text-blue-400 px-2 py-1 rounded-md text-xs font-bold">{c.capacity} pax</span></td>
+                     <td className="px-6 py-4">
+                        <div className="bg-brand-black/50 border border-white/5 rounded-xl px-4 py-2 inline-block">
+                           <span className="font-black text-white">{c.km?.toLocaleString() || 0}</span>
+                           <span className="text-brand-gold text-xs font-bold ml-1">km</span>
+                        </div>
+                     </td>
+                     <td className="px-6 py-4 space-y-2">
+                        {needsMaintenance && (
+                           <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20 text-[10px] font-bold uppercase w-max animate-pulse">
+                              <span className="material-icons-round text-[12px]">build</span>
+                              Taller: Faltan {kmToMaintenance} km
+                           </div>
+                        )}
+                        {!needsMaintenance && (c.last_maintenance_km > 0) && (
+                           <div className="flex items-center gap-2 text-brand-platinum/50 text-[10px] uppercase w-max">
+                              <span className="material-icons-round text-[12px]">check_circle</span>
+                              Próx rev: {nextMaintenance.toLocaleString()} km
+                           </div>
+                        )}
+
+                        {needsInsurance && (
+                           <div className="flex items-center gap-2 text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 text-[10px] font-bold uppercase w-max animate-pulse">
+                              <span className="material-icons-round text-[12px]">gavel</span>
+                              Renovar Seguro ({daysToInsurance} días)
+                           </div>
+                        )}
+                        {expiry && !needsInsurance && (
+                           <div className="flex items-center gap-2 text-emerald-500/70 text-[10px] uppercase w-max">
+                              <span className="material-icons-round text-[12px]">gavel</span>
+                              Seguro: {expiry.toLocaleDateString()}
+                           </div>
+                        )}
+                     </td>
+                     <td className="px-6 py-4">
+                        <span className={`px-4 py-1.5 rounded-full text-xs font-bold border ${c.status === 'Operativo' ? 'bg-blue-600/10 text-blue-400 border-blue-500/20' :
+                           c.status === 'Taller' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                              'bg-amber-600/10 text-amber-500 border-amber-500/20'
+                           }`}>
+                           {c.status}
+                        </span>
+                     </td>
+                     <td className="px-6 py-4 flex items-center gap-3">
+                        <button onClick={() => { setSelectedVehicleForExpenses(c); setExpensesModalOpen(true); }} className="w-8 h-8 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 flex items-center justify-center transition-colors group relative" title="Gestionar Gastos">
+                           <span className="material-icons-round text-sm">payments</span>
+                        </button>
+                        <EditButton onClick={() => { setEditingItem(c); setIsModalOpen(true); }} />
+                        <DeleteButton onClick={async () => {
+                           if (confirm('¿Eliminar vehículo?')) {
+                              try {
+                                 await deleteItem(c.id);
+                                 addToast({ title: 'Vehículo Eliminado', description: 'El vehículo se ha eliminado correctamente.', type: 'success' });
+                              } catch (err: any) {
+                                 addToast({ title: 'Error al Eliminar', description: 'No se puede eliminar porque tiene historial asociado. Prueba a cambiar su estado a "Baja".', type: 'error' });
+                              }
+                           }
+                        }} />
+                     </td>
+                  </tr>
+               );
+            }}
          />
          <DataEntryModal
             isOpen={isModalOpen}
@@ -207,6 +442,13 @@ export const VehiculosView = () => {
             initialData={editingItem}
             title={editingItem ? 'Editar Vehículo' : 'Nuevo Vehículo'}
             fields={fields}
+         />
+
+         {/* Gastos Modal */}
+         <VehicleExpensesModal
+            isOpen={expensesModalOpen}
+            onClose={() => { setExpensesModalOpen(false); setSelectedVehicleForExpenses(null); }}
+            vehicle={selectedVehicleForExpenses}
          />
       </>
    );
@@ -225,11 +467,20 @@ export const ClientesView = () => {
       { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive'], required: true },
    ] as any;
 
+   const { addToast } = useToast();
+
    const handleSave = async (data: any) => {
-      if (editingItem) {
-         await updateItem(editingItem.id, data);
-      } else {
-         await addItem(data);
+      try {
+         if (editingItem) {
+            await updateItem(editingItem.id, data);
+            addToast({ title: 'Cliente Actualizado', description: 'Los datos se han guardado correctamente.', type: 'success' });
+         } else {
+            await addItem(data);
+            addToast({ title: 'Cliente Añadido', description: 'El cliente se ha registrado correctamente.', type: 'success' });
+         }
+         setIsModalOpen(false);
+      } catch (err: any) {
+         addToast({ title: 'Error al Guardar', description: err.message || 'No se pudo guardar el cliente.', type: 'error' });
       }
    };
 
@@ -252,7 +503,16 @@ export const ClientesView = () => {
                   <td className="px-6 py-4"><span className="text-emerald-500 text-xs uppercase font-bold">{c.status || 'Active'}</span></td>
                   <td className="px-6 py-4">
                      <EditButton onClick={() => { setEditingItem(c); setIsModalOpen(true); }} />
-                     <DeleteButton onClick={() => { if (confirm('¿Eliminar cliente?')) deleteItem(c.id); }} />
+                     <DeleteButton onClick={async () => {
+                        if (confirm('¿Eliminar cliente?')) {
+                           try {
+                              await deleteItem(c.id);
+                              addToast({ title: 'Cliente Eliminado', description: 'El cliente se ha eliminado correctamente.', type: 'success' });
+                           } catch (err: any) {
+                              addToast({ title: 'Error al Eliminar', description: 'No se puede eliminar porque tiene historial (reservas) asociado. Prueba a cambiar su estado a "Inactive".', type: 'error' });
+                           }
+                        }
+                     }} />
                   </td>
                </tr>
             )}
