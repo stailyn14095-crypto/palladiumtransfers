@@ -273,6 +273,13 @@ export const useBooking = (language: string = 'es') => {
             const startY = 70;
             const lineSpacing = 10;
 
+            const rawNotes = booking.notes || '';
+            const extrasMatch = rawNotes.match(/Extras: (.*?)\./);
+            const extrasText = extrasMatch ? extrasMatch[1] : 'Ninguno';
+
+            const userNotesMatch = rawNotes.match(/Notas: (.*)/);
+            const userNotesText = userNotesMatch ? userNotesMatch[1] : 'Sin notas adicionales';
+
             const details = [
                 ['Referencia:', booking.id?.substring(0, 8).toUpperCase() || 'PENDIENTE'],
                 ['Pasajero:', booking.passenger],
@@ -284,8 +291,9 @@ export const useBooking = (language: string = 'es') => {
                 ['Hora:', booking.pickup_time],
                 ['Vuelo:', booking.flight_number || 'N/A'],
                 ['Dirección:', booking.pickup_address || 'Punto de encuentro estándar'],
+                ['Extras:', extrasText],
                 ['Precio:', `${booking.price}€`],
-                ['Notas:', booking.notes?.split('Notas: ')[1] || 'Sin notas adicionales']
+                ['Notas:', userNotesText]
             ];
 
             details.forEach((detail, i) => {
