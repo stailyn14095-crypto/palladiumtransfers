@@ -284,36 +284,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                             </div>
                                         </div>
                                     ))
-                                ) : vehicles.length > 0 ? (
-                                    vehicles.filter((v, i, a) => a.findIndex(t => (t.model === v.model)) === i).map((car, idx) => (
-                                        <div key={idx} className="group relative rounded-[2.5rem] overflow-hidden bg-brand-charcoal/20 border border-white/5 p-6 transition-all hover:bg-brand-charcoal/40 hover:border-brand-platinum/20">
-                                            <div className="relative rounded-[2.5rem] overflow-hidden aspect-[4/3] mb-8 shadow-2xl bg-brand-black border border-white/5">
-                                                {car.image_url ? (
-                                                    <img src={car.image_url} alt={car.model} className="absolute inset-0 w-full h-full object-cover transition-all duration-1000 group-hover:scale-105" />
-                                                ) : (
-                                                    <div className="absolute inset-0 flex items-center justify-center text-brand-charcoal">
-                                                        <span className="material-icons-round text-6xl">local_taxi</span>
-                                                    </div>
-                                                )}
-                                                <div className="absolute top-6 left-6">
-                                                    <span className="bg-brand-black/80 backdrop-blur-md text-[9px] font-bold uppercase py-2 px-5 rounded-full border border-white/10 tracking-[0.3em]">
-                                                        {car.model.toLowerCase().includes('class s') || car.model.toLowerCase().includes('luxury') ? 'Luxury' : 'Premium'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="px-4">
-                                                <h3 className="text-2xl font-light text-white mb-6 uppercase tracking-tighter group-hover:platinum-text transition-all">
-                                                    {car.model}
-                                                </h3>
-                                                <div className="flex flex-wrap gap-3">
-                                                    <span className="text-[8px] font-bold text-brand-platinum border border-brand-platinum/20 py-1.5 px-4 rounded-full uppercase tracking-widest">Model {car.year}</span>
-                                                    <span className="text-[8px] font-bold text-brand-platinum border border-brand-platinum/20 py-1.5 px-4 rounded-full uppercase tracking-widest italic">ECO Certified</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
                                 ) : (
-                                    <p className="text-center text-slate-500 col-span-3 py-20 italic">No professional vehicles available.</p>
+                                    <div className="col-span-3 text-center bg-brand-charcoal/20 border border-white/5 rounded-[2.5rem] p-20 transition-all hover:bg-brand-charcoal/30">
+                                        <span className="material-icons-round text-6xl text-brand-platinum/30 mb-8 block">time_to_leave</span>
+                                        <h3 className="text-3xl font-light text-white uppercase tracking-widest mb-4">Información Próximamente</h3>
+                                        <p className="text-slate-400 font-light text-lg italic max-w-2xl mx-auto leading-relaxed">
+                                            {language === 'es'
+                                                ? 'Estamos actualizando esta sección. Pronto publicaremos información detallada e imágenes de nuestra moderna flota.'
+                                                : 'We are updating this section. Soon we will publish detailed information and images of our modern fleet.'}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         </section>
@@ -326,28 +306,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                     <h2 className="text-5xl lg:text-6xl font-light text-white tracking-tighter uppercase">{t.testimonials_title}</h2>
                                 </div>
 
-                                <div className="grid lg:grid-cols-3 gap-12">
-                                    {[
-                                        { name: 'Ricardo S.', role: 'Director Comercial', text: language === 'es' ? 'Puntualidad británica y un trato exquisito. El vehículo estaba en condiciones inmejorables.' : 'British punctuality and exquisite treatment. The vehicle was in unbeatable condition.' },
-                                        { name: 'Elena M.', role: 'Event Planner', text: language === 'es' ? 'Coordinar traslados con Palladium es sinónimo de tranquilidad. Profesionalidad en cada detalle.' : 'Coordinating transfers with Palladium is synonymous with peace of mind. Professionalism in every detail.' },
-                                        { name: 'Thomas K.', role: 'VIP Traveler', text: 'The best transfer service in Mallorca. Professional drivers and premium cars. 100% recommended.' }
-                                    ].map((testi, idx) => (
-                                        <div key={idx} className="bg-brand-charcoal/10 p-14 rounded-[3rem] border border-white/5 transition-all group hover:bg-brand-charcoal/30">
-                                            <div className="flex gap-1.5 text-brand-platinum/40 mb-12">
-                                                {[1, 2, 3, 4, 5].map(s => <span key={s} className="material-icons-round text-xs">star</span>)}
-                                            </div>
-                                            <p className="text-xl text-slate-400 font-light italic mb-16 leading-relaxed group-hover:text-white transition-colors">"{testi.text}"</p>
-                                            <div className="flex items-center gap-6">
-                                                <div className="w-14 h-14 rounded-2xl bg-brand-charcoal border border-white/5 flex items-center justify-center font-bold text-brand-platinum text-lg">
-                                                    {testi.name[0]}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-white uppercase text-xs tracking-widest">{testi.name}</h4>
-                                                    <p className="text-[10px] text-brand-platinum/50 font-bold uppercase tracking-[0.3em] mt-1">{testi.role}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="grid lg:grid-cols-1 gap-12 max-w-4xl mx-auto">
+                                    <div className="bg-brand-charcoal/10 p-20 rounded-[3rem] border border-white/5 text-center transition-all hover:bg-brand-charcoal/20">
+                                        <span className="material-icons-round text-6xl text-brand-platinum/30 mb-8 block">feedback</span>
+                                        <h3 className="text-3xl font-light text-white uppercase tracking-widest mb-6">
+                                            {language === 'es' ? 'Novedades y Anuncios' : 'News & Announcements'}
+                                        </h3>
+                                        <p className="text-slate-400 font-light text-lg italic leading-relaxed max-w-2xl mx-auto">
+                                            {language === 'es'
+                                                ? 'En breve utilizaremos este espacio para compartir nueva información, ventajas y detalles exclusivos con nuestros clientes.'
+                                                : 'We will soon use this space to share new information, benefits, and exclusive details with our clients.'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </section>
