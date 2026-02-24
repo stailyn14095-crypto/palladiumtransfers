@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
+import { supabase } from '../services/supabase';
 
 export const ConfiguracionView = () => {
     const { data: settings, loading, updateItem } = useSupabaseData('system_settings');
@@ -21,6 +22,14 @@ export const ConfiguracionView = () => {
         const setting = settings?.find((s: any) => s.key === key);
         if (setting) {
             await updateItem(setting.id, { value, updated_at: new Date().toISOString() });
+        } else {
+            // If the setting doesn't exist in the DB yet, insert it.
+            await supabase.from('system_settings').insert({
+                key,
+                value,
+                description: 'Añadido desde Configuración'
+            });
+            // We could refresh but useSupabaseData uses a realtime sub usually or we can just let it be
         }
         setSaving(false);
     };
@@ -139,10 +148,23 @@ export const ConfiguracionView = () => {
                                     />
                                 </div>
                             </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Multiplicador Reserva Ida y Vuelta</label>
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    value={localSettings.round_trip_multiplier || '1.8'}
+                                    onChange={(e) => handleChange('round_trip_multiplier', e.target.value)}
+                                    onBlur={(e) => handleSave('round_trip_multiplier', e.target.value)}
+                                    className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                    placeholder="Ej: 1.8 (10% Dto), 2.0 (Sin Dto)"
+                                />
+                                <p className="text-[10px] text-brand-platinum/30 mt-2 italic">Multiplicador que se aplicará al precio base de la ida para calcular el total de la reserva de ida y vuelta. Por defecto 1.8 (lo que equivale a un 10% de descuento).</p>
+                            </div>
                         </div>
 
                         {saving && (
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-brand-gold flex items-center gap-2">
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-brand-gold flex items-center gap-2 mt-4">
                                 <span className="material-icons-round animate-spin text-sm">sync</span>
                                 Guardando cambios...
                             </div>

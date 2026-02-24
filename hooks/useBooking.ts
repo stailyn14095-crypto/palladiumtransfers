@@ -33,6 +33,7 @@ export const useBooking = (language: string = 'es') => {
     const [destinations, setDestinations] = useState<string[]>([]);
     const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
     const [maxCapacity, setMaxCapacity] = useState<number>(8);
+    const [roundTripMultiplier, setRoundTripMultiplier] = useState<number>(1.8);
 
     const [formData, setFormData] = useState<BookingFormData>({
         tripType: 'One Way',
@@ -60,7 +61,7 @@ export const useBooking = (language: string = 'es') => {
 
     useEffect(() => {
         calculatePrice();
-    }, [formData.origin, formData.destination, tariffs, formData.tripType, selectedExtras, formData.vehicleModel]);
+    }, [formData.origin, formData.destination, tariffs, formData.tripType, selectedExtras, formData.vehicleModel, roundTripMultiplier]);
 
     // Update destinations when origin changes
     useEffect(() => {
@@ -92,7 +93,7 @@ export const useBooking = (language: string = 'es') => {
                 const cls = (t.class || 'Standard').trim();
                 const price = parseFloat(t.base_price || t.price || 0);
                 let displayPrice = price;
-                if (formData.tripType === 'Round Trip') displayPrice = price * 1.8;
+                if (formData.tripType === 'Round Trip') displayPrice = price * roundTripMultiplier;
 
                 if (!vehiclesMap.has(cls) || vehiclesMap.get(cls).price > price) {
                     vehiclesMap.set(cls, { id: cls, price: displayPrice });
@@ -109,14 +110,15 @@ export const useBooking = (language: string = 'es') => {
         } else {
             setAvailableVehicles([]);
         }
-    }, [formData.origin, formData.destination, tariffs, formData.tripType]);
+    }, [formData.origin, formData.destination, tariffs, formData.tripType, roundTripMultiplier]);
 
     async function fetchInitialData(signal?: AbortSignal) {
         console.log('useBooking: fetchInitialData started');
         try {
-            const [tariffsRes, extrasRes] = await Promise.all([
+            const [tariffsRes, extrasRes, settingsRes] = await Promise.all([
                 supabase.from('tariffs').select('*').abortSignal(signal),
-                supabase.from('service_extras').select('*').abortSignal(signal)
+                supabase.from('service_extras').select('*').abortSignal(signal),
+                supabase.from('system_settings').select('key, value').eq('key', 'round_trip_multiplier').abortSignal(signal)
             ]);
 
             if (tariffsRes.error) {
@@ -143,6 +145,14 @@ export const useBooking = (language: string = 'es') => {
                 console.error('useBooking: Error fetching extras:', extrasRes.error);
             }
             if (extrasRes.data) setAvailableExtras(extrasRes.data);
+
+            if (settingsRes && settingsRes.data && settingsRes.data.length > 0) {
+                const multiplierStr = settingsRes.data[0].value;
+                const multiplier = parseFloat(multiplierStr);
+                if (!isNaN(multiplier)) {
+                    setRoundTripMultiplier(multiplier);
+                }
+            }
 
             // Fetch Maximum Capacity from Vehicles
             const { data: vehiclesData } = await supabase.from('vehicles').select('capacity');
@@ -176,7 +186,7 @@ export const useBooking = (language: string = 'es') => {
 
         if (match) {
             totalPrice = parseFloat(match.base_price || match.price || 0);
-            if (formData.tripType === 'Round Trip') totalPrice *= 1.8;
+            if (formData.tripType === 'Round Trip') totalPrice *= roundTripMultiplier;
         } else {
             setEstimatedPrice(null);
             return;
