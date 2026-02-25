@@ -68,12 +68,19 @@ export default function App() {
   useEffect(() => {
     console.log("App: useEffect start");
 
-    // Failsafe timeout in case Supabase hangs (8s for production cold starts)
+    // Failsafe timeout in case Supabase hangs
     const failsafe = setTimeout(() => {
       console.log("App: failsafe triggered");
+      setUserRole(prev => {
+        if (!prev) {
+          setCurrentView(ViewState.CLIENT_PORTAL);
+          return 'client';
+        }
+        return prev;
+      });
       setLoading(false);
-      setRoleReady(true); // unblock rendering even if role fetch fails
-    }, 8000);
+      setRoleReady(true);
+    }, 15000); // Increased timeout to accommodate Supabase cold starts
 
     const checkSession = async () => {
       try {
@@ -93,6 +100,9 @@ export default function App() {
       } catch (err: any) {
         if (err.name === 'AbortError' || err.message?.includes('aborted')) return;
         console.error('Error checking session:', err);
+        // Ensure state is unblocked on error
+        setUserRole(prev => prev || 'client');
+        setCurrentView(ViewState.CLIENT_PORTAL);
       } finally {
         setLoading(false);
         clearTimeout(failsafe);
