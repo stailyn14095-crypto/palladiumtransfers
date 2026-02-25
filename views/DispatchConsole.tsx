@@ -105,18 +105,18 @@ export const DispatchConsole: React.FC = () => {
    return (
       <div className="flex flex-col h-full bg-brand-black text-slate-200">
          {/* Header */}
-         <header className="h-20 shrink-0 bg-brand-charcoal border-b border-white/5 flex items-center justify-between px-8 z-20 shadow-xl">
-            <div className="flex items-center gap-6">
+         <header className="min-h-[5rem] shrink-0 bg-brand-charcoal border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-8 py-4 md:py-0 z-20 shadow-xl gap-4 md:gap-0">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full md:w-auto">
                <div>
-                  <h1 className="text-xl font-black text-white leading-tight tracking-tight">Consola de Despacho</h1>
+                  <h1 className="text-lg md:text-xl font-black text-white leading-tight tracking-tight">Consola de Despacho</h1>
                   <p className="text-[10px] text-brand-gold font-black uppercase tracking-widest">Operaciones en Tiempo Real</p>
                </div>
-               <div className="h-10 bg-brand-black rounded-xl flex items-center p-1 border border-white/5 ml-6">
+               <div className="h-10 bg-brand-black rounded-xl flex items-center p-1 border border-white/5 sm:ml-6 w-full sm:w-auto justify-between sm:justify-center">
                   <button onClick={handlePrevDay} className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-platinum/50 hover:text-white transition-all hover:bg-white/5">
                      <span className="material-icons-round text-sm">chevron_left</span>
                   </button>
-                  <span className="px-6 text-xs font-black text-white flex items-center gap-3 uppercase tracking-wider">
-                     <span className="material-icons-round text-base text-brand-gold">calendar_today</span>
+                  <span className="px-2 sm:px-6 text-[10px] sm:text-xs font-black text-white flex items-center gap-1 sm:gap-3 uppercase tracking-wider">
+                     <span className="material-icons-round text-sm sm:text-base text-brand-gold">calendar_today</span>
                      {new Date(selectedDate).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
                   </span>
                   <button onClick={handleNextDay} className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-platinum/50 hover:text-white transition-all hover:bg-white/5">
@@ -124,8 +124,8 @@ export const DispatchConsole: React.FC = () => {
                   </button>
                </div>
             </div>
-            <div className="flex items-center gap-4">
-               <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-3">
+            <div className="flex items-center gap-4 w-full md:w-auto mt-2 md:mt-0">
+               <div className="w-full md:w-auto px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                   <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{filteredDrivers.length} Conductores Activos</span>
                </div>
@@ -133,19 +133,19 @@ export const DispatchConsole: React.FC = () => {
          </header>
 
          {/* Main Content */}
-         <div className="flex-1 flex overflow-hidden">
+         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {/* Drivers List */}
-            <div className="w-72 shrink-0 bg-brand-charcoal border-r border-white/5 flex flex-col z-20 shadow-2xl">
-               <div className="p-4 border-b border-white/5 bg-brand-charcoal/80">
+            <div className="w-full md:w-72 shrink-0 bg-brand-charcoal border-b md:border-b-0 md:border-r border-white/5 flex flex-col z-20 shadow-2xl md:h-full max-h-[30vh] md:max-h-none">
+               <div className="p-3 md:p-4 border-b border-white/5 bg-brand-charcoal/80">
                   <input
                      type="text"
                      placeholder="Buscar flota..."
                      value={searchQuery}
                      onChange={(e) => setSearchQuery(e.target.value)}
-                     className="w-full bg-brand-black border border-white/5 rounded-xl py-2.5 px-4 text-xs text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                     className="w-full bg-brand-black border border-white/5 rounded-xl py-2 px-3 md:py-2.5 md:px-4 text-xs text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   />
                </div>
-               <div className="flex-1 overflow-y-auto custom-scrollbar">
+               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col md:block">
                   {loadingDrivers ? (
                      <div className="p-8 text-center text-brand-platinum/30 text-xs font-bold animate-pulse">Sincronizando flota...</div>
                   ) : filteredDrivers.length === 0 ? (
@@ -154,18 +154,18 @@ export const DispatchConsole: React.FC = () => {
                         <p className="text-xs text-brand-platinum/30 font-bold uppercase tracking-tighter">Sin servicios asignados</p>
                      </div>
                   ) : filteredDrivers.map((d: any) => (
-                     <div key={d.id} className="h-24 px-5 border-b border-white/5/50 flex items-center gap-4 hover:bg-blue-600/5 cursor-pointer transition-all group">
+                     <div key={d.id} className="h-20 md:h-24 px-4 md:px-5 border-b border-white/5/50 flex items-center gap-3 md:gap-4 hover:bg-blue-600/5 cursor-pointer transition-all group min-w-max md:min-w-0">
                         <div className="relative">
-                           <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white font-black text-lg ring-2 ring-white/5 group-hover:ring-blue-500 transition-all">
+                           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white font-black text-base md:text-lg ring-2 ring-white/5 group-hover:ring-blue-500 transition-all">
                               {d.name.charAt(0)}
                            </div>
-                           <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-lg border-2 border-[#1a2533] bg-emerald-500 shadow-lg"></span>
+                           <span className="absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 rounded-lg border-2 border-[#1a2533] bg-emerald-500 shadow-lg"></span>
                         </div>
                         <div className="flex-1 min-w-0">
-                           <h3 className="text-sm font-black text-white truncate leading-tight mb-0.5">{d.name}</h3>
-                           <p className="text-[10px] text-brand-platinum/30 font-bold uppercase tracking-tight">{d.license || 'VTC Profesional'}</p>
-                           <div className="flex items-center gap-2 mt-2">
-                              <span className="text-[9px] font-black text-brand-gold bg-blue-400/10 px-1.5 py-0.5 rounded-md border border-blue-400/20 uppercase tracking-tighter">
+                           <h3 className="text-xs md:text-sm font-black text-white truncate leading-tight mb-0.5">{d.name}</h3>
+                           <p className="text-[9px] md:text-[10px] text-brand-platinum/30 font-bold uppercase tracking-tight">{d.license || 'VTC Profesional'}</p>
+                           <div className="flex items-center gap-2 mt-1 md:mt-2">
+                              <span className="text-[8px] md:text-[9px] font-black text-brand-gold bg-blue-400/10 px-1.5 py-0.5 rounded-md border border-blue-400/20 uppercase tracking-tighter">
                                  {filteredBookings.filter(b => b.driver_id === d.id).length} Viajes
                               </span>
                            </div>
@@ -263,77 +263,81 @@ export const DispatchConsole: React.FC = () => {
 
             {/* Sidebar Detail (Conditional) */}
             {selectedBooking && (
-               <div className="w-96 bg-brand-charcoal border-l border-white/5 h-full absolute right-0 top-0 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-40 flex flex-col animate-in slide-in-from-right duration-300">
-                  <div className="p-8 border-b border-white/5 bg-brand-charcoal/80">
-                     <div className="flex justify-between items-start mb-6">
-                        <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedBooking.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-brand-gold'
-                           }`}>
-                           {selectedBooking.status}
+               <>
+                  {/* Backdrop for mobile */}
+                  <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSelectedBooking(null)}></div>
+                  <div className="w-[85vw] max-w-sm md:w-96 bg-brand-charcoal border-l border-white/5 h-full absolute right-0 top-0 shadow-[-20px_0_50px_rgba(0,0,0,0.5)] z-40 flex flex-col animate-[slideIn_0.3s_ease-out]">
+                     <div className="p-8 border-b border-white/5 bg-brand-charcoal/80">
+                        <div className="flex justify-between items-start mb-6">
+                           <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedBooking.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-brand-gold'
+                              }`}>
+                              {selectedBooking.status}
+                           </div>
+                           <button onClick={() => setSelectedBooking(null)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-brand-platinum/50 hover:text-white transition-all">
+                              <span className="material-icons-round">close</span>
+                           </button>
                         </div>
-                        <button onClick={() => setSelectedBooking(null)} className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-brand-platinum/50 hover:text-white transition-all">
-                           <span className="material-icons-round">close</span>
-                        </button>
+                        <h2 className="text-2xl font-black text-white mb-1 tracking-tighter">{selectedBooking.passenger}</h2>
+                        <p className="text-xs text-brand-platinum/30 font-bold uppercase tracking-widest">Reserva #{selectedBooking.id.slice(0, 8)}</p>
                      </div>
-                     <h2 className="text-2xl font-black text-white mb-1 tracking-tighter">{selectedBooking.passenger}</h2>
-                     <p className="text-xs text-brand-platinum/30 font-bold uppercase tracking-widest">Reserva #{selectedBooking.id.slice(0, 8)}</p>
-                  </div>
 
-                  <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar bg-brand-charcoal">
-                     <div className="space-y-6">
-                        <div className="flex items-start gap-4">
-                           <div className="w-10 h-10 rounded-2xl bg-blue-600/20 flex items-center justify-center text-brand-gold shrink-0">
-                              <span className="material-icons-round">schedule</span>
-                           </div>
-                           <div>
-                              <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Cita Programada</p>
-                              <p className="text-sm font-bold text-white">{selectedBooking.pickup_date} @ {selectedBooking.pickup_time}h</p>
-                           </div>
-                        </div>
-
-                        <div className="flex items-start gap-4">
-                           <div className="w-10 h-10 rounded-2xl bg-emerald-600/20 flex items-center justify-center text-emerald-400 shrink-0">
-                              <span className="material-icons-round">route</span>
-                           </div>
-                           <div className="space-y-3">
-                              <div>
-                                 <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Recogida</p>
-                                 <p className="text-sm font-bold text-white">{selectedBooking.origin}</p>
-                                 <p className="text-[11px] text-brand-platinum/50 mt-1">{selectedBooking.origin_address}</p>
-                              </div>
-                              <div className="w-px h-6 bg-slate-800 ml-1"></div>
-                              <div>
-                                 <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Destino</p>
-                                 <p className="text-sm font-bold text-white">{selectedBooking.destination}</p>
-                                 <p className="text-[11px] text-brand-platinum/50 mt-1">{selectedBooking.destination_address}</p>
-                              </div>
-                           </div>
-                        </div>
-
-                        {selectedBooking.flight_number && (
+                     <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar bg-brand-charcoal">
+                        <div className="space-y-6">
                            <div className="flex items-start gap-4">
-                              <div className="w-10 h-10 rounded-2xl bg-purple-600/20 flex items-center justify-center text-purple-400 shrink-0">
-                                 <span className="material-icons-round">flight_takeoff</span>
+                              <div className="w-10 h-10 rounded-2xl bg-blue-600/20 flex items-center justify-center text-brand-gold shrink-0">
+                                 <span className="material-icons-round">schedule</span>
                               </div>
                               <div>
-                                 <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Seguimiento de Vuelo</p>
-                                 <p className="text-sm font-bold text-white">{selectedBooking.flight_number}</p>
+                                 <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Cita Programada</p>
+                                 <p className="text-sm font-bold text-white">{selectedBooking.pickup_date} @ {selectedBooking.pickup_time}h</p>
                               </div>
+                           </div>
+
+                           <div className="flex items-start gap-4">
+                              <div className="w-10 h-10 rounded-2xl bg-emerald-600/20 flex items-center justify-center text-emerald-400 shrink-0">
+                                 <span className="material-icons-round">route</span>
+                              </div>
+                              <div className="space-y-3">
+                                 <div>
+                                    <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Recogida</p>
+                                    <p className="text-sm font-bold text-white">{selectedBooking.origin}</p>
+                                    <p className="text-[11px] text-brand-platinum/50 mt-1">{selectedBooking.origin_address}</p>
+                                 </div>
+                                 <div className="w-px h-6 bg-slate-800 ml-1"></div>
+                                 <div>
+                                    <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Destino</p>
+                                    <p className="text-sm font-bold text-white">{selectedBooking.destination}</p>
+                                    <p className="text-[11px] text-brand-platinum/50 mt-1">{selectedBooking.destination_address}</p>
+                                 </div>
+                              </div>
+                           </div>
+
+                           {selectedBooking.flight_number && (
+                              <div className="flex items-start gap-4">
+                                 <div className="w-10 h-10 rounded-2xl bg-purple-600/20 flex items-center justify-center text-purple-400 shrink-0">
+                                    <span className="material-icons-round">flight_takeoff</span>
+                                 </div>
+                                 <div>
+                                    <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-1">Seguimiento de Vuelo</p>
+                                    <p className="text-sm font-bold text-white">{selectedBooking.flight_number}</p>
+                                 </div>
+                              </div>
+                           )}
+                        </div>
+
+                        {selectedBooking.notes && (
+                           <div className="p-4 bg-brand-black rounded-2xl border border-white/5">
+                              <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-2">Observaciones</p>
+                              <p className="text-xs text-slate-300 font-medium leading-relaxed">{selectedBooking.notes}</p>
                            </div>
                         )}
                      </div>
 
-                     {selectedBooking.notes && (
-                        <div className="p-4 bg-brand-black rounded-2xl border border-white/5">
-                           <p className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest mb-2">Observaciones</p>
-                           <p className="text-xs text-slate-300 font-medium leading-relaxed">{selectedBooking.notes}</p>
-                        </div>
-                     )}
+                     <div className="p-8 border-t border-white/5 bg-brand-charcoal/80 flex gap-4">
+                        <button className="flex-1 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all active:scale-95">Imprimir Hoja de Ruta</button>
+                     </div>
                   </div>
-
-                  <div className="p-8 border-t border-white/5 bg-brand-charcoal/80 flex gap-4">
-                     <button className="flex-1 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all active:scale-95">Imprimir Hoja de Ruta</button>
-                  </div>
-               </div>
+               </>
             )}
          </div>
       </div>

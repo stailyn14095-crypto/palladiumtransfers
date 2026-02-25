@@ -3,20 +3,20 @@ import React from 'react';
 export const ApiConfigView: React.FC = () => {
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
-         <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+         <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
             <div>
                <h1 className="text-xl font-bold text-white tracking-tight">Integraciones API</h1>
                <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">Gestión de conexiones con terceros</p>
             </div>
-            <button className="px-4 py-2 bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95">Guardar Cambios</button>
+            <button className="w-full md:w-auto px-4 py-2 flex justify-center bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold shadow-lg transition-all active:scale-95">Guardar Cambios</button>
          </header>
 
-         <div className="p-8 overflow-y-auto max-w-5xl mx-auto w-full custom-scrollbar">
+         <div className="p-4 md:p-8 overflow-y-auto max-w-5xl mx-auto w-full custom-scrollbar">
             <div className="grid gap-6">
 
                {/* Government Integration */}
                <div className="bg-brand-charcoal border border-white/5 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-2">
                            <span className="material-icons-round text-slate-900 text-2xl">account_balance</span>
@@ -48,7 +48,7 @@ export const ApiConfigView: React.FC = () => {
 
                {/* Booking.com */}
                <div className="bg-brand-charcoal border border-white/5 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-[#003580] rounded-lg flex items-center justify-center p-2">
                            <span className="font-bold text-white text-xl">B.</span>
@@ -79,7 +79,7 @@ export const ApiConfigView: React.FC = () => {
 
                {/* AENA */}
                <div className="bg-brand-charcoal border border-white/5 rounded-2xl p-6 opacity-75 shadow-xl relative overflow-hidden group">
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center p-2">
                            <span className="material-icons-round text-slate-900 text-2xl">flight</span>

@@ -101,16 +101,16 @@ export const ExperienceConfig: React.FC = () => {
    return (
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-[#0a0a0a]">
          {/* Header */}
-         <header className="h-20 bg-brand-charcoal border-b border-white/5 flex items-center justify-between px-6 lg:px-10 shrink-0 z-10">
+         <header className="min-h-[5rem] bg-brand-charcoal border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 lg:px-10 py-4 md:py-0 shrink-0 z-10 gap-4 md:gap-0">
             <div className="flex flex-col">
                <h1 className="text-xl font-bold text-white">Configuración Operativa</h1>
                <p className="text-xs text-brand-platinum/50">Datos Fiscales, Reglas VTC y Personalización</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 w-full md:w-auto">
                <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="bg-brand-gold hover:bg-[#B3932F] text-brand-black px-6 py-2 rounded-full font-bold transition-colors shadow-lg flex items-center gap-2 disabled:opacity-50"
+                  className="w-full md:w-auto justify-center bg-brand-gold hover:bg-[#B3932F] text-brand-black px-6 py-2 rounded-full font-bold transition-colors shadow-lg flex items-center gap-2 disabled:opacity-50"
                >
                   {saving ? (
                      <span className="w-5 h-5 border-2 border-brand-black/30 border-t-brand-black rounded-full animate-spin"></span>
@@ -122,7 +122,7 @@ export const ExperienceConfig: React.FC = () => {
             </div>
          </header>
 
-         <div className="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth custom-scrollbar">
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-10 scroll-smooth custom-scrollbar">
             <div className="max-w-7xl mx-auto space-y-8">
 
                {/* Datos Fiscales */}

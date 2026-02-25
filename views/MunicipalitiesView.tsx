@@ -292,20 +292,20 @@ export const MunicipalitiesView: React.FC = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
-            <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+            <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
                 <div>
                     <h1 className="text-xl font-bold text-white">Municipios y Puntos</h1>
                     <p className="text-xs text-slate-500">Base de datos del Ministerio de Fomento + Personalizados</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3 w-full md:w-auto">
                     <button
                         onClick={() => setIsAdding(true)}
-                        className="px-4 py-2 bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                        className="flex-1 md:flex-none justify-center px-4 py-2 bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
                     >
                         <span className="material-icons-round text-sm">add</span> Crear Nuevo
                     </button>
-                    <div className="relative">
-                        <label htmlFor="file-upload" className={`px-4 py-2 ${importing ? 'bg-slate-600' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/40 transition-all cursor-pointer active:scale-95`}>
+                    <div className="relative flex-1 md:flex-none">
+                        <label htmlFor="file-upload" className={`w-full justify-center px-4 py-2 ${importing ? 'bg-slate-600' : 'bg-emerald-600 hover:bg-emerald-700'} text-white rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/40 transition-all cursor-pointer active:scale-95`}>
                             {importing ? (
                                 <>
                                     <span className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></span>
@@ -322,10 +322,10 @@ export const MunicipalitiesView: React.FC = () => {
                 </div>
             </header>
 
-            <div className="p-8 overflow-y-auto">
-                <div className="mb-6 flex gap-4">
+            <div className="p-4 md:p-8 overflow-y-auto w-full">
+                <div className="mb-6 flex flex-col md:flex-row gap-4">
                     {/* Checkbox or filter for types? Maybe later if requested. */}
-                    <div className="relative max-w-md flex-1">
+                    <div className="relative w-full md:max-w-md md:flex-1">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 material-icons-round text-sm">search</span>
                         <input
                             type="text"
@@ -339,7 +339,7 @@ export const MunicipalitiesView: React.FC = () => {
                     <select
                         value={selectedRegion}
                         onChange={(e) => setSelectedRegion(e.target.value)}
-                        className="bg-brand-black border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-gold transition-colors cursor-pointer"
+                        className="w-full md:w-auto bg-brand-black border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-gold transition-colors cursor-pointer"
                     >
                         {regions.map(r => (
                             <option key={r.code} value={r.code} className="bg-brand-black text-white">{r.name}</option>
@@ -349,7 +349,7 @@ export const MunicipalitiesView: React.FC = () => {
                     <select
                         value={selectedProvince}
                         onChange={(e) => setSelectedProvince(e.target.value)}
-                        className="bg-brand-black border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-gold transition-colors cursor-pointer"
+                        className="w-full md:w-auto bg-brand-black border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-gold transition-colors cursor-pointer"
                     >
                         {availableProvinces.map(p => (
                             <option key={p.code} value={p.code} className="bg-brand-black text-white">{p.name}</option>
@@ -363,48 +363,52 @@ export const MunicipalitiesView: React.FC = () => {
                         Cargando base de datos...
                     </div>
                 ) : (
-                    <div className="bg-brand-black border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-brand-charcoal text-brand-platinum/50 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
-                                    <th className="px-6 py-4">Tipo</th>
-                                    <th className="px-6 py-4">Provincia (CPRO)</th>
-                                    <th className="px-6 py-4">Municipio (CMUN)</th>
-                                    <th className="px-6 py-4">Nombre</th>
-                                    <th className="px-6 py-4 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800 text-sm">
-                                {filtered.length > 0 ? filtered.map((m: any) => (
-                                    <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-3">
-                                            <div className="flex items-center gap-2" title={m.type || 'municipio'}>
-                                                <span className={`material - icons - round text - lg ${getTypeColor(m.type || 'municipio')} `}>
-                                                    {getTypeIcon(m.type || 'municipio')}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3 font-mono text-slate-400">{m.cod_prov}</td>
-                                        <td className="px-6 py-3 font-mono text-blue-400 font-bold">{m.cod_mun}</td>
-                                        <td className="px-6 py-3 text-white font-medium">{m.name}</td>
-                                        <td className="px-6 py-3 text-right">
-                                            <button
-                                                onClick={() => { if (confirm('¿Eliminar?')) deleteItem(m.id); }}
-                                                className="text-slate-500 hover:text-red-400 transition-colors"
-                                            >
-                                                <span className="material-icons-round text-sm">delete</span>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan={5} className="p-10 text-center text-slate-500">
-                                            {municipalities?.length === 0 ? 'No hay registros para esta selección.' : 'No se encontraron resultados.'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                    <div className="bg-brand-black border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
+                        <div className="overflow-x-auto custom-scrollbar w-full">
+                            <div className="min-w-[800px]">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="bg-brand-charcoal text-brand-platinum/50 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+                                            <th className="px-6 py-4">Tipo</th>
+                                            <th className="px-6 py-4">Provincia (CPRO)</th>
+                                            <th className="px-6 py-4">Municipio (CMUN)</th>
+                                            <th className="px-6 py-4">Nombre</th>
+                                            <th className="px-6 py-4 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800 text-sm">
+                                        {filtered.length > 0 ? filtered.map((m: any) => (
+                                            <tr key={m.id} className="hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-3">
+                                                    <div className="flex items-center gap-2" title={m.type || 'municipio'}>
+                                                        <span className={`material - icons - round text - lg ${getTypeColor(m.type || 'municipio')} `}>
+                                                            {getTypeIcon(m.type || 'municipio')}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 font-mono text-slate-400">{m.cod_prov}</td>
+                                                <td className="px-6 py-3 font-mono text-blue-400 font-bold">{m.cod_mun}</td>
+                                                <td className="px-6 py-3 text-white font-medium">{m.name}</td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <button
+                                                        onClick={() => { if (confirm('¿Eliminar?')) deleteItem(m.id); }}
+                                                        className="text-slate-500 hover:text-red-400 transition-colors bg-transparent border-none p-2 rounded-lg hover:bg-red-400/10 active:bg-red-400/20"
+                                                    >
+                                                        <span className="material-icons-round text-sm">delete</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan={5} className="p-10 text-center text-slate-500">
+                                                    {municipalities?.length === 0 ? 'No hay registros para esta selección.' : 'No se encontraron resultados.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -428,7 +432,7 @@ export const MunicipalitiesView: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tipo</label>
                                     <select
@@ -510,7 +514,7 @@ export const MunicipalitiesView: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Cod. Mun (CMUN)</label>
                                     <input
@@ -521,7 +525,7 @@ export const MunicipalitiesView: React.FC = () => {
                                         onChange={e => setNewMuni({ ...newMuni, cod_mun: e.target.value })}
                                     />
                                 </div>
-                                <div className="flex flex-col justify-end">
+                                <div className="flex flex-col sm:justify-end">
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">DC</label>
                                     <input
                                         type="text"

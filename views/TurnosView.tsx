@@ -302,26 +302,26 @@ export const TurnosView: React.FC = () => {
 
    return (
       <div className="flex-1 flex flex-col h-full bg-[#101822] overflow-hidden">
-         <header className="h-20 border-b border-slate-800 bg-[#1a2533] px-8 flex items-center justify-between shrink-0">
+         <header className="min-h-[5rem] border-b border-slate-800 bg-[#1a2533] px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
             <div>
                <h1 className="text-xl font-bold text-white">Turnos y Planificación</h1>
                <p className="text-xs text-slate-500">Gestión de Cuadrantes y Asignación</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
                <button
                   onClick={() => {
                      setBulkData({ driverIds: [], type: '', vehicle_id: '', daysOff: [0, 6], hours: '' }); // Default Sat/Sun off
                      setIsBulkModalOpen(true);
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-900/20 transition-all"
+                  className="flex justify-center items-center gap-2 px-4 py-2 md:py-0 h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-900/20 transition-all w-full md:w-auto"
                >
                   <span className="material-icons-round text-sm">auto_fix_high</span>
                   Planificar Mes
                </button>
-               <div className="flex bg-[#101822] p-1 rounded-lg border border-slate-700">
-                  <button onClick={() => setActiveTab('daily')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'daily' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Registro Diario</button>
-                  <button onClick={() => setActiveTab('monthly')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Planificador Mensual</button>
-                  <button onClick={() => setActiveTab('config')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'config' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Configuración</button>
+               <div className="flex bg-[#101822] p-1 rounded-lg border border-slate-700 overflow-x-auto custom-scrollbar w-full md:w-auto">
+                  <button onClick={() => setActiveTab('daily')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'daily' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Registro Diario</button>
+                  <button onClick={() => setActiveTab('monthly')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Planificador Mensual</button>
+                  <button onClick={() => setActiveTab('config')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'config' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Configuración</button>
                </div>
             </div>
          </header>
@@ -420,59 +420,61 @@ export const TurnosView: React.FC = () => {
                   <div className="max-w-4xl mx-auto space-y-6">
                      <div className="bg-[#1a2533] border border-slate-700 rounded-xl p-6">
                         <h3 className="text-lg font-bold text-white mb-4">Añadir Nuevo Tipo de Turno</h3>
-                        <form onSubmit={handleAddType} className="flex gap-4 items-end">
-                           <div className="flex-1">
+                        <form onSubmit={handleAddType} className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                           <div className="flex-1 w-full md:w-auto">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre</label>
                               <input name="name" type="text" placeholder="Ej: Mañana Refuerzo" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
-                           <div className="w-32">
+                           <div className="w-full md:w-32">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Inicio</label>
                               <input name="start" type="time" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
-                           <div className="w-32">
+                           <div className="w-full md:w-32">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fin</label>
                               <input name="end" type="time" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
-                           <div className="w-20">
+                           <div className="w-full md:w-20">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Color</label>
                               <input name="color" type="color" defaultValue="#10b981" className="w-full h-[38px] bg-[#101822] border border-slate-700 rounded-lg cursor-pointer" />
                            </div>
-                           <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition-colors h-[38px]">Añadir</button>
+                           <button type="submit" className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition-colors h-[38px]">Añadir</button>
                         </form>
                      </div>
 
-                     <div className="bg-[#1a2533] border border-slate-700 rounded-xl overflow-hidden">
-                        <table className="w-full text-left text-sm text-slate-400">
-                           <thead className="bg-[#141e2b] text-slate-400 font-bold uppercase text-xs">
-                              <tr>
-                                 <th className="px-6 py-3">Nombre</th>
-                                 <th className="px-6 py-3">Horario</th>
-                                 <th className="px-6 py-3">Color</th>
-                                 <th className="px-6 py-3 text-right">Acciones</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-800">
-                              {shiftTypes?.map((type: any) => (
-                                 <tr key={type.id} className="hover:bg-slate-800/50 transition-colors">
-                                    <td className="px-6 py-3 font-medium text-white">{type.name}</td>
-                                    <td className="px-6 py-3">{type.start_time} - {type.end_time}</td>
-                                    <td className="px-6 py-3">
-                                       <div className="w-6 h-6 rounded border border-slate-600" style={{ backgroundColor: type.color }}></div>
-                                    </td>
-                                    <td className="px-6 py-3 text-right">
-                                       <button onClick={() => deleteType(type.id)} className="text-red-400 hover:text-red-300 transition-colors">
-                                          <span className="material-icons-round text-sm">delete</span>
-                                       </button>
-                                    </td>
-                                 </tr>
-                              ))}
-                              {(!shiftTypes || shiftTypes.length === 0) && (
+                     <div className="bg-[#1a2533] border border-slate-700 rounded-xl overflow-x-auto custom-scrollbar">
+                        <div className="min-w-[600px]">
+                           <table className="w-full text-left text-sm text-slate-400">
+                              <thead className="bg-[#141e2b] text-slate-400 font-bold uppercase text-xs">
                                  <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-slate-600">No hay tipos de turno configurados.</td>
+                                    <th className="px-6 py-3">Nombre</th>
+                                    <th className="px-6 py-3">Horario</th>
+                                    <th className="px-6 py-3">Color</th>
+                                    <th className="px-6 py-3 text-right">Acciones</th>
                                  </tr>
-                              )}
-                           </tbody>
-                        </table>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800">
+                                 {shiftTypes?.map((type: any) => (
+                                    <tr key={type.id} className="hover:bg-slate-800/50 transition-colors">
+                                       <td className="px-6 py-3 font-medium text-white">{type.name}</td>
+                                       <td className="px-6 py-3">{type.start_time} - {type.end_time}</td>
+                                       <td className="px-6 py-3">
+                                          <div className="w-6 h-6 rounded border border-slate-600" style={{ backgroundColor: type.color }}></div>
+                                       </td>
+                                       <td className="px-6 py-3 text-right">
+                                          <button onClick={() => deleteType(type.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                                             <span className="material-icons-round text-sm">delete</span>
+                                          </button>
+                                       </td>
+                                    </tr>
+                                 ))}
+                                 {(!shiftTypes || shiftTypes.length === 0) && (
+                                    <tr>
+                                       <td colSpan={4} className="px-6 py-8 text-center text-slate-600">No hay tipos de turno configurados.</td>
+                                    </tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                   </div>
                </div>

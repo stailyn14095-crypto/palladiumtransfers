@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { OperationsHub } from './views/OperationsHub';
 import { DispatchConsole } from './views/DispatchConsole';
@@ -22,6 +22,7 @@ import { Session } from '@supabase/supabase-js';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.OPERATIONS);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [language, setLanguage] = useState<Language>('es');
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<string>('');
@@ -29,13 +30,29 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showLanding, setShowLanding] = useState(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
 
+  const activeFetchRef = useRef<string | null>(null);
+
   const fetchUserRole = async (userId: string) => {
+    // Prevent duplicate concurrent role fetches for the same user
+    if (activeFetchRef.current === userId) {
+      console.log(`App: fetchUserRole already active for ID: ${userId}, skipping duplicate.`);
+      return;
+    }
+    activeFetchRef.current = userId;
+
     try {
-      const { data, error } = await supabase
+      // Add a 5 second timeout to prevent the query from hanging indefinitely
+      const timeoutPromise = new Promise<{ data: any, error: any }>((_, reject) => {
+        setTimeout(() => reject(new Error('Supabase query timeout')), 5000);
+      });
+
+      const queryPromise = supabase
         .from('profiles')
         .select('role')
         .eq('id', userId)
         .single();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       let role = 'client';
       if (!error && data?.role) {
@@ -56,78 +73,75 @@ export default function App() {
         else setCurrentView(ViewState.OPERATIONS);
         setShowLanding(false); // Auto-hide landing only for staff
       }
-    } catch (err) {
-      console.error('Error fetching role:', err);
+    } catch (err: any) {
+      console.error('Error fetching role:', err.message || err);
       // Fallback
       setUserRole('client');
       setCurrentView(ViewState.CLIENT_PORTAL);
       setRoleReady(true);
+    } finally {
+      activeFetchRef.current = null;
     }
   };
 
   useEffect(() => {
     console.log("App: useEffect start");
+    let isMounted = true;
 
     // Failsafe timeout in case Supabase hangs
     const failsafe = setTimeout(() => {
       console.log("App: failsafe triggered");
-      setUserRole(prev => {
-        if (!prev) {
-          setCurrentView(ViewState.CLIENT_PORTAL);
-          return 'client';
-        }
-        return prev;
-      });
-      setLoading(false);
-      setRoleReady(true);
-    }, 15000); // Increased timeout to accommodate Supabase cold starts
+      if (isMounted) {
+        setUserRole(prev => {
+          if (!prev) {
+            setCurrentView(ViewState.CLIENT_PORTAL);
+            return 'client';
+          }
+          return prev;
+        });
+        setLoading(false);
+        setRoleReady(true);
+      }
+    }, 15000); // 15 seconds
 
-    const checkSession = async () => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log(`App: onAuthStateChange fired, event: ${event}, session attached:`, !!session);
+
+      if (!isMounted) return;
+
+      setSession(session);
+
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        setSession(session);
         if (session) {
-          console.log("App: session found, fetching role...");
+          console.log("App: valid session found via event, fetching role...");
           await fetchUserRole(session.user.id);
         } else {
-          console.log("App: no session, using default client role");
+          // No session found on init, or user just signed out
+          console.log(`App: no session (${event}), using default client role.`);
+          setShowLanding(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
           setUserRole('client');
           setRoleReady(true);
           setCurrentView(ViewState.CLIENT_PORTAL);
         }
       } catch (err: any) {
-        if (err.name === 'AbortError' || err.message?.includes('aborted')) return;
-        console.error('Error checking session:', err);
-        // Ensure state is unblocked on error
-        setUserRole(prev => prev || 'client');
-        setCurrentView(ViewState.CLIENT_PORTAL);
+        console.error('Error handling auth state change:', err);
+        if (isMounted) {
+          setUserRole('client');
+          setRoleReady(true);
+          setCurrentView(ViewState.CLIENT_PORTAL);
+        }
       } finally {
-        setLoading(false);
-        clearTimeout(failsafe);
+        if (isMounted) {
+          setLoading(false);
+          clearTimeout(failsafe);
+        }
       }
-    };
-
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      console.log("App: onAuthStateChange fired, event:", _event, "session:", !!session);
-      setSession(session);
-      if (session) {
-        await fetchUserRole(session.user.id);
-      } else {
-        setShowLanding(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
-        setUserRole('client');
-        setRoleReady(true);
-        setCurrentView(ViewState.CLIENT_PORTAL);
-      }
-      setLoading(false);
     });
 
     return () => {
+      isMounted = false;
       clearTimeout(failsafe);
       subscription.unsubscribe();
     };
@@ -194,10 +208,28 @@ export default function App() {
         language={language}
         setLanguage={setLanguage}
         userRole={userRole}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 relative flex flex-col overflow-hidden">
+      <main className="flex-1 relative flex flex-col overflow-hidden bg-brand-black">
+        {/* Mobile Header */}
+        <div className="md:hidden h-16 border-b border-white/5 bg-brand-charcoal px-4 flex items-center justify-between shrink-0 z-30 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full border border-brand-gold/50 flex items-center justify-center">
+              <span className="text-brand-gold font-bold text-xs">P T</span>
+            </div>
+            <span className="font-light text-sm tracking-[0.2em] text-white">PALLADIUM</span>
+          </div>
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 text-white hover:bg-white/5 rounded-lg transition-colors border border-white/10"
+          >
+            <span className="material-icons-round">menu</span>
+          </button>
+        </div>
+
         {(() => {
           const isStaff = ['admin', 'operator', 'accountant'].includes(userRole);
           const isAdmin = userRole === 'admin';

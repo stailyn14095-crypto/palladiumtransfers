@@ -8,39 +8,43 @@ import { useToast } from '../components/ui/Toast';
 const GenericListView = ({ title, subtitle, columns, data, renderRow, actions, loading }: any) => {
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
-         <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+         <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
             <div>
                <h1 className="text-xl font-bold text-white tracking-tight">{title}</h1>
                <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">{subtitle}</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 w-full md:w-auto">
                {actions}
             </div>
          </header>
-         <div className="p-8 overflow-y-auto custom-scrollbar">
-            <div className="bg-brand-black border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+         <div className="p-4 md:p-8 overflow-y-auto custom-scrollbar">
+            <div className="bg-brand-black border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
                {loading ? (
                   <div className="p-20 text-center">
                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto mb-4"></div>
                      <p className="text-brand-platinum/50 uppercase tracking-widest text-[10px] font-bold">Cargando base de datos...</p>
                   </div>
                ) : (
-                  <table className="w-full text-left">
-                     <thead>
-                        <tr className="bg-brand-charcoal text-brand-platinum/50 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
-                           {columns.map((c: string, i: number) => <th key={i} className="px-6 py-4">{c}</th>)}
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-800 text-sm">
-                        {data && data.length > 0 ? (
-                           data.map((item: any, i: number) => renderRow(item, i))
-                        ) : (
-                           <tr>
-                              <td colSpan={columns.length} className="px-6 py-8 text-center text-slate-500 italic">No hay registros encontrados</td>
-                           </tr>
-                        )}
-                     </tbody>
-                  </table>
+                  <div className="overflow-x-auto custom-scrollbar w-full">
+                     <div className="min-w-[800px]">
+                        <table className="w-full text-left">
+                           <thead>
+                              <tr className="bg-brand-charcoal text-brand-platinum/50 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+                                 {columns.map((c: string, i: number) => <th key={i} className="px-6 py-4">{c}</th>)}
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-800 text-sm">
+                              {data && data.length > 0 ? (
+                                 data.map((item: any, i: number) => renderRow(item, i))
+                              ) : (
+                                 <tr>
+                                    <td colSpan={columns.length} className="px-6 py-8 text-center text-slate-500 italic">No hay registros encontrados</td>
+                                 </tr>
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
                )}
             </div>
          </div>
@@ -865,12 +869,12 @@ export const TarifasView = () => {
 
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
-         <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+         <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
             <div>
                <h1 className="text-xl font-bold text-white tracking-tight">Tarifas y Precios</h1>
                <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">Configuración de Rutas y Precios Fijos/Variables</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3 w-full md:w-auto">
                <button
                   onClick={() => { setEditingItem(null); setModalData({}); setIsModalOpen(true); }}
                   className="bg-brand-gold hover:bg-brand-gold/80 text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg transition-all flex items-center gap-2 active:scale-95"

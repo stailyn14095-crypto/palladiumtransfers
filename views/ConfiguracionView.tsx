@@ -40,13 +40,13 @@ export const ConfiguracionView = () => {
 
     return (
         <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
-            <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+            <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex items-center justify-between shrink-0">
                 <div>
                     <h1 className="text-xl font-bold text-white tracking-tight">Ajustes Generales</h1>
                     <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">General Settings & Preferences</p>
                 </div>
             </header>
-            <div className="p-8 overflow-y-auto custom-scrollbar">
+            <div className="p-4 md:p-8 overflow-y-auto custom-scrollbar">
                 {loading ? (
                     <div className="p-20 text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto mb-4"></div>

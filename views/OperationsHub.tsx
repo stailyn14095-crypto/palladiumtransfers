@@ -144,15 +144,17 @@ export const OperationsHub: React.FC = () => {
       />
 
       {/* Header */}
-      <header className="h-20 shrink-0 border-b border-white/5 bg-brand-charcoal/80 backdrop-blur-md px-8 flex items-center justify-between z-10">
+      <header className="min-h-[5rem] shrink-0 border-b border-white/5 bg-brand-charcoal/80 backdrop-blur-md px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between z-10 gap-4 md:gap-0">
         <div>
-          <h1 className="text-xl text-white font-medium tracking-wide">Alicante (ALC) <span className="text-brand-platinum/30 mx-2">/</span> Operations Hub</h1>
-          <p className="text-xs text-brand-platinum/50 flex items-center gap-2 mt-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> System Operational • UTC {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          <h1 className="text-lg md:text-xl text-white font-medium tracking-wide">
+            Alicante (ALC) <span className="text-brand-platinum/30 mx-2 hidden md:inline">/</span><span className="md:hidden block"></span> Operations Hub
+          </h1>
+          <p className="text-[10px] md:text-xs text-brand-platinum/50 flex items-center gap-2 mt-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> System Operational • UTC <span className="hidden md:inline">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="md:hidden">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }).substring(0, 5)}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-6 w-full md:w-auto">
           <div className="hidden lg:flex items-center gap-8 mr-8">
             <div className="text-right">
               <p className="text-xs text-brand-platinum/30 uppercase tracking-wider">Active Drivers</p>
@@ -167,14 +169,14 @@ export const OperationsHub: React.FC = () => {
               <p className="text-xl font-bold text-[#D4AF37]">98%</p>
             </div>
           </div>
-          <div className="relative">
+          <div className="relative w-full md:w-auto mt-2 md:mt-0">
             <span className="material-icons-round absolute left-3 top-2.5 text-brand-platinum/30">search</span>
             <input
               type="text"
               placeholder="Search in Dispatch..."
               value={dispatchQuery}
               onChange={(e) => setDispatchQuery(e.target.value)}
-              className="bg-brand-charcoal border border-white/5 text-slate-200 text-sm rounded-full pl-10 pr-4 py-2.5 w-64 focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-600"
+              className="bg-brand-charcoal border border-white/5 text-slate-200 text-sm rounded-full pl-10 pr-4 py-2.5 w-full md:w-64 focus:ring-2 focus:ring-blue-500 outline-none placeholder-slate-600"
             />
           </div>
         </div>
@@ -399,83 +401,85 @@ export const OperationsHub: React.FC = () => {
                 <span className="material-icons-round text-sm">unfold_more</span> Ampliar Rango (+10h)
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto custom-scrollbar">
               {loadingFlights ? <div className="p-8 text-center text-brand-platinum/50">Loading bookings...</div> : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="text-xs text-brand-platinum/30 border-b border-white/5">
-                      <th className="pb-3 pl-2 font-medium">Flight</th>
-                      <th className="pb-3 font-medium">Origin</th>
-                      <th className="pb-3 font-medium">Pickup Time</th>
-                      <th className="pb-3 font-medium">Status</th>
-                      <th className="pb-3 font-medium">Passenger</th>
-                      <th className="pb-3 pr-2 font-medium text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm">
-                    {filteredBookings.length > 0 ? filteredBookings.map((b: any) => {
-                      const f = flights?.find((flight: any) => flight.number === b.flight_number);
-                      const status = f?.status || 'Scheduled';
-                      return (
-                        <tr
-                          key={b.id}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text', b.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggedBookingId(b.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggedBookingId(null);
-                            setDropTargetDriverId(null);
-                          }}
-                          className={`group hover:bg-white/5 transition-colors border-b border-white/5/50 last:border-0 cursor-move ${draggedBookingId === b.id ? 'opacity-50' : ''}`}
-                        >
-                          <td className={`py-4 pl-2 font-mono ${status === 'Delayed' ? 'text-red-500' : 'text-white'}`}>{b.flight_number}</td>
-                          <td className="py-4 text-slate-300">{b.origin}</td>
-                          <td className="py-4 font-mono text-white">{b.pickup_time}</td>
-                          <td className="py-4">
-                            <div className="flex flex-col gap-1">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border text-center whitespace-nowrap
-                          ${status === 'Final Approach' || status === 'Taxiing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' :
-                                  status === 'Landed' ? 'bg-blue-500/20 text-brand-gold border-brand-gold/30' :
-                                    status === 'Delayed' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                                      'bg-slate-800 text-brand-platinum/50 border-white/5'}`}>
-                                {status}
-                              </span>
-                              {(status === 'Final Approach' || status === 'Taxiing') && (
-                                <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest justify-center">
-                                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span> LIVE
+                <div className="min-w-[800px]">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="text-xs text-brand-platinum/30 border-b border-white/5">
+                        <th className="pb-3 pl-2 font-medium">Flight</th>
+                        <th className="pb-3 font-medium">Origin</th>
+                        <th className="pb-3 font-medium">Pickup Time</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium">Passenger</th>
+                        <th className="pb-3 pr-2 font-medium text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-sm">
+                      {filteredBookings.length > 0 ? filteredBookings.map((b: any) => {
+                        const f = flights?.find((flight: any) => flight.number === b.flight_number);
+                        const status = f?.status || 'Scheduled';
+                        return (
+                          <tr
+                            key={b.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text', b.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              setDraggedBookingId(b.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedBookingId(null);
+                              setDropTargetDriverId(null);
+                            }}
+                            className={`group hover:bg-white/5 transition-colors border-b border-white/5/50 last:border-0 cursor-move ${draggedBookingId === b.id ? 'opacity-50' : ''}`}
+                          >
+                            <td className={`py-4 pl-2 font-mono ${status === 'Delayed' ? 'text-red-500' : 'text-white'}`}>{b.flight_number}</td>
+                            <td className="py-4 text-slate-300">{b.origin}</td>
+                            <td className="py-4 font-mono text-white">{b.pickup_time}</td>
+                            <td className="py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border text-center whitespace-nowrap
+                            ${status === 'Final Approach' || status === 'Taxiing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' :
+                                    status === 'Landed' ? 'bg-blue-500/20 text-brand-gold border-brand-gold/30' :
+                                      status === 'Delayed' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                        'bg-slate-800 text-brand-platinum/50 border-white/5'}`}>
+                                  {status}
                                 </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 text-slate-300 flex items-center gap-2">
-                            <span className="material-icons-round text-brand-gold text-xs">person</span>
-                            {b.passenger}
-                          </td>
-                          <td className="py-4 pr-2 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {!b.driver_id && (
-                                <button
-                                  onClick={() => handleAutoAssign(b)}
-                                  className="text-[10px] bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/20 hover:border-emerald-500 text-emerald-400 hover:text-white px-3 py-1.5 rounded-full transition-all font-bold uppercase tracking-tighter"
-                                >
-                                  Auto-Asignar
+                                {(status === 'Final Approach' || status === 'Taxiing') && (
+                                  <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest justify-center">
+                                    <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span> LIVE
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 text-slate-300 flex items-center gap-2">
+                              <span className="material-icons-round text-brand-gold text-xs">person</span>
+                              {b.passenger}
+                            </td>
+                            <td className="py-4 pr-2 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {!b.driver_id && (
+                                  <button
+                                    onClick={() => handleAutoAssign(b)}
+                                    className="text-[10px] bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/20 hover:border-emerald-500 text-emerald-400 hover:text-white px-3 py-1.5 rounded-full transition-all font-bold uppercase tracking-tighter"
+                                  >
+                                    Auto-Asignar
+                                  </button>
+                                )}
+                                <button className="text-xs bg-brand-charcoal hover:bg-blue-600 border border-white/5 hover:border-brand-gold text-slate-300 hover:text-white px-3 py-1.5 rounded-full transition-all">
+                                  Manage
                                 </button>
-                              )}
-                              <button className="text-xs bg-brand-charcoal hover:bg-blue-600 border border-white/5 hover:border-brand-gold text-slate-300 hover:text-white px-3 py-1.5 rounded-full transition-all">
-                                Manage
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    }) : (
-                      <tr><td colSpan={6} className="p-8 text-center text-brand-platinum/30">No flight reservations found for today</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      }) : (
+                        <tr><td colSpan={6} className="p-8 text-center text-brand-platinum/30">No flight reservations found for today</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

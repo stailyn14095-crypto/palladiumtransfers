@@ -573,32 +573,32 @@ export const ReservasView: React.FC = () => {
 
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden">
-         <header className="h-20 border-b border-white/5 bg-brand-charcoal px-8 flex items-center justify-between shrink-0">
+         <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
             <div>
                <h1 className="text-xl font-bold text-white">Gestión de Reservas</h1>
                <p className="text-xs text-brand-platinum/30">Panel Central de Operaciones</p>
             </div>
 
-            <div className="flex items-center gap-4">
-               <div className="flex bg-brand-black p-1 rounded-lg border border-white/5">
-                  <button onClick={() => setActiveTab('list')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'list' ? 'bg-slate-700 text-white shadow-sm' : 'text-brand-platinum/50 hover:text-white'}`}>Listado</button>
-                  <button onClick={() => setActiveTab('availability')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'availability' ? 'bg-brand-gold text-white shadow-sm' : 'text-brand-platinum/50 hover:text-white'}`}>Control Flota</button>
+            <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
+               <div className="flex bg-brand-black p-1 rounded-lg border border-white/5 w-full md:w-auto">
+                  <button onClick={() => setActiveTab('list')} className={`flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'list' ? 'bg-slate-700 text-white shadow-sm' : 'text-brand-platinum/50 hover:text-white'}`}>Listado</button>
+                  <button onClick={() => setActiveTab('availability')} className={`flex-1 md:flex-none px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === 'availability' ? 'bg-brand-gold text-white shadow-sm' : 'text-brand-platinum/50 hover:text-white'}`}>Control Flota</button>
                </div>
 
                <button
                   onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
-                  className="px-4 py-2 bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
+                  className="w-full md:w-auto px-4 py-2 bg-brand-gold hover:bg-brand-gold/80 text-black rounded-lg text-sm font-bold flex flex-center items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
                >
                   <span className="material-icons-round text-sm">add</span> Nueva Reserva
                </button>
             </div>
          </header>
 
-         <div className="p-8 pb-24 overflow-y-auto custom-scrollbar">
+         <div className="p-4 md:p-8 pb-24 overflow-y-auto custom-scrollbar">
             {activeTab === 'list' ? (
                <>
-                  <div className="flex flex-wrap items-end gap-4 mb-6 bg-brand-charcoal p-6 rounded-2xl border border-white/5 shadow-xl">
-                     <div className="flex-1 min-w-[200px]">
+                  <div className="flex flex-wrap items-end gap-4 mb-6 bg-brand-charcoal p-4 md:p-6 rounded-2xl border border-white/5 shadow-xl">
+                     <div className="flex-1 min-w-[100%] sm:min-w-[200px]">
                         <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Búsqueda Inteligente</label>
                         <input
                            type="text"
@@ -608,7 +608,7 @@ export const ReservasView: React.FC = () => {
                            className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-2.5 text-sm text-white focus:border-brand-gold outline-none transition-all"
                         />
                      </div>
-                     <div className="w-32">
+                     <div className="w-full sm:w-1/3 md:w-32">
                         <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Estado</label>
                         <select
                            value={statusFilter}
@@ -625,8 +625,8 @@ export const ReservasView: React.FC = () => {
                            <option className="bg-brand-black text-white">Cancelled</option>
                         </select>
                      </div>
-                     <div className="flex bg-brand-black border border-white/5 rounded-xl overflow-hidden divide-x divide-slate-700">
-                        <div className="w-32 px-3 py-2">
+                     <div className="flex bg-brand-black border border-white/5 rounded-xl overflow-hidden divide-x divide-slate-700 w-full sm:w-auto">
+                        <div className="w-1/2 sm:w-32 px-3 py-2">
                            <label className="text-[9px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-0.5">Desde</label>
                            <input
                               type="date"
@@ -636,7 +636,7 @@ export const ReservasView: React.FC = () => {
                               style={{ colorScheme: 'dark' }}
                            />
                         </div>
-                        <div className="w-32 px-3 py-2">
+                        <div className="w-1/2 sm:w-32 px-3 py-2">
                            <label className="text-[9px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-0.5">Hasta</label>
                            <input
                               type="date"
@@ -648,7 +648,7 @@ export const ReservasView: React.FC = () => {
                         </div>
                      </div>
 
-                     <div className="w-40">
+                     <div className="w-full sm:w-auto md:w-40 flex-1 min-w-[140px]">
                         <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Conductor</label>
                         <select
                            value={driverFilter}
@@ -661,7 +661,7 @@ export const ReservasView: React.FC = () => {
                            ))}
                         </select>
                      </div>
-                     <div className="w-40">
+                     <div className="w-full sm:w-auto md:w-40 flex-1 min-w-[140px]">
                         <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Matrícula</label>
                         <select
                            value={vehicleIdFilter}
@@ -675,7 +675,7 @@ export const ReservasView: React.FC = () => {
                         </select>
                      </div>
 
-                     <div className="flex flex-col gap-1 ml-auto">
+                     <div className="flex flex-col gap-1 w-full sm:w-auto md:ml-auto">
                         <div className="flex h-8 items-center gap-2 bg-brand-black border border-white/5 rounded-lg px-3 select-none">
                            <input
                               type="checkbox"
@@ -697,263 +697,267 @@ export const ReservasView: React.FC = () => {
                            <label htmlFor="showInactive" className="text-[10px] text-amber-500/70 font-bold cursor-pointer uppercase">Mostrar Antiguas</label>
                         </div>
                      </div>
-                     <div className="flex gap-2">
+                     <div className="flex flex-wrap gap-2 w-full mt-2 sm:mt-0">
                         <button
                            onClick={exportToExcel}
-                           className="h-10 px-4 bg-slate-800 hover:bg-slate-700 text-brand-platinum/80 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-white/5"
+                           className="flex-1 sm:flex-none h-10 px-4 bg-slate-800 hover:bg-slate-700 text-brand-platinum/80 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-white/5"
                         >
                            <span className="material-icons-round text-sm">download</span> Excel
                         </button>
                         <button
                            onClick={handleAutoAssign}
-                           className="h-10 px-4 bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-blue-500/20"
+                           className="flex-1 sm:flex-none h-10 px-4 bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-blue-500/20"
                         >
                            <span className="material-icons-round text-sm">auto_fix_high</span> Auto-Asignar
                         </button>
                         <button
                            onClick={handleBulkUnassign}
-                           className="h-10 px-4 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-red-500/20"
+                           className="flex-1 sm:flex-none h-10 px-4 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-red-500/20"
                            title="Desasignar todas las reservas visibles"
                         >
                            <span className="material-icons-round text-sm">person_off</span> Desasignar Todo
                         </button>
                         <button
                            onClick={handleCreateTestBooking}
-                           className="h-10 px-4 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border border-purple-500/20"
+                           className="flex-1 sm:flex-none h-10 px-4 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-purple-500/20"
                         >
                            <span className="material-icons-round text-sm">bug_report</span> Test
                         </button>
                      </div>
                   </div>
 
-                  <div className="bg-brand-charcoal border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+                  <div className="bg-brand-charcoal border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
                      {loading ? (
                         <div className="p-20 text-center text-brand-platinum/50">
                            <div className="animate-spin h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
                            Sincronizando con base de datos...
                         </div>
                      ) : (
-                        <table className="w-full text-left">
-                           <thead>
-                              <tr className="bg-brand-charcoal/80 text-brand-platinum/30 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
-                                 <th className="px-6 py-5">ID / Vuelo</th>
-                                 <th className="px-6 py-5">Pasajero</th>
-                                 <th className="px-6 py-5">Cliente</th>
-                                 <th className="px-6 py-5">Trayecto</th>
-                                 <th className="px-6 py-5">Cita</th>
-                                 <th className="px-6 py-5 text-brand-gold">Despacho</th>
-                                 <th className="px-6 py-5">Estado</th>
-                                 <th className="px-6 py-5 text-right">Acciones</th>
-                              </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-800 text-sm">
-                              {filteredBookings.length > 0 ? filteredBookings.map((b: any) => (
-                                 <React.Fragment key={b.id}>
-                                    <tr
-                                       className={`transition-colors group cursor-pointer ${expandedRowId === b.id ? 'bg-slate-800/50' : 'hover:bg-slate-800/30'}`}
-                                       onClick={() => setExpandedRowId(expandedRowId === b.id ? null : b.id)}
-                                    >
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className="font-mono text-brand-gold text-xs text-nowrap">#{b.display_id || b.id.slice(0, 6)}</span>
-                                             <span className="text-[10px] text-brand-platinum/30">{b.flight_number || 'S/V'}</span>
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className="font-bold text-white text-nowrap">{b.passenger}</span>
-                                             <span className="text-[10px] text-brand-platinum/30 truncate max-w-[120px]">{b.email}</span>
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <span className="text-brand-platinum/80 text-xs font-semibold">{b.client_name || 'Palladium Transfers S.L.'}</span>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className="text-slate-200 text-xs">{b.origin}</span>
-                                             <span className="text-[10px] text-brand-platinum/30">{"-> "} {b.destination}</span>
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <div className="flex flex-col">
-                                             <span className="font-bold text-white text-xs">{b.pickup_date?.split('T')[0]}</span>
-                                             <span className="text-[10px] text-brand-gold">{b.pickup_time}h</span>
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                          <div className="flex flex-col gap-1.5">
-                                             <select
-                                                className={`w-full max-w-[140px] bg-brand-black border border-white/5/50 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-brand-gold ${!b.driver_id ? 'border-amber-500/30' : 'text-emerald-400'}`}
-                                                value={b.driver_id || ''}
-                                                onChange={(e) => handleAssignDriver(b.id, e.target.value)}
-                                             >
-                                                <option value="">-- Sin Asignar --</option>
-                                                {drivers?.map((d: any) => (
-                                                   <option key={d.id} value={d.id}>{d.name}</option>
-                                                ))}
-                                             </select>
-                                             {b.driver_id && (
-                                                <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-md border border-white/5 w-fit">
-                                                   <span className="material-icons-round text-[10px] text-brand-gold">directions_car</span>
-                                                   {(() => {
-                                                      const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
-                                                      const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
-                                                      const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
-                                                      return svcVehicle ? (
-                                                         <span className="text-[10px] font-bold text-brand-gold/70">{svcVehicle.plate} <span className="text-brand-platinum/30 font-medium whitespace-nowrap">({svcVehicle.model})</span></span>
-                                                      ) : (
-                                                         <span className="text-[9px] text-brand-platinum/30 italic">Sin coche</span>
-                                                      );
-                                                   })()}
-                                                </div>
-                                             )}
-                                          </div>
-                                       </td>
-                                       <td className="px-6 py-4">
-                                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                                             b.status === 'Confirmed' ? 'bg-blue-500/10 text-brand-gold border-blue-500/20' :
-                                                b.status === 'En Route' || b.status === 'At Origin' || b.status === 'In Progress' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                                                   b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                                                      'bg-red-500/10 text-red-500 border-red-500/20'
-                                             }`}>{b.status}</span>
-                                       </td>
-                                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                          <div className="flex justify-end gap-2">
-                                             <button
-                                                onClick={() => { setEditingItem(b); setIsModalOpen(true); }}
-                                                className="w-9 h-9 rounded-xl bg-slate-800 text-brand-platinum/50 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-all"
-                                             >
-                                                <span className="material-icons-round text-base">edit</span>
-                                             </button>
-                                             <button
-                                                onClick={() => { if (confirm('¿Seguro?')) deleteItem(b.id); }}
-                                                className="w-9 h-9 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all"
-                                             >
-                                                <span className="material-icons-round text-base">delete</span>
-                                             </button>
-                                          </div>
-                                       </td>
+                        <div className="overflow-x-auto custom-scrollbar w-full">
+                           <div className="min-w-[1000px]">
+                              <table className="w-full text-left">
+                                 <thead>
+                                    <tr className="bg-brand-charcoal/80 text-brand-platinum/30 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
+                                       <th className="px-6 py-5">ID / Vuelo</th>
+                                       <th className="px-6 py-5">Pasajero</th>
+                                       <th className="px-6 py-5">Cliente</th>
+                                       <th className="px-6 py-5">Trayecto</th>
+                                       <th className="px-6 py-5">Cita</th>
+                                       <th className="px-6 py-5 text-brand-gold">Despacho</th>
+                                       <th className="px-6 py-5">Estado</th>
+                                       <th className="px-6 py-5 text-right">Acciones</th>
                                     </tr>
-
-                                    {/* EXPANDED ROW DETAIL */}
-                                    {expandedRowId === b.id && (
-                                       <tr className="bg-[#151e29] border-b border-white/5/50 animate-fadeIn">
-                                          <td colSpan={8} className="p-0">
-                                             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-                                                {/* 1. Passenger Info */}
-                                                <div className="space-y-4">
-                                                   <h4 className="text-xs font-black text-brand-gold uppercase tracking-widest border-b border-white/5 pb-2">Información del Viajero</h4>
-                                                   <div className="space-y-2 text-sm text-brand-platinum/80">
-                                                      <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Nombre Completo:</span> <span className="font-bold text-white">{b.passenger}</span></p>
-                                                      <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Teléfono:</span> {b.phone || 'No registrado'}</p>
-                                                      <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Email:</span> {b.email}</p>
-                                                      <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Pasajeros:</span> {b.pax_count || 1}</p>
-                                                   </div>
+                                 </thead>
+                                 <tbody className="divide-y divide-slate-800 text-sm">
+                                    {filteredBookings.length > 0 ? filteredBookings.map((b: any) => (
+                                       <React.Fragment key={b.id}>
+                                          <tr
+                                             className={`transition-colors group cursor-pointer ${expandedRowId === b.id ? 'bg-slate-800/50' : 'hover:bg-slate-800/30'}`}
+                                             onClick={() => setExpandedRowId(expandedRowId === b.id ? null : b.id)}
+                                          >
+                                             <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                   <span className="font-mono text-brand-gold text-xs text-nowrap">#{b.display_id || b.id.slice(0, 6)}</span>
+                                                   <span className="text-[10px] text-brand-platinum/30">{b.flight_number || 'S/V'}</span>
                                                 </div>
-
-                                                {/* 2. Locations */}
-                                                <div className="space-y-4">
-                                                   <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-white/5 pb-2">Ubicaciones</h4>
-                                                   <div className="space-y-3 text-sm">
-                                                      <div>
-                                                         <span className="text-brand-platinum/30 text-xs block mb-0.5">Dirección de Recogida:</span>
-                                                         <p className="text-white">{b.origin_address || b.origin}</p>
-                                                      </div>
-                                                      <div>
-                                                         <span className="text-brand-platinum/30 text-xs block mb-0.5">Dirección de Destino:</span>
-                                                         <p className="text-white">{b.destination_address || b.destination}</p>
-                                                      </div>
-                                                      {b.notes && (
-                                                         <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 mt-2">
-                                                            <span className="text-amber-500 text-[10px] font-bold uppercase block mb-1">Notas para conductor</span>
-                                                            <p className="text-amber-200 text-xs italic">"{b.notes}"</p>
-                                                         </div>
-                                                      )}
-                                                   </div>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                   <span className="font-bold text-white text-nowrap">{b.passenger}</span>
+                                                   <span className="text-[10px] text-brand-platinum/30 truncate max-w-[120px]">{b.email}</span>
                                                 </div>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <span className="text-brand-platinum/80 text-xs font-semibold">{b.client_name || 'Palladium Transfers S.L.'}</span>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                   <span className="text-slate-200 text-xs">{b.origin}</span>
+                                                   <span className="text-[10px] text-brand-platinum/30">{"-> "} {b.destination}</span>
+                                                </div>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                   <span className="font-bold text-white text-xs">{b.pickup_date?.split('T')[0]}</span>
+                                                   <span className="text-[10px] text-brand-gold">{b.pickup_time}h</span>
+                                                </div>
+                                             </td>
+                                             <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex flex-col gap-1.5">
+                                                   <select
+                                                      className={`w-full max-w-[140px] bg-brand-black border border-white/5/50 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-brand-gold ${!b.driver_id ? 'border-amber-500/30' : 'text-emerald-400'}`}
+                                                      value={b.driver_id || ''}
+                                                      onChange={(e) => handleAssignDriver(b.id, e.target.value)}
+                                                   >
+                                                      <option value="">-- Sin Asignar --</option>
+                                                      {drivers?.map((d: any) => (
+                                                         <option key={d.id} value={d.id}>{d.name}</option>
+                                                      ))}
+                                                   </select>
+                                                   {b.driver_id && (
+                                                      <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-md border border-white/5 w-fit">
+                                                         <span className="material-icons-round text-[10px] text-brand-gold">directions_car</span>
+                                                         {(() => {
+                                                            const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
+                                                            const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
+                                                            const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
+                                                            return svcVehicle ? (
+                                                               <span className="text-[10px] font-bold text-brand-gold/70">{svcVehicle.plate} <span className="text-brand-platinum/30 font-medium whitespace-nowrap">({svcVehicle.model})</span></span>
+                                                            ) : (
+                                                               <span className="text-[9px] text-brand-platinum/30 italic">Sin coche</span>
+                                                            );
+                                                         })()}
+                                                      </div>
+                                                   )}
+                                                </div>
+                                             </td>
+                                             <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                   b.status === 'Confirmed' ? 'bg-blue-500/10 text-brand-gold border-blue-500/20' :
+                                                      b.status === 'En Route' || b.status === 'At Origin' || b.status === 'In Progress' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                                                         b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                            'bg-red-500/10 text-red-500 border-red-500/20'
+                                                   }`}>{b.status}</span>
+                                             </td>
+                                             <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex justify-end gap-2">
+                                                   <button
+                                                      onClick={() => { setEditingItem(b); setIsModalOpen(true); }}
+                                                      className="w-9 h-9 rounded-xl bg-slate-800 text-brand-platinum/50 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-all"
+                                                   >
+                                                      <span className="material-icons-round text-base">edit</span>
+                                                   </button>
+                                                   <button
+                                                      onClick={() => { if (confirm('¿Seguro?')) deleteItem(b.id); }}
+                                                      className="w-9 h-9 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all"
+                                                   >
+                                                      <span className="material-icons-round text-base">delete</span>
+                                                   </button>
+                                                </div>
+                                             </td>
+                                          </tr>
 
-                                                {/* 3. Actions & Meta */}
-                                                <div className="space-y-4">
-                                                   <h4 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-white/5 pb-2">Gestión</h4>
-                                                   <div className="space-y-3">
-                                                      {b.driver_id && (
-                                                         <div className="bg-brand-black p-3 rounded-lg border border-white/5 mb-3">
-                                                            <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Vehículo Asignado (Día del Servicio)</span>
-                                                            {(() => {
-                                                               const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
-                                                               const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
-                                                               const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
-                                                               return svcVehicle ? (
-                                                                  <span className="text-sm font-bold text-brand-gold flex items-center gap-2">
-                                                                     <span className="material-icons-round text-sm">directions_car</span>
-                                                                     {svcVehicle.model} - {svcVehicle.plate}
-                                                                  </span>
-                                                               ) : (
-                                                                  <span className="text-sm text-brand-platinum/30 italic">No asignado en turnos</span>
-                                                               );
-                                                            })()}
+                                          {/* EXPANDED ROW DETAIL */}
+                                          {expandedRowId === b.id && (
+                                             <tr className="bg-[#151e29] border-b border-white/5/50 animate-fadeIn">
+                                                <td colSpan={8} className="p-0">
+                                                   <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+                                                      {/* 1. Passenger Info */}
+                                                      <div className="space-y-4">
+                                                         <h4 className="text-xs font-black text-brand-gold uppercase tracking-widest border-b border-white/5 pb-2">Información del Viajero</h4>
+                                                         <div className="space-y-2 text-sm text-brand-platinum/80">
+                                                            <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Nombre Completo:</span> <span className="font-bold text-white">{b.passenger}</span></p>
+                                                            <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Teléfono:</span> {b.phone || 'No registrado'}</p>
+                                                            <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Email:</span> {b.email}</p>
+                                                            <p><span className="text-brand-platinum/30 text-xs block mb-0.5">Pasajeros:</span> {b.pax_count || 1}</p>
                                                          </div>
-                                                      )}
-                                                      <div className="flex items-center gap-3">
-                                                         <div className="flex-1 bg-brand-black p-3 rounded-lg border border-white/5">
-                                                            <span className="text-brand-platinum/30 text-xs block mb-1">Precio</span>
-                                                            <span className="text-xl font-bold text-white">{b.price}€</span>
-                                                         </div>
-                                                         <div className="flex-1 bg-brand-black p-3 rounded-lg border border-white/5">
-                                                            <span className="text-brand-platinum/30 text-xs block mb-1">Método de Pago</span>
-                                                            <span className="text-sm font-medium text-white">{b.payment_method}</span>
-                                                         </div>
-                                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                      </div>
+
+                                                      {/* 2. Locations */}
+                                                      <div className="space-y-4">
+                                                         <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-white/5 pb-2">Ubicaciones</h4>
+                                                         <div className="space-y-3 text-sm">
                                                             <div>
-                                                               <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Cobro Conductor</span>
-                                                               <span className="text-sm font-medium text-white">
-                                                                  {b.actual_payment_method ? (
-                                                                     <span className="flex gap-2">
-                                                                        <span className="text-emerald-400">Efectivo: {b.cash_amount || 0}€</span> |
-                                                                        <span className="text-brand-gold">TPV: {b.tpv_amount || 0}€</span>
-                                                                        <span className="text-brand-platinum/30 ml-2">({b.actual_payment_method})</span>
-                                                                     </span>
-                                                                  ) : (
-                                                                     <span className="text-amber-500/50 italic">Pendiente</span>
-                                                                  )}
-                                                               </span>
+                                                               <span className="text-brand-platinum/30 text-xs block mb-0.5">Dirección de Recogida:</span>
+                                                               <p className="text-white">{b.origin_address || b.origin}</p>
                                                             </div>
-                                                            <div className="text-right">
-                                                               <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Total Cobrado</span>
-                                                               <span className={`text-lg font-black ${b.collected_amount >= b.price ? 'text-emerald-400' : b.collected_amount > 0 ? 'text-amber-400' : 'text-brand-platinum/30'}`}>
-                                                                  {b.collected_amount || 0}€
-                                                               </span>
+                                                            <div>
+                                                               <span className="text-brand-platinum/30 text-xs block mb-0.5">Dirección de Destino:</span>
+                                                               <p className="text-white">{b.destination_address || b.destination}</p>
                                                             </div>
+                                                            {b.notes && (
+                                                               <div className="bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 mt-2">
+                                                                  <span className="text-amber-500 text-[10px] font-bold uppercase block mb-1">Notas para conductor</span>
+                                                                  <p className="text-amber-200 text-xs italic">"{b.notes}"</p>
+                                                               </div>
+                                                            )}
                                                          </div>
                                                       </div>
 
-                                                      <div className="pt-2">
-                                                         <label className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors">
-                                                            <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-brand-gold" defaultChecked />
-                                                            <span className="text-sm text-brand-platinum/80 font-medium">Visible para conductores</span>
-                                                         </label>
-                                                      </div>
+                                                      {/* 3. Actions & Meta */}
+                                                      <div className="space-y-4">
+                                                         <h4 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-white/5 pb-2">Gestión</h4>
+                                                         <div className="space-y-3">
+                                                            {b.driver_id && (
+                                                               <div className="bg-brand-black p-3 rounded-lg border border-white/5 mb-3">
+                                                                  <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Vehículo Asignado (Día del Servicio)</span>
+                                                                  {(() => {
+                                                                     const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
+                                                                     const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
+                                                                     const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
+                                                                     return svcVehicle ? (
+                                                                        <span className="text-sm font-bold text-brand-gold flex items-center gap-2">
+                                                                           <span className="material-icons-round text-sm">directions_car</span>
+                                                                           {svcVehicle.model} - {svcVehicle.plate}
+                                                                        </span>
+                                                                     ) : (
+                                                                        <span className="text-sm text-brand-platinum/30 italic">No asignado en turnos</span>
+                                                                     );
+                                                                  })()}
+                                                               </div>
+                                                            )}
+                                                            <div className="flex items-center gap-3">
+                                                               <div className="flex-1 bg-brand-black p-3 rounded-lg border border-white/5">
+                                                                  <span className="text-brand-platinum/30 text-xs block mb-1">Precio</span>
+                                                                  <span className="text-xl font-bold text-white">{b.price}€</span>
+                                                               </div>
+                                                               <div className="flex-1 bg-brand-black p-3 rounded-lg border border-white/5">
+                                                                  <span className="text-brand-platinum/30 text-xs block mb-1">Método de Pago</span>
+                                                                  <span className="text-sm font-medium text-white">{b.payment_method}</span>
+                                                               </div>
+                                                               <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                                  <div>
+                                                                     <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Cobro Conductor</span>
+                                                                     <span className="text-sm font-medium text-white">
+                                                                        {b.actual_payment_method ? (
+                                                                           <span className="flex gap-2">
+                                                                              <span className="text-emerald-400">Efectivo: {b.cash_amount || 0}€</span> |
+                                                                              <span className="text-brand-gold">TPV: {b.tpv_amount || 0}€</span>
+                                                                              <span className="text-brand-platinum/30 ml-2">({b.actual_payment_method})</span>
+                                                                           </span>
+                                                                        ) : (
+                                                                           <span className="text-amber-500/50 italic">Pendiente</span>
+                                                                        )}
+                                                                     </span>
+                                                                  </div>
+                                                                  <div className="text-right">
+                                                                     <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Total Cobrado</span>
+                                                                     <span className={`text-lg font-black ${b.collected_amount >= b.price ? 'text-emerald-400' : b.collected_amount > 0 ? 'text-amber-400' : 'text-brand-platinum/30'}`}>
+                                                                        {b.collected_amount || 0}€
+                                                                     </span>
+                                                                  </div>
+                                                               </div>
+                                                            </div>
 
-                                                      <div className="flex gap-2 mt-4">
-                                                         <button className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors">
-                                                            Ver Voucher
-                                                         </button>
-                                                         <button className="flex-1 py-2 bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold text-xs font-bold rounded-lg transition-colors border border-blue-500/20">
-                                                            Email Cliente
-                                                         </button>
+                                                            <div className="pt-2">
+                                                               <label className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-lg cursor-pointer hover:bg-slate-800 transition-colors">
+                                                                  <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-brand-gold" defaultChecked />
+                                                                  <span className="text-sm text-brand-platinum/80 font-medium">Visible para conductores</span>
+                                                               </label>
+                                                            </div>
+
+                                                            <div className="flex gap-2 mt-4">
+                                                               <button className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors">
+                                                                  Ver Voucher
+                                                               </button>
+                                                               <button className="flex-1 py-2 bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold text-xs font-bold rounded-lg transition-colors border border-blue-500/20">
+                                                                  Email Cliente
+                                                               </button>
+                                                            </div>
+                                                         </div>
                                                       </div>
                                                    </div>
-                                                </div>
-                                             </div>
-                                          </td>
-                                       </tr>
+                                                </td>
+                                             </tr>
+                                          )}
+                                       </React.Fragment>
+                                    )) : (
+                                       <tr><td colSpan={8} className="p-20 text-center text-brand-platinum/30 font-medium">No se encontraron reservas con los filtros actuales</td></tr>
                                     )}
-                                 </React.Fragment>
-                              )) : (
-                                 <tr><td colSpan={8} className="p-20 text-center text-brand-platinum/30 font-medium">No se encontraron reservas con los filtros actuales</td></tr>
-                              )}
-                           </tbody>
-                        </table>
+                                 </tbody>
+                              </table>
+                           </div>
+                        </div>
                      )}
                   </div>
                </>
