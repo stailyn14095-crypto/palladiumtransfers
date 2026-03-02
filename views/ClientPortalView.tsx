@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useToast } from '../components/ui/Toast';
 import { ViewState, Language } from '../types';
+import { sendCancellationEmail } from '../services/emailService';
 
 interface ClientPortalProps {
     session: Session | null;
@@ -95,6 +96,10 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
 
                 if (error) throw error;
                 showToast(t('cancelSuccess'), 'success');
+
+                // Send cancellation email in the background
+                sendCancellationEmail(booking);
+
                 fetchMyBookings();
             } catch (err: any) {
                 showToast(t('cancelError'), 'error');
@@ -322,12 +327,12 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
             </div>
 
             <div className="flex-1 space-y-4">
-                <div>
-                    <div className="text-[9px] text-brand-platinum/30 mb-1 font-black uppercase tracking-[0.2em]">{t('pickup_address_label')}</div>
-                    <div className="text-white font-bold leading-tight mb-1">
+                <div className="bg-brand-black/60 p-4 rounded-xl border border-white/5">
+                    <div className="text-[10px] text-brand-platinum/50 mb-2 font-black uppercase tracking-[0.2em]">{t('pickup_address_label')}</div>
+                    <div className="text-white font-black text-xl leading-tight mb-2 drop-shadow-md">
                         {b.route || `${b.origin} - ${b.destination}`}
                     </div>
-                    <div className="text-brand-gold text-xs italic">
+                    <div className="text-brand-gold font-bold text-sm bg-brand-gold/10 inline-block px-3 py-1 rounded-md">
                         {b.pickup_address || b.origin_address || t('not_specified')}
                     </div>
                 </div>
@@ -343,32 +348,42 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
                 </div>
 
                 {(b.driver_id || b.assigned_driver_name) && (
-                    <div className="bg-brand-gold/5 p-4 rounded-xl border border-brand-gold/10 space-y-2">
-                        <div className="text-[9px] text-brand-gold font-black uppercase tracking-widest">{t('driver_info_label')}</div>
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-brand-gold/20 flex items-center justify-center text-brand-gold">
-                                <span className="material-icons-round">person</span>
+                    <div className="bg-brand-gold/5 p-4 rounded-xl border border-brand-gold/20 flex flex-col gap-3">
+                        <div className="text-[10px] text-brand-gold font-black uppercase tracking-widest flex items-center gap-2">
+                            <span className="material-icons-round text-sm">local_taxi</span>
+                            {t('driver_info_label')}
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full border-2 border-brand-gold/30 bg-brand-charcoal flex items-center justify-center text-brand-gold shadow-lg">
+                                <span className="material-icons-round text-xl">person</span>
                             </div>
-                            <div>
-                                <div className="text-white font-bold text-sm">{driverInfo?.name || b.assigned_driver_name || t('assigned_driver')}</div>
-                                {vehicleInfo && (
-                                    <div className="text-brand-platinum/50 text-[10px] font-bold uppercase">
-                                        {vehicleInfo.model} - <span className="text-brand-gold">{vehicleInfo.plate}</span>
+                            <div className="flex-1">
+                                <div className="text-white font-black text-lg">{driverInfo?.name || b.assigned_driver_name || t('assigned_driver')}</div>
+                                {driverInfo?.phone && (
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-brand-platinum hover:text-white transition-colors">
+                                        <span className="material-icons-round text-sm text-brand-gold">phone</span>
+                                        <a href={`tel:${driverInfo.phone}`} className="font-mono text-sm tracking-wide">
+                                            {driverInfo.phone}
+                                        </a>
                                     </div>
                                 )}
                             </div>
                         </div>
-                        {isWithin24h() && driverInfo?.phone && (
-                            <div className="flex items-center gap-2 mt-3 pt-2 border-t border-brand-gold/10">
-                                <span className="material-icons-round text-sm text-brand-gold">phone</span>
-                                <a href={`tel:${driverInfo.phone}`} className="text-white font-mono text-sm hover:text-brand-gold transition-colors">
-                                    {driverInfo.phone}
-                                </a>
-                            </div>
-                        )}
-                        {!isWithin24h() && b.driver_id && (
-                            <div className="text-[9px] text-brand-platinum/30 italic mt-2">
-                                {t('driver_phone_visible_24h')}
+
+                        {vehicleInfo && (
+                            <div className="mt-2 pt-3 border-t border-brand-gold/10 flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-brand-platinum/50 uppercase tracking-widest">{t('vehicle')}</span>
+                                    <span className="text-white font-bold">{vehicleInfo.model}</span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-[10px] font-bold text-brand-platinum/50 uppercase tracking-widest">Matrícula</span>
+                                    <div className="bg-white px-2 py-0.5 rounded border border-gray-300 flex items-center mt-0.5">
+                                        <div className="bg-blue-600 h-full w-2 mr-1.5 rounded-sm"></div>
+                                        <span className="text-black font-black font-mono text-sm tracking-wider">{vehicleInfo.plate}</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

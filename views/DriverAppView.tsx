@@ -200,6 +200,12 @@ export const DriverAppView: React.FC = () => {
       await updateBooking(bookingId, { status });
    };
 
+   const openGoogleMaps = (address: string) => {
+      if (!address) return;
+      const encodedAddress = encodeURIComponent(address);
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`, '_blank');
+   };
+
    const finalizeService = async () => {
       if (!collectingBooking) return;
 
@@ -449,13 +455,13 @@ export const DriverAppView: React.FC = () => {
                               <button onClick={() => updateStatus(b.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
                            )}
                            {b.status === 'Confirmed' && (
-                              <button onClick={() => updateStatus(b.id, 'En Route')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
+                              <button onClick={() => { updateStatus(b.id, 'En Route'); openGoogleMaps(b.origin_address || b.origin); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
                            )}
                            {b.status === 'En Route' && (
                               <button onClick={() => updateStatus(b.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
                            )}
                            {b.status === 'At Origin' && (
-                              <button onClick={() => updateStatus(b.id, 'In Progress')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Ruta</button>
+                              <button onClick={() => { updateStatus(b.id, 'In Progress'); openGoogleMaps(b.destination_address || b.destination); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Ruta</button>
                            )}
                            {b.status === 'In Progress' && (
                               <button onClick={() => {

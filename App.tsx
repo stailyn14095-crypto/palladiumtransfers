@@ -42,6 +42,7 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
 
   const activeFetchRef = useRef<string | null>(null);
+  const lastFetchedUserId = useRef<string | null>(null);
 
   const fetchUserRole = async (userId: string) => {
     // Prevent duplicate concurrent role fetches for the same user
@@ -49,12 +50,16 @@ export default function App() {
       console.log(`App: fetchUserRole already active for ID: ${userId}, skipping duplicate.`);
       return;
     }
+    if (lastFetchedUserId.current === userId) {
+      console.log(`App: fetchUserRole already completed for ID: ${userId}, skipping duplicate.`);
+      return;
+    }
     activeFetchRef.current = userId;
 
     try {
-      // Add a 5 second timeout to prevent the query from hanging indefinitely
+      // Add a 15 second timeout to prevent the query from hanging indefinitely
       const timeoutPromise = new Promise<{ data: any, error: any }>((_, reject) => {
-        setTimeout(() => reject(new Error('Supabase query timeout')), 5000);
+        setTimeout(() => reject(new Error('Supabase query timeout')), 15000);
       });
 
       const queryPromise = supabase
@@ -73,6 +78,7 @@ export default function App() {
       console.log(`App: User role fetched: "${role}" for ID: ${userId}`);
       setUserRole(role);
       setRoleReady(true);
+      lastFetchedUserId.current = userId;
 
       // Set default view based on role
       if (role === 'client') {
@@ -135,6 +141,7 @@ export default function App() {
           setUserRole('client');
           setRoleReady(true);
           setCurrentView(ViewState.CLIENT_PORTAL);
+          lastFetchedUserId.current = null;
         }
       } catch (err: any) {
         console.error('Error handling auth state change:', err);

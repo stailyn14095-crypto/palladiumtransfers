@@ -3,6 +3,7 @@ import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
 import { suggestDriver, detectScheduleConflicts } from '../services/autoAssignment';
 import { supabase } from '../services/supabase';
+import { sendCancellationEmail } from '../services/emailService';
 
 export const ReservasView: React.FC = () => {
    const [activeTab, setActiveTab] = useState<'list' | 'availability'>('list');
@@ -640,6 +641,10 @@ export const ReservasView: React.FC = () => {
          await updateItem(bookingToCancel.id, updates);
 
          setIsCancelModalOpen(false);
+
+         // Send cancellation email in the background
+         sendCancellationEmail(bookingToCancel);
+
          setBookingToCancel(null);
 
          // Mostrar toast o alert nativo
