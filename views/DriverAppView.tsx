@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useSupabaseData } from '../hooks/useSupabaseData';
+import { GananciasDriverView } from './GananciasDriverView';
+import { HistoricoDriverView } from './HistoricoDriverView';
 
 export const DriverAppView: React.FC = () => {
    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
@@ -9,7 +11,7 @@ export const DriverAppView: React.FC = () => {
    const { data: drivers, updateItem: updateDriver } = useSupabaseData('drivers');
    const { data: allBookings, updateItem: updateBooking } = useSupabaseData('bookings');
    const { data: shifts } = useSupabaseData('shifts');
-   const { data: vehicles } = useSupabaseData('vehicles');
+   const { data: vehicles, updateItem: updateVehicle } = useSupabaseData('vehicles');
 
    useEffect(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -25,6 +27,7 @@ export const DriverAppView: React.FC = () => {
    const [currentLog, setCurrentLog] = useState<any>(null);
    const [weeklyEarnings, setWeeklyEarnings] = useState(0);
    const [alerts, setAlerts] = useState<any[]>([]);
+   const [activeTab, setActiveTab] = useState<'services' | 'history' | 'earnings'>('services');
 
    // Payment Modal State
    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -77,17 +80,17 @@ export const DriverAppView: React.FC = () => {
                   let msg = "";
                   let type = eventType;
 
-                  // NUEVO SERVICIO: Entra en mi driver_id
+                  // NUEVO SERVICIO
                   if (newB?.driver_id === selectedDriverId && (!oldB || oldB.driver_id !== selectedDriverId)) {
                      msg = "¡Nuevo servicio asignado!";
                      type = 'INSERT';
                   }
-                  // SERVICIO RETIRADO/CANCELADO: Sale de mi driver_id
+                  // SERVICIO RETIRADO/CANCELADO
                   else if (oldB?.driver_id === selectedDriverId && newB?.driver_id !== selectedDriverId) {
                      msg = "Un servicio te ha sido retirado o reasignado";
                      type = 'DELETE';
                   }
-                  // ACTUALIZACIÓN: Sigue siendo mío pero cambió el resto
+                  // ACTUALIZACIÓN
                   else if (newB?.driver_id === selectedDriverId) {
                      if (newB.status === 'Cancelled') msg = "Reserva cancelada";
                      else msg = "Reserva actualizada";
@@ -132,19 +135,16 @@ export const DriverAppView: React.FC = () => {
          .is('clock_out', null)
          .order('clock_in', { ascending: false })
          .limit(1)
-         .single();
+         .maybeSingle();
 
       if (data) setCurrentLog(data);
       else setCurrentLog(null);
    };
 
    const calculateEarnings = () => {
-      const commPct = activeDriver?.commission_pct || 15;
-      const total = completedThisWeek.reduce((acc: number, b: any) => acc + (Number(b.price || 0) * (commPct / 100)), 0);
+      const total = completedThisWeek.reduce((acc: number, b: any) => acc + Number(b.collaborator_price || 0), 0);
       setWeeklyEarnings(total);
    };
-
-   const { updateItem: updateVehicle } = useSupabaseData('vehicles');
 
    const handleClockIn = async () => {
       setPendingAction('clockIn');
@@ -165,13 +165,14 @@ export const DriverAppView: React.FC = () => {
          await updateVehicle(assignedVehicle.id, { km: kmValue });
       }
 
+      const now = new Date().toISOString();
       if (pendingAction === 'clockIn') {
-         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK' }]).select().single();
+         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK', clock_in: now }]).select().single();
          await updateDriver(selectedDriverId!, { current_status: 'Working' });
          setCurrentLog(data);
       } else if (pendingAction === 'clockOut') {
          if (!currentLog) return;
-         await supabase.from('driver_logs').update({ clock_out: new Date().toISOString() }).eq('id', currentLog.id);
+         await supabase.from('driver_logs').update({ clock_out: now }).eq('id', currentLog.id);
          await updateDriver(selectedDriverId!, { current_status: 'Off' });
          setCurrentLog(null);
       }
@@ -332,182 +333,165 @@ export const DriverAppView: React.FC = () => {
             )}
          </div>
 
-         {/* Assignments */}
-         <div className="relative z-10 p-8 space-y-8">
-            <div className="flex items-center gap-4 mb-4">
-               <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
-               <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Servicios Asignados</h2>
+         {/* Navigation Tabs */}
+         <div className="relative z-10 px-8 mt-6">
+            <div className="flex bg-brand-charcoal/40 backdrop-blur-md p-1 rounded-2xl border border-white/5">
+               <button
+                  onClick={() => setActiveTab('services')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'services' ? 'bg-white text-brand-black shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
+               >
+                  <span className="material-icons-round text-sm">assignment</span>
+                  Servicios
+               </button>
+               <button
+                  onClick={() => setActiveTab('history')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-brand-platinum text-brand-black shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
+               >
+                  <span className="material-icons-round text-sm">history</span>
+                  Histórico
+               </button>
+               <button
+                  onClick={() => setActiveTab('earnings')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'earnings' ? 'bg-brand-gold text-brand-black shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
+               >
+                  <span className="material-icons-round text-sm">payments</span>
+                  Ganancias
+               </button>
             </div>
+         </div>
 
-            {driverBookings.length === 0 ? (
-               <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
-                  No tienes servicios pendientes por ahora
+         {activeTab === 'services' ? (
+            /* Assignments */
+            <div className="relative z-10 p-8 space-y-8">
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
+                  <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Servicios Asignados</h2>
                </div>
-            ) : (
-               driverBookings.map((b: any) => (
-                  <div key={b.id} className="group relative bg-brand-charcoal/30 backdrop-blur-md border border-white/5 border-l-brand-gold/20 border-l-4 rounded-[2.5rem] p-8 overflow-hidden transition-all duration-500 hover:bg-brand-charcoal/50 hover:border-white/10 shadow-2xl">
-                     <div className="flex justify-between items-start mb-10">
-                        <div className="space-y-1">
-                           <div className="flex flex-wrap items-center gap-3 mb-2">
-                              {/* Larger formatted date/time */}
-                              <div className="flex items-center gap-2 bg-brand-gold/10 px-4 py-2 rounded-xl border border-brand-gold/20">
-                                 <span className="material-icons-round text-brand-gold text-sm">event</span>
-                                 <p className="text-brand-gold font-bold text-sm tracking-widest uppercase">
-                                    {(() => {
-                                       const d = new Date(b.pickup_date);
-                                       const day = d.getDate().toString().padStart(2, '0');
-                                       const month = (d.getMonth() + 1).toString().padStart(2, '0');
-                                       const year = d.getFullYear();
-                                       return `${day}/${month}/${year}`;
-                                    })()} {b.pickup_time}h
-                                 </p>
-                              </div>
 
-                              {(() => {
-                                 const serviceShift = shifts?.find((s: any) => s.driver_id === selectedDriverId && s.date === b.pickup_date);
-                                 const svcVehicle = vehicles?.find((v: any) => v.id === serviceShift?.vehicle_id);
-                                 return svcVehicle ? (
-                                    <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10 uppercase tracking-[0.2em] font-bold text-[10px] text-brand-platinum">
-                                       <span className="material-icons-round text-xs opacity-50">directions_car</span>
-                                       {svcVehicle.model} <span className="text-brand-gold ml-1">{svcVehicle.plate}</span>
-                                    </div>
-                                 ) : (
-                                    <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10 uppercase tracking-[0.2em] font-bold text-[10px] text-brand-platinum/50 italic text-[8px]">
-                                       Sin vehículo asignado
-                                    </div>
-                                 );
-                              })()}
+               {driverBookings.length === 0 ? (
+                  <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
+                     No tienes servicios pendientes por ahora
+                  </div>
+               ) : (
+                  driverBookings.map((b: any) => (
+                     <div key={b.id} className="group relative bg-brand-charcoal/30 backdrop-blur-md border border-white/5 border-l-brand-gold/20 border-l-4 rounded-[2.5rem] p-8 overflow-hidden transition-all duration-500 hover:bg-brand-charcoal/50 hover:border-white/10 shadow-2xl">
+                        <div className="flex justify-between items-start mb-10">
+                           <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-3 mb-2">
+                                 {/* Format Date/Time */}
+                                 <div className="flex items-center gap-2 bg-brand-gold/10 px-4 py-2 rounded-xl border border-brand-gold/20">
+                                    <span className="material-icons-round text-brand-gold text-sm">event</span>
+                                    <p className="text-brand-gold font-bold text-sm tracking-widest uppercase">
+                                       {new Date(b.pickup_date).toLocaleDateString('es-ES')} {b.pickup_time}h
+                                    </p>
+                                 </div>
+                              </div>
+                              <h3 className="text-4xl font-light text-white tracking-tighter uppercase group-hover:platinum-text transition-all leading-tight">{b.passenger}</h3>
+                              <p className="text-brand-platinum text-[10px] font-bold tracking-[0.3em] flex items-center gap-2 uppercase opacity-50 mt-1">
+                                 <span className="material-icons-round text-xs">phone</span> {b.phone || 'No disponible'}
+                                 <span className="ml-4 opacity-30 tracking-[0.5em]">ID: #{b.display_id || b.id.slice(0, 6)}</span>
+                              </p>
                            </div>
-                           <h3 className="text-4xl font-light text-white tracking-tighter uppercase group-hover:platinum-text transition-all leading-tight">{b.passenger}</h3>
-                           <p className="text-brand-platinum text-[10px] font-bold tracking-[0.3em] flex items-center gap-2 uppercase opacity-50 mt-1">
-                              <span className="material-icons-round text-xs">phone</span> {b.phone || 'No disponible'}
-                              <span className="ml-4 opacity-30 tracking-[0.5em]">ID: #{b.display_id || b.id.slice(0, 6)}</span>
-                           </p>
+                           <span className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.2em] border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 'bg-white/5 text-brand-platinum border-white/10'
+                              }`}>{b.status}</span>
                         </div>
-                        <span className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.2em] border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 'bg-white/5 text-brand-platinum border-white/10'
-                           }`}>{b.status}</span>
-                     </div>
 
-                     <div className="grid md:grid-cols-2 gap-8 mb-10">
-                        <div className="space-y-6">
-                           <div className="flex items-start gap-4 group/loc">
-                              <div className="w-1.5 h-1.5 rounded-full bg-brand-platinum mt-1.5 shrink-0 shadow-[0_0_8px_rgba(142,145,150,0.5)]"></div>
-                              <div>
-                                 <p className="text-brand-platinum/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Recogida</p>
-                                 <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.origin_address || b.origin}</p>
+                        <div className="grid md:grid-cols-2 gap-8 mb-10">
+                           <div className="space-y-6">
+                              <div className="flex items-start gap-4 group/loc">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-platinum mt-1.5 shrink-0 shadow-[0_0_8px_rgba(142,145,150,0.5)]"></div>
+                                 <div>
+                                    <p className="text-brand-platinum/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Recogida</p>
+                                    <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.origin_address || b.origin}</p>
+                                 </div>
                               </div>
-                           </div>
-                           <div className="flex items-start gap-4 group/loc">
-                              <div className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1.5 shrink-0 shadow-[0_0_8px_rgba(197,160,89,0.5)]"></div>
-                              <div>
-                                 <p className="text-brand-gold/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Destino</p>
-                                 <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.destination_address || b.destination}</p>
+                              <div className="flex items-start gap-4 group/loc">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1.5 shrink-0 shadow-[0_0_8px_rgba(197,160,89,0.5)]"></div>
+                                 <div>
+                                    <p className="text-brand-gold/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Destino</p>
+                                    <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.destination_address || b.destination}</p>
+                                 </div>
                               </div>
                            </div>
                         </div>
-                     </div>
 
-                     {/* Additional Info */}
-                     <div className="grid grid-cols-2 gap-4 mb-10">
-                        <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 col-span-2 group/info hover:border-brand-gold/20 transition-all">
-                           <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Vehículo Asignado para este Servicio</p>
-                           {(() => {
-                              const serviceShift = shifts?.find((s: any) => s.driver_id === selectedDriverId && s.date === b.pickup_date);
-                              const svcVehicle = vehicles?.find((v: any) => v.id === serviceShift?.vehicle_id);
-                              return (
-                                 <p className="text-sm font-light text-brand-gold flex items-center gap-2 tracking-tight">
-                                    <span className="material-icons-round text-sm opacity-50">directions_car</span>
-                                    {svcVehicle ? `${svcVehicle.model}` : 'Sin vehículo asignado'}
-                                    {svcVehicle && <span className="font-bold opacity-50 ml-1">{svcVehicle.plate}</span>}
-                                 </p>
-                              );
-                           })()}
-                        </div>
-                        <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all">
-                           <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Pasajeros</p>
-                           <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight">
-                              <span className="material-icons-round text-sm opacity-50">groups</span> {b.pax || 1} <span className="font-bold text-brand-platinum/50 uppercase text-[10px] tracking-widest">PAX</span>
-                           </p>
-                        </div>
-                        <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all">
-                           <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Vuelo</p>
-                           <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight uppercase">
-                              <span className="material-icons-round text-sm opacity-50">flight</span> {b.flight_number || 'N/A'}
-                           </p>
-                        </div>
-                     </div>
-
-                     {/* Extras */}
-                     {b.notes && (
-                        <div className="mb-8 p-6 bg-brand-platinum/5 border border-brand-platinum/10 rounded-[2rem] relative overflow-hidden">
-                           <div className="absolute top-0 right-0 p-3 opacity-10">
-                              <span className="material-icons-round text-4xl">info</span>
+                        {/* Additional Info */}
+                        <div className="grid grid-cols-2 gap-4 mb-10">
+                           <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 col-span-2 hover:border-white/10 transition-all">
+                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Pasajeros</p>
+                              <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight">
+                                 <span className="material-icons-round text-sm opacity-50">groups</span> {b.pax || 1} <span className="font-bold text-brand-platinum/50 uppercase text-[10px] tracking-widest">PAX</span>
+                              </p>
                            </div>
-                           <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.4em] mb-3 flex justify-between">
-                              EXTRAS & OBSERVACIONES
-                              {b.notes.toLowerCase().includes('efectivo') && (
-                                 <span className="text-emerald-500 font-bold tracking-widest">--- PAGO AL CONDUCTOR ---</span>
-                              )}
-                           </p>
-                           <p className="text-[11px] text-slate-300 leading-relaxed font-light italic uppercase tracking-wider">{b.notes}</p>
-                        </div>
-                     )}
-
-                     {/* Payment Reminder for Cash Bookings */}
-                     {(b.payment_method === 'Efectivo' || (b.notes && b.notes.toLowerCase().includes('efectivo'))) && (
-                        <div className="mb-10 p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-[2.5rem] flex items-center gap-5">
-                           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                              <span className="material-icons-round">payments</span>
-                           </div>
-                           <div>
-                              <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-[0.4em] mb-1">Cobro Obligatorio</p>
-                              <p className="text-lg font-light text-white tracking-tight">
-                                 Cobrar <span className="text-3xl font-black text-emerald-400 mx-1">{b.price}€</span> en Efectivo
+                           <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all">
+                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Vuelo</p>
+                              <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight uppercase">
+                                 <span className="material-icons-round text-sm opacity-50">flight</span> {b.flight_number || 'N/A'}
                               </p>
                            </div>
                         </div>
-                     )}
 
-                     <div className="grid grid-cols-1 gap-3">
-                        {b.status === 'Pending' && (
-                           <button onClick={() => updateStatus(b.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
+                        {/* Extras */}
+                        {b.notes && (
+                           <div className="mb-8 p-6 bg-brand-platinum/5 border border-brand-platinum/10 rounded-[2rem] relative overflow-hidden">
+                              <div className="absolute top-0 right-0 p-3 opacity-10">
+                                 <span className="material-icons-round text-4xl">info</span>
+                              </div>
+                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.4em] mb-3 flex justify-between">
+                                 EXTRAS & OBSERVACIONES
+                              </p>
+                              <p className="text-[11px] text-slate-300 leading-relaxed font-light italic uppercase tracking-wider">{b.notes}</p>
+                           </div>
                         )}
-                        {b.status === 'Confirmed' && (
-                           <button onClick={() => updateStatus(b.id, 'En Route')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
-                        )}
-                        {b.status === 'En Route' && (
-                           <button onClick={() => updateStatus(b.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
-                        )}
-                        {b.status === 'At Origin' && (
-                           <button onClick={() => updateStatus(b.id, 'In Progress')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Ruta</button>
-                        )}
-                        {b.status === 'In Progress' && (
-                           <button onClick={() => {
-                              setCollectingBooking(b);
-                              const isCash = b.payment_method === 'Efectivo' || (b.notes?.toLowerCase() || '').includes('efectivo');
 
-                              if (isCash) {
-                                 setCashAmount(b.price?.toString() || '');
-                                 setTpvAmount('');
-                                 setActualPaymentMethod('Efectivo');
-                              } else {
-                                 setCashAmount('');
-                                 setTpvAmount(b.price?.toString() || '');
-                                 setActualPaymentMethod('TPV');
-                              }
-                              setPaymentModalOpen(true);
-                           }} className="w-full py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.4em] shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all">Finalizar Trayecto</button>
-                        )}
+                        <div className="grid grid-cols-1 gap-3">
+                           {b.status === 'Pending' && (
+                              <button onClick={() => updateStatus(b.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
+                           )}
+                           {b.status === 'Confirmed' && (
+                              <button onClick={() => updateStatus(b.id, 'En Route')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
+                           )}
+                           {b.status === 'En Route' && (
+                              <button onClick={() => updateStatus(b.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
+                           )}
+                           {b.status === 'At Origin' && (
+                              <button onClick={() => updateStatus(b.id, 'In Progress')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Ruta</button>
+                           )}
+                           {b.status === 'In Progress' && (
+                              <button onClick={() => {
+                                 setCollectingBooking(b);
+                                 const isCash = b.payment_method === 'Efectivo' || (b.notes?.toLowerCase() || '').includes('efectivo');
+                                 if (isCash) {
+                                    setCashAmount(b.price?.toString() || '');
+                                    setTpvAmount('');
+                                    setActualPaymentMethod('Efectivo');
+                                 } else {
+                                    setCashAmount('');
+                                    setTpvAmount(b.price?.toString() || '');
+                                    setActualPaymentMethod('TPV');
+                                 }
+                                 setPaymentModalOpen(true);
+                              }} className="w-full py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.4em] shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all">Finalizar Trayecto</button>
+                           )}
+                        </div>
                      </div>
-                  </div>
-               ))
-            )}
-         </div>
+                  ))
+               )}
+            </div>
+         ) : activeTab === 'history' ? (
+            <div className="relative z-10">
+               <HistoricoDriverView driverId={selectedDriverId} />
+            </div>
+         ) : (
+            <div className="relative z-10">
+               <GananciasDriverView driverId={selectedDriverId} />
+            </div>
+         )}
 
          {/* Payment Collection Modal */}
          {paymentModalOpen && (
             <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-end sm:items-center justify-center p-4">
-               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5/50 shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
+               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5 shadow-2xl p-8 animate-in slide-in-from-bottom duration-300">
                   <div className="text-center mb-8">
                      <div className="w-16 h-16 bg-emerald-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span className="material-icons-round text-emerald-500 text-3xl">account_balance_wallet</span>
@@ -540,7 +524,7 @@ export const DriverAppView: React.FC = () => {
                                  type="number"
                                  value={cashAmount}
                                  onChange={(e) => setCashAmount(e.target.value)}
-                                 className="w-full bg-brand-black border border-white/5/50 rounded-2xl px-5 py-4 text-xl font-black text-white focus:border-emerald-500 outline-none transition-all"
+                                 className="w-full bg-brand-black border border-white/5 rounded-2xl px-5 py-4 text-xl font-black text-white focus:border-emerald-500 outline-none transition-all"
                                  placeholder="0.00"
                               />
                            </div>
@@ -553,14 +537,14 @@ export const DriverAppView: React.FC = () => {
                                  type="number"
                                  value={tpvAmount}
                                  onChange={(e) => setTpvAmount(e.target.value)}
-                                 className="w-full bg-brand-black border border-white/5/50 rounded-2xl px-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all"
+                                 className="w-full bg-brand-black border border-white/5 rounded-2xl px-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all"
                                  placeholder="0.00"
                               />
                            </div>
                         )}
 
                         {actualPaymentMethod === 'Mixto' && (
-                           <div className="pt-2 border-t border-white/5/50 flex justify-between items-center">
+                           <div className="pt-2 border-t border-white/5 flex justify-between items-center">
                               <span className="text-[10px] font-black text-brand-platinum/30 uppercase">Total a Cobrar</span>
                               <span className="text-lg font-black text-white">{(parseFloat(cashAmount || '0') + parseFloat(tpvAmount || '0')).toFixed(2)}€</span>
                            </div>
@@ -590,7 +574,7 @@ export const DriverAppView: React.FC = () => {
          {/* KM Prompt Modal */}
          {kmModalOpen && (
             <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-center justify-center p-4">
-               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5/50 shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5 shadow-2xl p-8 animate-in zoom-in-95 duration-200">
                   <div className="text-center mb-6">
                      <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span className="material-icons-round text-blue-500 text-3xl">speed</span>
@@ -606,7 +590,7 @@ export const DriverAppView: React.FC = () => {
                            type="number"
                            value={currentKm}
                            onChange={(e) => setCurrentKm(e.target.value)}
-                           className="w-full bg-brand-black border border-white/5/50 rounded-2xl pl-12 pr-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all placeholder-white/10"
+                           className="w-full bg-brand-black border border-white/5 rounded-2xl pl-12 pr-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all placeholder-white/10"
                            placeholder="0"
                         />
                      </div>

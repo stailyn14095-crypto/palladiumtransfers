@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../services/supabase';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { Flight, Driver } from '../types';
 import { FleetMap } from '../components/FleetMap';
@@ -28,7 +29,7 @@ export const OperationsHub: React.FC = () => {
   }>({ title: '', message: '', type: 'info', onConfirm: () => { } });
 
   // Flight Window State
-  const [timeWindow, setTimeWindow] = useState(10); // Default +/- 10 hours
+  const [timeWindow, setTimeWindow] = useState(24); // Default +/- 24 hours to avoid timezone issues or missing late flights
 
   const filteredBookings = React.useMemo(() => {
     if (!bookings) return [];
@@ -36,19 +37,54 @@ export const OperationsHub: React.FC = () => {
     const msInHour = 60 * 60 * 1000;
 
     return bookings.filter((b: any) => {
+      // Must have flight info to be in Arrivals
       if (!b.flight_number || !b.pickup_date || !b.pickup_time) return false;
 
-      // Construct booking date
-      const bookingTime = new Date(`${b.pickup_date}T${b.pickup_time}`);
+      // Extract valid date string (in case there's an issue with T00:00:00Z format from Supabase)
+      const dateStr = b.pickup_date.includes('T') ? b.pickup_date.split('T')[0] : b.pickup_date;
+
+      // Ensure time string is properly padded and has seconds, e.g. "9:15" -> "09:15:00"
+      let timeStr = b.pickup_time;
+      if (timeStr.length === 4 || timeStr.length === 5) {
+        // format HH:mm or H:mm
+        const parts = timeStr.split(':');
+        timeStr = `${parts[0].padStart(2, '0')}:${parts[1]}:00`;
+      } else {
+        timeStr = timeStr.slice(0, 8); // truncate milliseconds
+      }
+
+      const bookingTime = new Date(`${dateStr}T${timeStr}`);
+
+      // If invalid date, skip
+      if (isNaN(bookingTime.getTime())) return false;
+
       const diffHours = (bookingTime.getTime() - now.getTime()) / msInHour;
 
       // Check window: -timeWindow <= diff <= +timeWindow
       return diffHours >= -timeWindow && diffHours <= timeWindow;
     }).sort((a: any, b: any) => {
-      // Sort absolute distance from now (closest first? or just chronological?)
-      // User asked for 10h back and 10h forward. Chronological usually best.
-      const dateA = new Date(`${a.pickup_date}T${a.pickup_time}`);
-      const dateB = new Date(`${b.pickup_date}T${b.pickup_time}`);
+      // Sort chronologically
+      const dateStrA = a.pickup_date.includes('T') ? a.pickup_date.split('T')[0] : a.pickup_date;
+      let timeA = a.pickup_time;
+      if (timeA.length === 4 || timeA.length === 5) {
+        const parts = timeA.split(':');
+        timeA = `${parts[0].padStart(2, '0')}:${parts[1]}:00`;
+      } else {
+        timeA = timeA.slice(0, 8);
+      }
+
+      const dateStrB = b.pickup_date.includes('T') ? b.pickup_date.split('T')[0] : b.pickup_date;
+      let timeB = b.pickup_time;
+      if (timeB.length === 4 || timeB.length === 5) {
+        const parts = timeB.split(':');
+        timeB = `${parts[0].padStart(2, '0')}:${parts[1]}:00`;
+      } else {
+        timeB = timeB.slice(0, 8);
+      }
+
+      const dateA = new Date(`${dateStrA}T${timeA}`);
+      const dateB = new Date(`${dateStrB}T${timeB}`);
+
       return dateA.getTime() - dateB.getTime();
     });
   }, [bookings, timeWindow]);
@@ -126,6 +162,102 @@ export const OperationsHub: React.FC = () => {
       );
     } else {
       showToast('No se encontraron conductores disponibles que cumplan con las políticas.', 'warning');
+    }
+  };
+
+  const syncFlightsWithAirLabs = async () => {
+    try {
+      showToast('Actualizando alertas de reservas con AirLabs...', 'info');
+      const airlabsKey = import.meta.env.VITE_AIRLABS_API_KEY;
+
+      if (!airlabsKey) {
+        showToast('Falta la API Key de AirLabs en .env.local', 'error');
+        return;
+      }
+
+      if (!flights || flights.length === 0) {
+        showToast('No hay vuelos activos para sincronizar.', 'warning');
+        return;
+      }
+
+      // Filtrar vuelos que no estén Landed o Cancelled (para no desperdiciar cuota de AirLabs)
+      const activeFlights = flights.filter((f: any) =>
+        ['Scheduled', 'En Route', 'Delayed', 'Taxiing', 'Final Approach'].includes(f.status)
+      );
+
+      if (activeFlights.length === 0) {
+        showToast('Todos los vuelos ya han aterrizado.', 'success');
+        return;
+      }
+
+      let syncCount = 0;
+
+      for (const flight of activeFlights) {
+        if (!flight.number) continue;
+
+        // Limpiar el formato del número (ej: "FR 2070" -> "FR2070")
+        const flightIata = flight.number.replace(/\s+/g, '').toUpperCase();
+
+        const res = await fetch(`https://airlabs.co/api/v9/flights?api_key=${airlabsKey}&flight_iata=${flightIata}`);
+
+        if (!res.ok) continue;
+
+        const data = await res.json();
+
+        if (data && data.response && data.response.length > 0) {
+          const flightData = data.response[0]; // Primer coincidencia
+          let newStatus = flight.status;
+
+          switch (flightData.status) {
+            case 'en-route':
+            case 'active':
+              newStatus = flightData.delayed ? 'Delayed' : 'En Route';
+              break;
+            case 'scheduled':
+              newStatus = flightData.delayed ? 'Delayed' : 'Scheduled';
+              break;
+            case 'landed':
+              newStatus = 'Landed';
+              break;
+            case 'cancelled':
+              newStatus = 'Cancelled';
+              break;
+            default:
+              newStatus = flight.status;
+          }
+
+          const delayMinutes = flightData.delayed || 0;
+          const estimatedArrival = flightData.arr_estimated_utc || flightData.arr_time_utc;
+
+          // Actualizamos siempre si hay retraso detectado o si cambia la hora o estado
+          if (newStatus !== flight.status || delayMinutes !== (flight.delay || 0) || estimatedArrival !== flight.estimated) {
+            // Actualizar Supabase
+            const { error: updateError } = await supabase
+              .from('flights')
+              .update({
+                status: newStatus,
+                delay: delayMinutes,
+                estimated: estimatedArrival, // Actualizar ETA en BD
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', flight.id);
+
+            if (!updateError) {
+              syncCount++;
+            }
+          }
+        }
+      }
+
+      if (syncCount > 0) {
+        showToast(`Se sincronizaron ${syncCount} vuelos correctamente.`, 'success');
+      } else {
+        showToast('Los vuelos ya están al día. No hubo cambios.', 'success');
+      }
+
+    } catch (error) {
+      console.error(error);
+      showToast('Error conectando con AirLabs', 'error');
     }
   };
 
@@ -228,137 +360,147 @@ export const OperationsHub: React.FC = () => {
           </div>
 
           {/* Alert Center */}
-          <div className="col-span-12 md:col-span-8 lg:col-span-5 bg-brand-charcoal/70 backdrop-blur-md border border-white/5/50 rounded-2xl p-6 flex flex-col">
+          <div className="col-span-12 md:col-span-8 lg:col-span-5 bg-brand-charcoal/70 backdrop-blur-md border border-white/5/50 rounded-2xl p-6 flex flex-col h-[420px]">
             <div className="flex justify-between items-center mb-4 shrink-0">
               <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <span className="material-icons-round text-red-500">warning</span> Alert Center
               </h3>
               <button
-                onClick={() => showToast('Actualizando alertas de reservas...', 'info')}
-                className="text-xs text-brand-gold hover:text-white flex items-center gap-1"
+                onClick={syncFlightsWithAirLabs}
+                className="text-xs text-brand-gold hover:text-white flex items-center gap-1 transition-all"
               >
                 <span className="material-icons-round text-xs">refresh</span> Live Info
               </button>
             </div>
 
-            {/* ITV Warnings Section */}
-            {vehicles?.some((v: any) => {
-              if (!v.itv) return false;
-              const diff = (new Date(v.itv).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
-              return diff > 0 && diff < 15;
-            }) && (
-                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-pulse">
-                  <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                    <span className="material-icons-round text-xs">gavel</span> Alerta ITV Próxima
-                  </p>
-                  <div className="mt-1 space-y-1">
-                    {vehicles.filter((v: any) => {
-                      const diff = (new Date(v.itv).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
-                      return diff > 0 && diff < 15;
-                    }).map((v: any) => (
-                      <p key={v.id} className="text-[11px] text-white font-bold">
-                        {v.plate} ({v.model}): Expira el {v.itv}
+            <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 flex flex-col gap-4">
+              {/* Vehicle Warnings Section */}
+              <div className="space-y-3 flex-shrink-0">
+                {vehicles?.map((v: any) => {
+                  const alerts = [];
+                  // ITV
+                  if (v.itv) {
+                    const diffItv = (new Date(v.itv).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+                    if (diffItv <= 15) {
+                      alerts.push({ type: 'itv', msg: diffItv < 0 ? `ITV Vencida (${new Date(v.itv).toLocaleDateString()})` : `ITV expira el ${new Date(v.itv).toLocaleDateString()}`, icon: 'gavel', color: 'text-amber-500' });
+                    }
+                  }
+                  // Seguro
+                  if (v.insurance_expiry) {
+                    const diffIns = (new Date(v.insurance_expiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+                    if (diffIns <= 30) {
+                      alerts.push({ type: 'seguro', msg: diffIns < 0 ? `Seguro Vencido (${new Date(v.insurance_expiry).toLocaleDateString()})` : `Seguro expira el ${new Date(v.insurance_expiry).toLocaleDateString()}`, icon: 'security', color: 'text-emerald-500' });
+                    }
+                  }
+                  // Mantenimiento
+                  const interval = v.maintenance_interval || 15000;
+                  const nextMaintenance = (v.last_maintenance_km || 0) + interval;
+                  const kmToMaintenance = nextMaintenance - (v.km || 0);
+                  if (kmToMaintenance <= 1000 && v.last_maintenance_km !== undefined) {
+                    alerts.push({ type: 'taller', msg: kmToMaintenance < 0 ? `Taller: Mantenimiento atrasado ${Math.abs(kmToMaintenance)} km` : `Taller: Faltan ${kmToMaintenance} km`, icon: 'build', color: 'text-rose-500' });
+                  }
+
+                  if (alerts.length === 0) return null;
+
+                  return (
+                    <div key={`vehicle-alert-${v.id}`} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-pulse cursor-default hover:animate-none transition-all flex-shrink-0">
+                      <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2 mb-1.5">
+                        <span className="material-icons-round text-xs">warning</span> Aviso Vehículo: {v.plate} <span className="text-white/50 lowercase ml-1">{v.model}</span>
                       </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-            <div className="space-y-3 overflow-y-auto max-h-[220px] custom-scrollbar pr-1 flex-1">
-              {bookings && flights && bookings.length > 0 ? (
-                bookings
-                  .filter((b: any) => {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    return b.pickup_date === todayStr && b.flight_number;
-                  })
-                  .map((b: any) => {
-                    const flightInfo = flights.find((f: any) => f.number === b.flight_number);
-                    const isDelayed = flightInfo?.status === 'Delayed';
-                    const isArriving = flightInfo?.status === 'Final Approach' || flightInfo?.status === 'Taxiing';
-
-                    if (!isDelayed && !isArriving) return null;
-
-                    return (
-                      <div
-                        key={b.id}
-                        className={`flex items-start gap-3 p-3 rounded-xl border transition-all hover:scale-[1.01] ${isDelayed
-                          ? 'bg-red-500/10 border-red-500/20'
-                          : 'bg-blue-500/10 border-brand-gold/20'
-                          }`}
-                      >
-                        <span className={`material-icons-round text-sm mt-0.5 ${isDelayed ? 'text-red-500' : 'text-brand-gold'
-                          }`}>
-                          {isDelayed ? 'flight_takeoff' : 'flight_land'}
-                        </span>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <h4 className="text-sm font-medium text-white">{b.flight_number} • {b.passenger}</h4>
-                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shadow-sm ${isDelayed ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-brand-gold'
-                              }`}>
-                              {b.pickup_time}
-                            </span>
-                          </div>
-                          <p className="text-xs text-brand-platinum/50 mt-1">
-                            {isDelayed
-                              ? `Vuelo ${b.flight_number} con retraso. Ajustar reserva de ${b.passenger}.`
-                              : `Vuelo en estado: ${flightInfo?.status}. Pasajero esperando.`}
+                      <div className="space-y-1 mt-1">
+                        {alerts.map((alert, i) => (
+                          <p key={i} className={`text-[11px] font-bold flex items-center gap-1.5 ${alert.color}`}>
+                            <span className="material-icons-round text-[12px]">{alert.icon}</span> {alert.msg}
                           </p>
-                        </div>
+                        ))}
                       </div>
-                    );
-                  })
-                  .filter(Boolean)
-                  .length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 opacity-50">
-                    <span className="material-icons-round text-4xl text-slate-700 mb-2">notifications_none</span>
-                    <p className="text-xs text-brand-platinum/30">No hay alertas de vuelos para reservas de hoy.</p>
-                  </div>
-                ) : (
-                  bookings
-                    .filter((b: any) => {
-                      const todayStr = new Date().toISOString().split('T')[0];
-                      return b.pickup_date === todayStr && b.flight_number;
-                    })
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Flights Section */}
+              <div className="space-y-3 flex-1">
+                {(() => {
+                  if (!filteredBookings || !flights) return <p className="text-xs text-brand-platinum/30 text-center py-10 flex-shrink-0">Cargando alertas...</p>;
+
+                  const flightAlerts = filteredBookings
+                    .filter((b: any) => b.flight_number)
                     .map((b: any) => {
                       const flightInfo = flights.find((f: any) => f.number === b.flight_number);
                       const isDelayed = flightInfo?.status === 'Delayed';
                       const isArriving = flightInfo?.status === 'Final Approach' || flightInfo?.status === 'Taxiing';
-                      if (!isDelayed && !isArriving) return null;
+                      const isUpcoming = flightInfo?.status === 'Scheduled' || flightInfo?.status === 'En Route';
+
+                      if (!isDelayed && !isArriving && !isUpcoming) return null;
+
+                      let bgClass = 'bg-slate-800/50 border-white/5';
+                      let textClass = 'text-brand-platinum/70';
+                      let iconClass = 'flight';
+
+                      if (isDelayed) {
+                        bgClass = 'bg-red-500/10 border-red-500/20';
+                        textClass = 'text-red-500';
+                        iconClass = 'flight_takeoff';
+                      } else if (isArriving) {
+                        bgClass = 'bg-emerald-500/10 border-emerald-500/20';
+                        textClass = 'text-emerald-500';
+                        iconClass = 'flight_land';
+                      } else if (isUpcoming) {
+                        bgClass = 'bg-blue-500/10 border-blue-500/20';
+                        textClass = 'text-blue-400';
+                        iconClass = 'flight';
+                      }
 
                       return (
                         <div
-                          key={b.id}
-                          className={`flex items-start gap-3 p-3 rounded-xl border transition-all hover:scale-[1.01] ${isDelayed
-                            ? 'bg-red-500/10 border-red-500/20'
-                            : 'bg-blue-500/10 border-brand-gold/20'
-                            }`}
+                          key={`flight-alert-${b.id}`}
+                          className={`flex items-start gap-3 p-3 rounded-xl border transition-all hover:scale-[1.01] flex-shrink-0 ${bgClass}`}
                         >
-                          <span className={`material-icons-round text-sm mt-0.5 ${isDelayed ? 'text-red-500' : 'text-brand-gold'
-                            }`}>
-                            {isDelayed ? 'flight_takeoff' : 'flight_land'}
+                          <span className={`material-icons-round text-sm mt-0.5 ${textClass}`}>
+                            {iconClass}
                           </span>
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
-                              <h4 className="text-sm font-medium text-white">{b.flight_number} • {b.passenger}</h4>
-                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shadow-sm ${isDelayed ? 'bg-red-500/20 text-red-500' : 'bg-blue-500/20 text-brand-gold'
-                                }`}>
-                                {b.pickup_time}
+                              <div className="flex flex-col">
+                                <h4 className="text-sm font-medium text-white">{b.flight_number} • {b.passenger}</h4>
+                                {flightInfo?.delay ? (
+                                  <span className="text-[10px] text-red-400 font-medium">+{flightInfo.delay} min. de retraso</span>
+                                ) : null}
+                              </div>
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shadow-sm flex flex-col items-center ${bgClass} ${textClass}`}>
+                                <span>{(flightInfo?.status || 'Scheduled').toUpperCase()}</span>
                               </span>
                             </div>
-                            <p className="text-xs text-brand-platinum/50 mt-1">
-                              {isDelayed
-                                ? `Vuelo retrasado: ${b.flight_number}.`
-                                : `Estado: ${flightInfo?.status}. Preparar recogida para ${b.passenger}.`}
-                            </p>
+                            <div className="flex justify-between items-center mt-1">
+                              <p className="text-xs text-brand-platinum/50 flex items-center gap-1.5">
+                                <span className="material-icons-round text-[10px]">schedule</span> {b.pickup_time}
+                                <span className="text-[10px] text-slate-500 ml-1">({b.origin})</span>
+                              </p>
+                              {flightInfo?.estimated && (
+                                <p className="text-xs text-brand-platinum/70 flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded">
+                                  ETA: {new Date(flightInfo.estimated).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
                     })
-                    .filter(Boolean)
-                )
-              ) : (
-                <p className="text-xs text-brand-platinum/30 text-center py-10">Cargando alertas...</p>
-              )}
+                    .filter(Boolean);
+
+                  if (flightAlerts.length === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-8 opacity-50 flex-shrink-0">
+                        <span className="material-icons-round text-4xl text-slate-700 mb-2">notifications_none</span>
+                        <p className="text-xs text-brand-platinum/30">No hay alertas de vuelos activas.</p>
+                      </div>
+                    );
+                  }
+
+                  return flightAlerts;
+                })()}
+              </div>
             </div>
           </div>
 
@@ -384,7 +526,7 @@ export const OperationsHub: React.FC = () => {
           {/* Middle Row */}
 
           {/* Flight Monitor */}
-          <div className="col-span-12 lg:col-span-8 bg-brand-charcoal/70 backdrop-blur-md border border-white/5/50 rounded-2xl p-6">
+          <div className="col-span-12 bg-brand-charcoal/70 backdrop-blur-md border border-white/5/50 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-medium text-white flex items-center gap-2">
@@ -419,6 +561,9 @@ export const OperationsHub: React.FC = () => {
                       {filteredBookings.length > 0 ? filteredBookings.map((b: any) => {
                         const f = flights?.find((flight: any) => flight.number === b.flight_number);
                         const status = f?.status || 'Scheduled';
+                        const delayMins = f?.delay || 0;
+                        const eta = f?.estimated;
+
                         return (
                           <tr
                             key={b.id}
@@ -432,13 +577,25 @@ export const OperationsHub: React.FC = () => {
                               setDraggedBookingId(null);
                               setDropTargetDriverId(null);
                             }}
-                            className={`group hover:bg-white/5 transition-colors border-b border-white/5/50 last:border-0 cursor-move ${draggedBookingId === b.id ? 'opacity-50' : ''}`}
+                            className={`group hover:bg-white/5 transition-colors border-b border-white/5/50 last:border-0 ${draggedBookingId === b.id ? 'opacity-50' : ''}`}
                           >
-                            <td className={`py-4 pl-2 font-mono ${status === 'Delayed' ? 'text-red-500' : 'text-white'}`}>{b.flight_number}</td>
+                            <td className={`py-4 pl-2 font-mono ${status === 'Delayed' ? 'text-red-500' : 'text-white'}`}>
+                              <div className="flex flex-col gap-0.5">
+                                <span>{b.flight_number}</span>
+                                {status === 'Delayed' && delayMins > 0 && (
+                                  <span className="text-[10px] text-red-500 font-bold">+{delayMins} min</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="py-4 text-slate-300">{b.origin}</td>
-                            <td className="py-4 font-mono text-white">{b.pickup_time}</td>
+                            <td className="py-4 font-mono text-white">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] text-brand-platinum/50 mb-0.5">{new Date(b.pickup_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</span>
+                                <span>{b.pickup_time}</span>
+                              </div>
+                            </td>
                             <td className="py-4">
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1 w-fit">
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border text-center whitespace-nowrap
                             ${status === 'Final Approach' || status === 'Taxiing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' :
                                     status === 'Landed' ? 'bg-blue-500/20 text-brand-gold border-brand-gold/30' :
@@ -446,8 +603,13 @@ export const OperationsHub: React.FC = () => {
                                         'bg-slate-800 text-brand-platinum/50 border-white/5'}`}>
                                   {status}
                                 </span>
-                                {(status === 'Final Approach' || status === 'Taxiing') && (
-                                  <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest justify-center">
+                                {eta && (
+                                  <span className="text-[9px] text-brand-platinum/60 font-mono mt-0.5 text-center">
+                                    ETA: {new Date(eta).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                )}
+                                {(status === 'Final Approach' || status === 'Taxiing') && !eta && (
+                                  <span className="flex items-center gap-1 text-[8px] font-black text-emerald-500 uppercase tracking-widest justify-center mt-0.5">
                                     <span className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></span> LIVE
                                   </span>
                                 )}
@@ -459,14 +621,6 @@ export const OperationsHub: React.FC = () => {
                             </td>
                             <td className="py-4 pr-2 text-right">
                               <div className="flex items-center justify-end gap-2">
-                                {!b.driver_id && (
-                                  <button
-                                    onClick={() => handleAutoAssign(b)}
-                                    className="text-[10px] bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/20 hover:border-emerald-500 text-emerald-400 hover:text-white px-3 py-1.5 rounded-full transition-all font-bold uppercase tracking-tighter"
-                                  >
-                                    Auto-Asignar
-                                  </button>
-                                )}
                                 <button className="text-xs bg-brand-charcoal hover:bg-blue-600 border border-white/5 hover:border-brand-gold text-slate-300 hover:text-white px-3 py-1.5 rounded-full transition-all">
                                   Manage
                                 </button>
@@ -475,103 +629,12 @@ export const OperationsHub: React.FC = () => {
                           </tr>
                         )
                       }) : (
-                        <tr><td colSpan={6} className="p-8 text-center text-brand-platinum/30">No flight reservations found for today</td></tr>
+                        <tr><td colSpan={6} className="p-8 text-center text-brand-platinum/30">No flight reservations found in selected context</td></tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Dispatch List */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-            <div className="bg-brand-charcoal/70 backdrop-blur-md border border-white/5/50 rounded-2xl p-6 flex-1">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <span className="material-icons-round text-base text-brand-platinum/50">local_taxi</span> Vehicle Dispatch
-                </h3>
-                <span className="text-xs text-brand-platinum/30">Active: {activeDrivers.length}</span>
-              </div>
-              <div className="space-y-4">
-                {loadingDrivers ? <div className="text-center text-brand-platinum/50">Loading drivers...</div> : filteredDrivers.map((d: any) => {
-                  const driverServices = bookings?.filter((b: any) => b.driver_id === d.id && b.status !== 'Completed' && b.status !== 'Cancelled') || [];
-
-                  return (
-                    <div
-                      key={d.id}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (draggedBookingId) setDropTargetDriverId(d.id);
-                      }}
-                      onDragLeave={() => setDropTargetDriverId(null)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const bookingId = e.dataTransfer.getData('text');
-                        setDropTargetDriverId(null);
-                        setDraggedBookingId(null);
-                        if (bookingId) handleReassign(bookingId, d.id);
-                      }}
-                      className={`bg-brand-charcoal border ${dropTargetDriverId === d.id ? 'border-brand-gold bg-blue-500/10 scale-[1.02]' : 'border-white/5'} rounded-xl p-4 hover:border-brand-gold/50 transition-all duration-200 group`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-lg">{(d.name || '?').charAt(0)}</div>
-                            <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[#141e2b] ${d.current_status === 'Working' ? 'bg-emerald-500' : d.current_status === 'Paused' ? 'bg-amber-500' : 'bg-slate-500'}`}></div>
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-medium text-white group-hover:text-brand-gold transition-colors uppercase tracking-tight">{d.name}</h4>
-                            <p className="text-[10px] text-brand-platinum/30 uppercase font-black">{d.plate || 'No plate'}</p>
-                          </div>
-                        </div>
-                        {d.vehicle && d.vehicle.includes('S-Class') && <span className="material-icons-round text-[#D4AF37] text-lg">workspace_premium</span>}
-                      </div>
-
-                      {/* Driver's Current Services (Draggable) */}
-                      <div className="mt-4 space-y-2">
-                        {driverServices.length > 0 ? driverServices.map((b: any) => (
-                          <div
-                            key={b.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('text', b.id);
-                              e.dataTransfer.effectAllowed = 'move';
-                              setDraggedBookingId(b.id);
-                            }}
-                            onDragEnd={() => {
-                              setDraggedBookingId(null);
-                              setDropTargetDriverId(null);
-                            }}
-                            className={`bg-brand-charcoal p-2.5 rounded-lg border ${draggedBookingId === b.id ? 'opacity-50 border-brand-gold border-dashed' : 'border-white/5'} flex items-center justify-between cursor-move hover:bg-slate-800 transition-all group/item`}
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[10px] font-black text-brand-gold flex items-center gap-1">
-                                <span className="material-icons-round text-[10px]">schedule</span> {b.pickup_time}
-                              </span>
-                              <span className="text-[11px] font-bold text-slate-200">{b.passenger}</span>
-                            </div>
-                            <span className={`px-1.5 py-0.5 rounded-[4px] text-[8px] font-black uppercase ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500' :
-                              b.status === 'Confirmed' ? 'bg-blue-500/10 text-brand-gold' :
-                                'bg-purple-500/10 text-purple-400'
-                              }`}>{b.status}</span>
-                          </div>
-                        )) : (
-                          <p className="text-[10px] text-slate-600 italic">No assigned services</p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5/50">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/20 text-brand-gold border border-brand-gold/30">AENA OK</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${d.current_status === 'Working' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{d.current_status}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                <button className="w-full mt-4 py-3 border border-dashed border-white/5 text-brand-platinum/50 rounded-xl hover:border-brand-gold hover:text-brand-gold hover:bg-blue-500/5 transition-all text-sm font-medium flex items-center justify-center gap-2">
-                  <span className="material-icons-round text-base">add</span> Manually Assign Driver
-                </button>
-              </div>
             </div>
           </div>
 

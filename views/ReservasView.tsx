@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
 import { suggestDriver, detectScheduleConflicts } from '../services/autoAssignment';
+import { supabase } from '../services/supabase';
 
 export const ReservasView: React.FC = () => {
    const [activeTab, setActiveTab] = useState<'list' | 'availability'>('list');
@@ -13,12 +14,14 @@ export const ReservasView: React.FC = () => {
    const { data: clients } = useSupabaseData('clients');
    // Fetch municipalities for type lookup
    const { data: municipalities } = useSupabaseData('municipalities');
+   const { data: settings } = useSupabaseData('system_settings');
    const TOTAL_FLEET = vehicles?.length || 12;
 
    // Local State for Filters
    const [searchQuery, setSearchQuery] = useState('');
    const [statusFilter, setStatusFilter] = useState('Todos');
    const [hideCompleted, setHideCompleted] = useState(false); // Changed initial value
+   const [hideCancelled, setHideCancelled] = useState(true);
    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
    const [driverFilter, setDriverFilter] = useState('Todos');
@@ -31,6 +34,43 @@ export const ReservasView: React.FC = () => {
    const [editingItem, setEditingItem] = useState<any>(null);
    // State to hold the current form data, used for dynamic field labels/options
    const [currentFormData, setCurrentFormData] = useState<any>({});
+
+   // Cancel Modal State
+   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+   const [bookingToCancel, setBookingToCancel] = useState<any>(null);
+   const [cancelOptions, setCancelOptions] = useState({
+      hasCost: false, // false = sin coste (0€), true = con coste (mantiene price)
+      unassignDriver: true // true = desasignar y precio colaborador 0€, false = mantener
+   });
+
+   // Helper to get prices from tariffs
+   const getTariffPrices = (booking: any) => {
+      if (!tariffs || !booking.origin || !booking.destination) return null;
+
+      const vehicleClass = booking.vehicle_class || 'Standard';
+      const tariff = tariffs.find((t: any) =>
+         t.origin === booking.origin &&
+         t.destination === booking.destination &&
+         (t.vehicle_class?.toLowerCase() === vehicleClass.toLowerCase() ||
+            t.class?.toLowerCase() === vehicleClass.toLowerCase() ||
+            t.vehicle_type?.toLowerCase() === vehicleClass.toLowerCase() ||
+            !t.vehicle_class)
+      );
+
+      if (!tariff) return null;
+
+      let price = tariff.base_price || tariff.price || 0;
+      let collabPrice = tariff.collaborator_price || 0;
+
+      const roundTripMultiplier = parseFloat(settings?.find((s: any) => s.key === 'round_trip_multiplier')?.value || '1.8');
+
+      if (booking.trip_type === 'Round Trip') {
+         price = Math.round(price * roundTripMultiplier);
+         collabPrice = Math.round(collabPrice * roundTripMultiplier);
+      }
+
+      return { price, collaborator_price: collabPrice };
+   };
 
    // Auto-fill logic passed to Modal
    const handleFormDataChange = (newData: any) => {
@@ -52,28 +92,22 @@ export const ReservasView: React.FC = () => {
       }
 
       // Price Calculation Logic
-      // Only run if origin/dest actually changed to avoid cycles
-      if (newData.origin && newData.destination && tariffs &&
-         (newData.origin !== currentFormData.origin || newData.destination !== currentFormData.destination)) {
-         // Default to Standard if not selected yet, or use current selection
-         const vehicleClass = newData.vehicle_class || 'Standard';
+      const hasLocationChanged = newData.origin !== currentFormData.origin || newData.destination !== currentFormData.destination;
+      const hasCategoryChanged = newData.vehicle_class !== currentFormData.vehicle_class;
+      const hasTripTypeChanged = newData.trip_type !== currentFormData.trip_type;
+      const hasDriverAssigned = newData.driver_id && !currentFormData.driver_id;
 
-         // Find matching tariff
-         // We assume tariff has origin, destination, and vehicle_class (or similar)
-         // If vehicle_class is not in tariff schema, we just match origin/dest
-         const tariff = tariffs.find((t: any) =>
-            t.origin === newData.origin &&
-            t.destination === newData.destination &&
-            // Check for class match if available in tariff object. 
-            // Case insensitive check just in case.
-            (t.vehicle_class?.toLowerCase() === vehicleClass.toLowerCase() ||
-               t.vehicle_type?.toLowerCase() === vehicleClass.toLowerCase() ||
-               !t.vehicle_class) // Fallback if no class in tariff
-         );
-
-         if (tariff) {
-            console.log("Tariff found:", tariff); // Debug
-            newData.price = tariff.price;
+      if (hasLocationChanged || hasCategoryChanged || hasTripTypeChanged || (hasDriverAssigned && (!newData.collaborator_price || newData.collaborator_price === 0))) {
+         const prices = getTariffPrices(newData);
+         if (prices) {
+            // Only overwrite price if locations/category/trip changed
+            if (hasLocationChanged || hasCategoryChanged || hasTripTypeChanged) {
+               newData.price = prices.price;
+            }
+            // Always fill collaborator_price if it's empty and a driver is assigned or route changed
+            if (!newData.collaborator_price || newData.collaborator_price === 0 || hasLocationChanged || hasCategoryChanged || hasTripTypeChanged) {
+               newData.collaborator_price = prices.collaborator_price;
+            }
          }
       }
 
@@ -152,6 +186,7 @@ export const ReservasView: React.FC = () => {
          // 2. Status Filter
          let matchesStatus = statusFilter === 'Todos' || b.status === statusFilter;
          if (hideCompleted && b.status === 'Completed') matchesStatus = false;
+         if (hideCancelled && b.status === 'Cancelled') matchesStatus = false;
 
          // 3. Date Filter (Fix: Compare YYYY-MM-DD strings)
          const bDate = b.pickup_date ? b.pickup_date.split('T')[0] : '';
@@ -183,6 +218,8 @@ export const ReservasView: React.FC = () => {
 
       // Sort by date and time
       return filtered.sort((a: any, b: any) => {
+         // Sort explicitly by the numeric part if they have one or ID as string
+         // This is useful for placing newest at the top, or ordered by pickup
          const dateA = a.pickup_date || '';
          const dateB = b.pickup_date || '';
          if (dateA !== dateB) return dateA.localeCompare(dateB);
@@ -191,7 +228,7 @@ export const ReservasView: React.FC = () => {
          const timeB = b.pickup_time || '';
          return timeA.localeCompare(timeB);
       });
-   }, [bookings, searchQuery, statusFilter, hideCompleted, showInactive, startDate, endDate, driverFilter, vehicleIdFilter, vehicles]);
+   }, [bookings, searchQuery, statusFilter, hideCompleted, hideCancelled, showInactive, startDate, endDate, driverFilter, vehicleIdFilter, vehicles]);
 
    const handleAssignDriver = async (bookingId: string, driverId: string) => {
       // Handle unassignment
@@ -228,11 +265,22 @@ export const ReservasView: React.FC = () => {
       }
 
       try {
-         await updateItem(bookingId, {
+         const updates: any = {
             driver_id: driverId,
             assigned_driver_name: (selectedDriver as any).name,
             status: 'Pending'
-         });
+         };
+
+         // If collaborator_price is 0 or null, try to auto-fill it from tariffs
+         const booking = bookings.find(b => b.id === bookingId);
+         if (booking && (!booking.collaborator_price || booking.collaborator_price === 0)) {
+            const prices = getTariffPrices(booking);
+            if (prices && prices.collaborator_price) {
+               updates.collaborator_price = prices.collaborator_price;
+            }
+         }
+
+         await updateItem(bookingId, updates);
       } catch (error) {
          console.error('Error assigning driver:', error);
          alert('Error al asignar conductor');
@@ -349,11 +397,21 @@ export const ReservasView: React.FC = () => {
          const suggestion = suggestDriver(bookingToAssign, drivers, workingBookings, vehicles || [], shifts || []);
          if (suggestion) {
             try {
-               await updateItem(booking.id, {
+               const updates: any = {
                   driver_id: suggestion.id,
                   assigned_driver_name: suggestion.name,
                   status: 'Pending'
-               });
+               };
+
+               // Auto-fill collaborator_price if empty during auto-assign
+               if (!booking.collaborator_price || booking.collaborator_price === 0) {
+                  const prices = getTariffPrices(booking);
+                  if (prices && prices.collaborator_price) {
+                     updates.collaborator_price = prices.collaborator_price;
+                  }
+               }
+
+               await updateItem(booking.id, updates);
 
                // Update our local working copy so the next iteration knows this driver is busy/has +1 load
                workingBookings = workingBookings.map(b =>
@@ -485,6 +543,120 @@ export const ReservasView: React.FC = () => {
       }
    };
 
+   const handleComunicarFomento = async (booking: any) => {
+      try {
+         // Create the payload for AltaDeServicio based on Fomento requirements
+         const payload = {
+            cgmunicontrato: "079", // Example: Alicante code
+            cgmunifin: "079",
+            cgmuniinicio: "079",
+            cgprovcontrato: "03", // Alicante province
+            cgprovfin: "03",
+            cgprovinicio: "03",
+            direccionfin: booking.destination_address || booking.destination,
+            direccioninicio: booking.origin_address || booking.origin,
+            fcontrato: booking.created_at ? booking.created_at.split('T')[0] : booking.pickup_date.split('T')[0],
+            ffin: booking.pickup_date ? booking.pickup_date.split('T')[0] : "",
+            fprevistainicio: `${booking.pickup_date?.split('T')[0]}T${booking.pickup_time}:00`,
+            matricula: "PENDING",
+            nifarrendador: "B00000000", // Reemplazar en config real
+            nifarrendatario: "99999999R", // Default NIF
+            niftitular: "B00000000",
+            nombarrendador: "Palladium Transfers S.L.",
+            nombarrendatario: booking.client_name || booking.passenger,
+            nombtitular: "Palladium Transfers S.L."
+         };
+
+         // Look up assigned vehicle if available
+         if (booking.driver_id && shifts && vehicles) {
+            const bDate = booking.pickup_date ? booking.pickup_date.split("T")[0] : null;
+            const svcShift = bDate ? shifts.find((s: any) => s.driver_id === booking.driver_id && s.date === bDate) : null;
+            const svcVehicle = svcShift ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
+            if (svcVehicle && svcVehicle.plate) {
+               payload.matricula = svcVehicle.plate;
+            }
+         }
+
+         if (payload.matricula === "PENDING") {
+            alert("⚠️ Debes asignar la reserva a un conductor con un vehículo registrado antes de comunicarla a Fomento.");
+            return;
+         }
+
+         const { data, error } = await supabase.functions.invoke('fomento-vtc', {
+            body: { action: 'alta', payload }
+         });
+
+         if (error) throw error;
+         if (!data.success) throw new Error(data.error || "Error en la comunicación RVTC: " + data.resultado);
+
+         // Update local and remote state
+         await updateItem(booking.id, {
+            fomento_status: 'COMUNICADO',
+            fomento_idservicio: data.idservicio,
+            fomento_idcomunica: data.idcomunica,
+            fomento_error: null
+         });
+
+         alert("✅ Comunicación con Fomento RVTC exitosa.\nID Servicio: " + data.idservicio);
+
+      } catch (err: any) {
+         console.error("Error Fomento:", err);
+         await updateItem(booking.id, {
+            fomento_status: 'ERROR',
+            fomento_error: err.message || 'Error desconocido'
+         });
+         alert("❌ Error al comunicar con Fomento:\n" + err.message);
+      }
+   };
+
+   const confirmCancelBooking = async () => {
+      if (!bookingToCancel) return;
+
+      try {
+         const updates: any = {
+            status: 'Cancelled'
+         };
+
+         if (!cancelOptions.hasCost) {
+            // Cancelar sin coste: Todos los importes y comisiones a 0
+            updates.price = 0;
+            updates.agency_commission = 0;
+            updates.stripe_commission = 0;
+            updates.collected_amount = 0;
+         }
+
+         if (cancelOptions.unassignDriver) {
+            // Desasignar conductor y no pagarle
+            updates.driver_id = null;
+            updates.assigned_driver_name = null;
+            updates.driver_price = 0;
+            updates.collaborator_price = 0;
+         } else if (!cancelOptions.hasCost) {
+            // Si no desasigna conductor PERO es sin coste general, 
+            // probablemente también queramos o no pagarle? Por defecto, si eligen no desasignarlo pero sí "sin coste", 
+            // suele implicar que se le paga su "vacío". Mantendremos los importes originales del conductor en ese caso.
+         }
+
+         await updateItem(bookingToCancel.id, updates);
+
+         setIsCancelModalOpen(false);
+         setBookingToCancel(null);
+
+         // Mostrar toast o alert nativo
+         alert('✅ Reserva cancelada correctamente.');
+      } catch (err: any) {
+         console.error('Error canceling booking:', err);
+         alert('❌ Error al cancelar reserva: ' + (err.message || 'Desconocido'));
+      }
+   };
+
+   const openCancelModal = (booking: any) => {
+      setBookingToCancel(booking);
+      // Reset options to safe defaults
+      setCancelOptions({ hasCost: false, unassignDriver: true });
+      setIsCancelModalOpen(true);
+   };
+
    // Logic: Availability
    const today = new Date().toISOString().split('T')[0];
    const bookingsToday = bookings ? bookings.filter((b: any) => b.pickup_date && b.pickup_date.startsWith(today)) : [];
@@ -521,10 +693,6 @@ export const ReservasView: React.FC = () => {
          { name: 'flight_number', label: 'Nº Vuelo / Tren', type: 'text', section: 'Trayecto e Ida' },
          { name: 'origin', label: 'Ciudad Origen', type: 'searchable-select', options: muniOptions, required: true, section: 'Trayecto e Ida' },
          { name: 'origin_address', label: 'Dirección Origen / Hotel / Terminal', type: 'text', required: true, section: 'Trayecto e Ida' },
-         { name: 'pickup_address', label: 'Dirección Exacta Recogida', type: 'text', section: 'Trayecto e Ida' },
-
-         { name: 'return_date', label: 'Fecha Vuelta', type: 'date', section: 'Trayecto de Vuelta', hidden: currentFormData.trip_type !== 'Round Trip' },
-         { name: 'return_time', label: 'Hora Vuelta', type: 'time', section: 'Trayecto de Vuelta', hidden: currentFormData.trip_type !== 'Round Trip' },
 
          { name: 'destination', label: 'Ciudad Destino', type: 'searchable-select', options: muniOptions, required: true, section: 'Destino' },
          { name: 'destination_address', label: 'Dirección Destino / Hotel / Terminal', type: 'text', required: true, section: 'Destino' },
@@ -689,6 +857,16 @@ export const ReservasView: React.FC = () => {
                         <div className="flex h-8 items-center gap-2 bg-brand-black border border-white/5 rounded-lg px-3 select-none">
                            <input
                               type="checkbox"
+                              id="hideCancelled"
+                              checked={hideCancelled}
+                              onChange={(e) => setHideCancelled(e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-white/5 bg-slate-800 text-red-500 focus:ring-red-500"
+                           />
+                           <label htmlFor="hideCancelled" className="text-[10px] text-red-500/50 font-bold cursor-pointer uppercase hover:text-red-500/80 transition-colors">Ocultar Canceladas</label>
+                        </div>
+                        <div className="flex h-8 items-center gap-2 bg-brand-black border border-white/5 rounded-lg px-3 select-none">
+                           <input
+                              type="checkbox"
                               id="showInactive"
                               checked={showInactive}
                               onChange={(e) => setShowInactive(e.target.checked)}
@@ -738,14 +916,15 @@ export const ReservasView: React.FC = () => {
                               <table className="w-full text-left">
                                  <thead>
                                     <tr className="bg-brand-charcoal/80 text-brand-platinum/30 text-[10px] font-black uppercase tracking-widest border-b border-white/5">
-                                       <th className="px-6 py-5">ID / Vuelo</th>
-                                       <th className="px-6 py-5">Pasajero</th>
-                                       <th className="px-6 py-5">Cliente</th>
-                                       <th className="px-6 py-5">Trayecto</th>
-                                       <th className="px-6 py-5">Cita</th>
-                                       <th className="px-6 py-5 text-brand-gold">Despacho</th>
-                                       <th className="px-6 py-5">Estado</th>
-                                       <th className="px-6 py-5 text-right">Acciones</th>
+                                       <th className="px-4 py-5 font-medium">ID</th>
+                                       <th className="px-4 py-5 font-medium">Cliente</th>
+                                       <th className="px-4 py-5 font-medium">Cita</th>
+                                       <th className="px-4 py-5 font-medium">Trayecto</th>
+                                       <th className="px-4 py-5 font-medium">Nº Vuelo</th>
+                                       <th className="px-4 py-5 font-medium">Pasajero</th>
+                                       <th className="px-4 py-5 text-brand-gold font-medium">Despacho</th>
+                                       <th className="px-4 py-5 font-medium">Estado</th>
+                                       <th className="px-4 py-5 text-right font-medium">Acciones</th>
                                     </tr>
                                  </thead>
                                  <tbody className="divide-y divide-slate-800 text-sm">
@@ -755,31 +934,64 @@ export const ReservasView: React.FC = () => {
                                              className={`transition-colors group cursor-pointer ${expandedRowId === b.id ? 'bg-slate-800/50' : 'hover:bg-slate-800/30'}`}
                                              onClick={() => setExpandedRowId(expandedRowId === b.id ? null : b.id)}
                                           >
-                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                   <span className="font-mono text-brand-gold text-xs text-nowrap">#{b.display_id || b.id.slice(0, 6)}</span>
-                                                   <span className="text-[10px] text-brand-platinum/30">{b.flight_number || 'S/V'}</span>
+                                             {/* 1. ID */}
+                                             <td className="px-4 py-4 align-top">
+                                                <div className="flex flex-col gap-1 mt-1">
+                                                   <span className="font-mono text-brand-gold text-xs font-bold text-nowrap">#{b.display_id || b.id.slice(0, 6)}</span>
+                                                   {b.fomento_status === 'COMUNICADO' && (
+                                                      <span className="bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded w-fit border border-emerald-500/20" title="Comunicado a Fomento">RVTC ✓</span>
+                                                   )}
+                                                   {b.fomento_status === 'ERROR' && (
+                                                      <span className="bg-red-500/10 text-red-500 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded w-fit border border-red-500/20" title="Error en Fomento">RVTC ✗</span>
+                                                   )}
                                                 </div>
                                              </td>
-                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                   <span className="font-bold text-white text-nowrap">{b.passenger}</span>
-                                                   <span className="text-[10px] text-brand-platinum/30 truncate max-w-[120px]">{b.email}</span>
+
+                                             {/* 2. Cliente */}
+                                             <td className="px-4 py-4 align-top">
+                                                <div className="mt-1">
+                                                   <span className="text-brand-platinum/90 text-xs font-bold">{b.client_name || 'Palladium Transfers S.L.'}</span>
                                                 </div>
                                              </td>
-                                             <td className="px-6 py-4">
-                                                <span className="text-brand-platinum/80 text-xs font-semibold">{b.client_name || 'Palladium Transfers S.L.'}</span>
-                                             </td>
-                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                   <span className="text-slate-200 text-xs">{b.origin}</span>
-                                                   <span className="text-[10px] text-brand-platinum/30">{"-> "} {b.destination}</span>
+
+                                             {/* 3. Cita */}
+                                             <td className="px-4 py-4 align-top min-w-[100px]">
+                                                <div className="flex flex-col gap-0.5">
+                                                   <span className="font-mono text-brand-gold text-base font-black tracking-tight">{b.pickup_time}</span>
+                                                   <span className="text-[10px] text-brand-platinum/50 font-medium uppercase tracking-widest">
+                                                      {b.pickup_date ? new Date(b.pickup_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).replace('.', '') : ''}
+                                                   </span>
                                                 </div>
                                              </td>
-                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                   <span className="font-bold text-white text-xs">{b.pickup_date?.split('T')[0]}</span>
-                                                   <span className="text-[10px] text-brand-gold">{b.pickup_time}h</span>
+
+                                             {/* 4. Trayecto */}
+                                             <td className="px-4 py-4 align-top">
+                                                <div className="flex flex-col gap-1.5 w-full max-w-[200px]">
+                                                   <div className="flex items-start gap-2">
+                                                      <span className="material-icons-round text-[14px] text-emerald-500/50 mt-0.5 flex-shrink-0">trip_origin</span>
+                                                      <span className="text-white text-xs leading-tight font-medium truncate" title={b.origin}>{b.origin}</span>
+                                                   </div>
+                                                   <div className="flex items-start gap-2">
+                                                      <span className="material-icons-round text-[14px] text-red-500/50 mt-0.5 flex-shrink-0">place</span>
+                                                      <span className="text-brand-platinum/60 text-xs leading-tight truncate" title={b.destination}>{b.destination}</span>
+                                                   </div>
+                                                </div>
+                                             </td>
+
+                                             {/* 5. Vuelo */}
+                                             <td className="px-4 py-4 align-top">
+                                                <div className="mt-1">
+                                                   <span className={`font-mono text-xs font-bold px-2 py-1 rounded border ${b.flight_number ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-white/5 text-brand-platinum/30 border-white/5'}`}>
+                                                      {b.flight_number || 'S/V'}
+                                                   </span>
+                                                </div>
+                                             </td>
+
+                                             {/* 6. Pasajero */}
+                                             <td className="px-4 py-4 align-top">
+                                                <div className="flex flex-col gap-0.5 mt-0.5">
+                                                   <span className="font-bold text-white text-sm text-nowrap">{b.passenger}</span>
+                                                   <span className="text-[10px] text-brand-platinum/30 truncate max-w-[130px]" title={b.email}>{b.email}</span>
                                                 </div>
                                              </td>
                                              <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -828,10 +1040,11 @@ export const ReservasView: React.FC = () => {
                                                       <span className="material-icons-round text-base">edit</span>
                                                    </button>
                                                    <button
-                                                      onClick={() => { if (confirm('¿Seguro?')) deleteItem(b.id); }}
+                                                      onClick={() => openCancelModal(b)}
                                                       className="w-9 h-9 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all"
+                                                      title="Cancelar Reserva"
                                                    >
-                                                      <span className="material-icons-round text-base">delete</span>
+                                                      <span className="material-icons-round text-base">cancel</span>
                                                    </button>
                                                 </div>
                                              </td>
@@ -876,8 +1089,37 @@ export const ReservasView: React.FC = () => {
 
                                                       {/* 3. Actions & Meta */}
                                                       <div className="space-y-4">
-                                                         <h4 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-white/5 pb-2">Gestión</h4>
+                                                         <h4 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-white/5 pb-2">Gestión y Despacho</h4>
                                                          <div className="space-y-3">
+
+                                                            {/* Fomento Sync Block */}
+                                                            <div className="bg-[#0f1724] border border-emerald-500/20 rounded-xl p-3 flex flex-col gap-2">
+                                                               <div className="flex justify-between items-center">
+                                                                  <div className="flex items-center gap-2">
+                                                                     <span className="material-icons-round text-emerald-500 text-sm">account_balance</span>
+                                                                     <span className="text-xs font-bold text-white uppercase tracking-widest">Ministerio de Fomento</span>
+                                                                  </div>
+                                                                  {b.fomento_status === 'COMUNICADO' ? (
+                                                                     <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded uppercase">Registrado</span>
+                                                                  ) : b.fomento_status === 'ERROR' ? (
+                                                                     <span className="text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded uppercase">Fallo</span>
+                                                                  ) : (
+                                                                     <span className="text-[9px] font-black bg-slate-700 text-slate-300 px-2 py-0.5 rounded uppercase">Pendiente</span>
+                                                                  )}
+                                                               </div>
+                                                               <p className="text-[10px] text-brand-platinum/50 leading-tight">La ley requiere comunicar el servicio antes del viaje.</p>
+                                                               {b.fomento_error && <p className="text-[9px] text-red-400 mt-1 italic break-words">{b.fomento_error}</p>}
+
+                                                               <button
+                                                                  onClick={() => handleComunicarFomento(b)}
+                                                                  disabled={b.fomento_status === 'COMUNICADO'}
+                                                                  className={`mt-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${b.fomento_status === 'COMUNICADO' ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
+                                                               >
+                                                                  {b.fomento_status === 'COMUNICADO' && <span className="material-icons-round text-sm">check_circle</span>}
+                                                                  {b.fomento_status === 'COMUNICADO' ? 'Comunicado a RVTC' : 'Comunicar a RVTC'}
+                                                               </button>
+                                                            </div>
+
                                                             {b.driver_id && (
                                                                <div className="bg-brand-black p-3 rounded-lg border border-white/5 mb-3">
                                                                   <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Vehículo Asignado (Día del Servicio)</span>
@@ -905,27 +1147,27 @@ export const ReservasView: React.FC = () => {
                                                                   <span className="text-brand-platinum/30 text-xs block mb-1">Método de Pago</span>
                                                                   <span className="text-sm font-medium text-white">{b.payment_method}</span>
                                                                </div>
-                                                               <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                                                                  <div>
-                                                                     <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Cobro Conductor</span>
-                                                                     <span className="text-sm font-medium text-white">
-                                                                        {b.actual_payment_method ? (
-                                                                           <span className="flex gap-2">
-                                                                              <span className="text-emerald-400">Efectivo: {b.cash_amount || 0}€</span> |
-                                                                              <span className="text-brand-gold">TPV: {b.tpv_amount || 0}€</span>
-                                                                              <span className="text-brand-platinum/30 ml-2">({b.actual_payment_method})</span>
-                                                                           </span>
-                                                                        ) : (
-                                                                           <span className="text-amber-500/50 italic">Pendiente</span>
-                                                                        )}
-                                                                     </span>
-                                                                  </div>
-                                                                  <div className="text-right">
-                                                                     <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Total Cobrado</span>
-                                                                     <span className={`text-lg font-black ${b.collected_amount >= b.price ? 'text-emerald-400' : b.collected_amount > 0 ? 'text-amber-400' : 'text-brand-platinum/30'}`}>
-                                                                        {b.collected_amount || 0}€
-                                                                     </span>
-                                                                  </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                                               <div>
+                                                                  <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Cobro Conductor</span>
+                                                                  <span className="text-sm font-medium text-white">
+                                                                     {b.actual_payment_method ? (
+                                                                        <span className="flex gap-2">
+                                                                           <span className="text-emerald-400">Efectivo: {b.cash_amount || 0}€</span> |
+                                                                           <span className="text-brand-gold">TPV: {b.tpv_amount || 0}€</span>
+                                                                           <span className="text-brand-platinum/30 ml-2">({b.actual_payment_method})</span>
+                                                                        </span>
+                                                                     ) : (
+                                                                        <span className="text-amber-500/50 italic">Pendiente</span>
+                                                                     )}
+                                                                  </span>
+                                                               </div>
+                                                               <div className="text-right">
+                                                                  <span className="text-brand-platinum/30 text-[10px] uppercase font-bold tracking-widest block mb-0.5">Total Cobrado</span>
+                                                                  <span className={`text-lg font-black ${b.collected_amount >= b.price ? 'text-emerald-400' : b.collected_amount > 0 ? 'text-amber-400' : 'text-brand-platinum/30'}`}>
+                                                                     {b.collected_amount || 0}€
+                                                                  </span>
                                                                </div>
                                                             </div>
 
@@ -996,6 +1238,89 @@ export const ReservasView: React.FC = () => {
                </div>
             )}
          </div>
+
+         {/* Cancel Reservation Modal */}
+         {isCancelModalOpen && bookingToCancel && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+               <div className="bg-[#151e29] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+                  <div className="flex justify-between items-center p-6 border-b border-white/5 bg-slate-800/30">
+                     <h2 className="text-lg font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
+                        <span className="material-icons-round text-red-500">warning</span>
+                        Cancelar Reserva
+                     </h2>
+                     <button
+                        onClick={() => setIsCancelModalOpen(false)}
+                        className="text-brand-platinum/50 hover:text-white transition-colors"
+                     >
+                        <span className="material-icons-round text-xl">close</span>
+                     </button>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                     <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-sm">
+                        <p className="font-bold text-red-400 mb-1">Reserva #{bookingToCancel.display_id || bookingToCancel.id.slice(0, 6)}</p>
+                        <p className="text-red-200">{bookingToCancel.passenger} - {bookingToCancel.pickup_date?.split('T')[0]} {bookingToCancel.pickup_time}</p>
+                     </div>
+
+                     <div className="space-y-4">
+                        <label className="flex items-start gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer border border-white/5 transition-colors">
+                           <input
+                              type="checkbox"
+                              checked={cancelOptions.hasCost}
+                              onChange={(e) => setCancelOptions({ ...cancelOptions, hasCost: e.target.checked })}
+                              className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-red-500 mt-0.5 focus:ring-red-500"
+                           />
+                           <div>
+                              <p className="font-bold text-white text-sm">Cancelación con coste</p>
+                              <p className="text-xs text-brand-platinum/50 mt-1">
+                                 Deja esta opción <strong className="text-red-400">DESMARCADA</strong> si la cancelación es gratuita. Si la marcas, se mantendrán los importes de cobro y comisión, pero se cambiará el estado a cancelado.
+                              </p>
+                           </div>
+                        </label>
+
+                        {bookingToCancel.driver_id && (
+                           <label className="flex items-start gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer border border-white/5 transition-colors">
+                              <input
+                                 type="checkbox"
+                                 checked={cancelOptions.unassignDriver}
+                                 onChange={(e) => setCancelOptions({ ...cancelOptions, unassignDriver: e.target.checked })}
+                                 className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-brand-gold mt-0.5 focus:ring-brand-gold"
+                              />
+                              <div>
+                                 <p className="font-bold text-white text-sm">Desasignar Conductor y Poner Precio a 0€</p>
+                                 <p className="text-xs text-brand-platinum/50 mt-1">
+                                    Desvincula al conductor <strong className="text-brand-gold">({bookingToCancel.assigned_driver_name})</strong> dejándolo libre. Su precio a percibir se establecerá a 0€.
+                                 </p>
+                              </div>
+                           </label>
+                        )}
+
+                        {!bookingToCancel.driver_id && (
+                           <div className="p-4 bg-slate-800/30 rounded-xl border border-white/5 opacity-50 text-sm italic text-brand-platinum/50">
+                              Esta reserva no tiene conductor asignado todavía.
+                           </div>
+                        )}
+                     </div>
+                  </div>
+
+                  <div className="p-6 border-t border-white/5 bg-slate-800/20 flex gap-3 justify-end rounded-b-2xl">
+                     <button
+                        onClick={() => setIsCancelModalOpen(false)}
+                        className="px-5 py-2.5 rounded-xl text-brand-platinum/80 text-sm font-bold hover:bg-white/5 transition-colors"
+                     >
+                        Volver
+                     </button>
+                     <button
+                        onClick={confirmCancelBooking}
+                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all shadow-lg shadow-red-500/20 flex items-center gap-2"
+                     >
+                        Confirmar Cancelación
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
+
 
          <DataEntryModal
             isOpen={isModalOpen}

@@ -843,6 +843,7 @@ export const TarifasView = () => {
       },
       { name: 'class', label: 'Categoría Vehículo', type: 'select', options: ['Standard', 'Luxury', 'Van', 'Bus'], required: true },
       { name: 'base_price', label: 'Precio Base (€)', type: 'number', required: true },
+      { name: 'collaborator_price', label: 'Precio Colaborador (€)', type: 'number' },
       { name: 'type', label: 'Tipo', type: 'select', options: ['Fija', 'Por KM', 'Variable'], required: true },
       { name: 'vat', label: 'IVA (%)', type: 'number', placeholder: '10' },
    ] as any;

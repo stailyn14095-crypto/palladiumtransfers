@@ -1,21 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { OperationsHub } from './views/OperationsHub';
-import { DispatchConsole } from './views/DispatchConsole';
-import { ExperienceConfig } from './views/ExperienceConfig';
-import { ReservasView } from './views/ReservasView';
-import { TurnosView } from './views/TurnosView';
-import { ApiConfigView } from './views/ApiConfigView';
-import { ConductoresView, VehiculosView, ClientesView, TarifasView, UsuariosView, FacturasView, ExtrasView, TallerView } from './views/ManagementModules';
-import { ConfiguracionView } from './views/ConfiguracionView';
-import { MunicipalitiesView } from './views/MunicipalitiesView';
-import { FichajesView } from './views/FichajesView';
-import { DriverAppView } from './views/DriverAppView';
-import { ReportesView } from './views/ReportesView';
-import { ClientPortalView } from './views/ClientPortalView';
-import { AiAssistant } from './components/AiAssistant';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
+import { AiAssistant } from './components/AiAssistant';
+
+// Lazy loaded views
+const OperationsHub = React.lazy(() => import('./views/OperationsHub').then(module => ({ default: module.OperationsHub })));
+const DispatchConsole = React.lazy(() => import('./views/DispatchConsole').then(module => ({ default: module.DispatchConsole })));
+const ExperienceConfig = React.lazy(() => import('./views/ExperienceConfig').then(module => ({ default: module.ExperienceConfig })));
+const ReservasView = React.lazy(() => import('./views/ReservasView').then(module => ({ default: module.ReservasView })));
+const TurnosView = React.lazy(() => import('./views/TurnosView').then(module => ({ default: module.TurnosView })));
+const ApiConfigView = React.lazy(() => import('./views/ApiConfigView').then(module => ({ default: module.ApiConfigView })));
+const ConfiguracionView = React.lazy(() => import('./views/ConfiguracionView').then(module => ({ default: module.ConfiguracionView })));
+const MunicipalitiesView = React.lazy(() => import('./views/MunicipalitiesView').then(module => ({ default: module.MunicipalitiesView })));
+const FichajesView = React.lazy(() => import('./views/FichajesView').then(module => ({ default: module.FichajesView })));
+const DriverAppView = React.lazy(() => import('./views/DriverAppView').then(module => ({ default: module.DriverAppView })));
+const ReportesView = React.lazy(() => import('./views/ReportesView').then(module => ({ default: module.ReportesView })));
+const ClientPortalView = React.lazy(() => import('./views/ClientPortalView').then(module => ({ default: module.ClientPortalView })));
+
+// Management Modules
+const ConductoresView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.ConductoresView })));
+const VehiculosView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.VehiculosView })));
+const ClientesView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.ClientesView })));
+const TarifasView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.TarifasView })));
+const UsuariosView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.UsuariosView })));
+const FacturasView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.FacturasView })));
+const ExtrasView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.ExtrasView })));
+const TallerView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.TallerView })));
 import { supabase } from './services/supabase';
 import { ViewState, Language } from './types';
 import { Session } from '@supabase/supabase-js';
@@ -230,63 +241,70 @@ export default function App() {
           </button>
         </div>
 
-        {(() => {
-          const isStaff = ['admin', 'operator', 'accountant'].includes(userRole);
-          const isAdmin = userRole === 'admin';
+        <Suspense fallback={
+          <div className="flex flex-col h-full items-center justify-center bg-[#0a0a0a]">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
+            <p className="mt-4 text-brand-platinum/50 text-xs uppercase tracking-widest font-bold">Cargando módulo...</p>
+          </div>
+        }>
+          {(() => {
+            const isStaff = ['admin', 'operator', 'accountant'].includes(userRole);
+            const isAdmin = userRole === 'admin';
 
-          return (
+            return (
+              <>
+                {(isAdmin || userRole === 'operator') && (
+                  <>
+                    {currentView === ViewState.OPERATIONS && <OperationsHub />}
+                    {currentView === ViewState.DISPATCH && <DispatchConsole />}
+                    {currentView === ViewState.RESERVAS && <ReservasView />}
+                    {currentView === ViewState.TURNOS && <TurnosView />}
+                    {currentView === ViewState.FICHAJES && <FichajesView />}
+                    {currentView === ViewState.CONDUCTORES && <ConductoresView />}
+                    {currentView === ViewState.VEHICULOS && <VehiculosView />}
+                    {currentView === ViewState.TALLER && <TallerView />}
+                  </>
+                )}
+
+                {(isAdmin || userRole === 'accountant') && (
+                  <>
+                    {currentView === ViewState.REPORTES && <ReportesView />}
+                    {currentView === ViewState.CLIENTES && <ClientesView />}
+                    {currentView === ViewState.FACTURAS && <FacturasView />}
+                    {currentView === ViewState.EXTRAS && <ExtrasView />}
+                    {currentView === ViewState.TARIFAS && <TarifasView />}
+                  </>
+                )}
+
+                {isAdmin && (
+                  <>
+                    {currentView === ViewState.CONFIG && <ExperienceConfig />}
+                    {currentView === ViewState.USUARIOS && <UsuariosView />}
+                    {currentView === ViewState.API && <ApiConfigView />}
+                    {currentView === ViewState.CONFIGURACION && <ConfiguracionView />}
+                    {currentView === ViewState.MUNICIPALITIES && <MunicipalitiesView />}
+                  </>
+                )}
+              </>
+            );
+          })()}
+
+          {/* New Views */}
+          {(userRole === 'admin' || userRole === 'driver') && (
             <>
-              {(isAdmin || userRole === 'operator') && (
-                <>
-                  {currentView === ViewState.OPERATIONS && <OperationsHub />}
-                  {currentView === ViewState.DISPATCH && <DispatchConsole />}
-                  {currentView === ViewState.RESERVAS && <ReservasView />}
-                  {currentView === ViewState.TURNOS && <TurnosView />}
-                  {currentView === ViewState.FICHAJES && <FichajesView />}
-                  {currentView === ViewState.CONDUCTORES && <ConductoresView />}
-                  {currentView === ViewState.VEHICULOS && <VehiculosView />}
-                  {currentView === ViewState.TALLER && <TallerView />}
-                </>
-              )}
-
-              {(isAdmin || userRole === 'accountant') && (
-                <>
-                  {currentView === ViewState.REPORTES && <ReportesView />}
-                  {currentView === ViewState.CLIENTES && <ClientesView />}
-                  {currentView === ViewState.FACTURAS && <FacturasView />}
-                  {currentView === ViewState.EXTRAS && <ExtrasView />}
-                  {currentView === ViewState.TARIFAS && <TarifasView />}
-                </>
-              )}
-
-              {isAdmin && (
-                <>
-                  {currentView === ViewState.CONFIG && <ExperienceConfig />}
-                  {currentView === ViewState.USUARIOS && <UsuariosView />}
-                  {currentView === ViewState.API && <ApiConfigView />}
-                  {currentView === ViewState.CONFIGURACION && <ConfiguracionView />}
-                  {currentView === ViewState.MUNICIPALITIES && <MunicipalitiesView />}
-                </>
-              )}
+              {currentView === ViewState.DRIVER_APP && <DriverAppView />}
+              {currentView === ViewState.DRIVER_ACCESS && <DriverAppView />}
             </>
-          );
-        })()}
+          )}
 
-        {/* New Views */}
-        {(userRole === 'admin' || userRole === 'driver') && (
-          <>
-            {currentView === ViewState.DRIVER_APP && <DriverAppView />}
-            {currentView === ViewState.DRIVER_ACCESS && <DriverAppView />}
-          </>
-        )}
-
-        {currentView === ViewState.CLIENT_PORTAL && (
-          <ClientPortalView
-            session={session}
-            onNewBooking={() => setShowLanding(true)}
-            language={language}
-          />
-        )}
+          {currentView === ViewState.CLIENT_PORTAL && (
+            <ClientPortalView
+              session={session}
+              onNewBooking={() => setShowLanding(true)}
+              language={language}
+            />
+          )}
+        </Suspense>
       </main>
 
       {/* Gemini AI Assistant Widget */}

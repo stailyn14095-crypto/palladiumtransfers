@@ -73,6 +73,18 @@ export const ConfiguracionView = () => {
                                     />
                                     <p className="text-[10px] text-brand-platinum/30 mt-2 italic">Dirección de correo para notificaciones automáticas</p>
                                 </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Email de Notificaciones Admin</label>
+                                    <input
+                                        type="email"
+                                        value={localSettings.admin_notification_email || ''}
+                                        onChange={(e) => handleChange('admin_notification_email', e.target.value)}
+                                        onBlur={(e) => handleSave('admin_notification_email', e.target.value)}
+                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        placeholder="admin@palladiumtransfers.com"
+                                    />
+                                    <p className="text-[10px] text-brand-platinum/30 mt-2 italic">A este correo se enviará una copia oculta (BCC) de todas las confirmaciones de reserva</p>
+                                </div>
                             </div>
                         </div>
 

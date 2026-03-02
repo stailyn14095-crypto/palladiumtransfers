@@ -437,43 +437,59 @@ export const useBooking = (language: string = 'es') => {
 
             const base64Voucher = generateVoucher(bookingsToInsert);
 
-            // Fetch email sender from system settings (safely)
+            // Fetch email settings from system settings (safely)
             const { data: settingsData } = await supabase
                 .from('system_settings')
-                .select('value')
-                .eq('key', 'email_sender')
-                .maybeSingle();
+                .select('key, value')
+                .in('key', ['email_sender', 'admin_notification_email']);
 
-            const senderEmail = settingsData?.value || 'noreply@palladiumtransfers.com';
+            let senderEmail = 'noreply@palladiumtransfers.com';
+            let adminEmail = null;
+
+            if (settingsData) {
+                const senderSetting = settingsData.find(s => s.key === 'email_sender');
+                if (senderSetting) senderEmail = senderSetting.value;
+
+                const adminSetting = settingsData.find(s => s.key === 'admin_notification_email');
+                if (adminSetting && adminSetting.value) adminEmail = adminSetting.value;
+            }
+
             const bookingRef = bookingsToInsert[0].id?.substring(0, 8).toUpperCase() || 'NUEVA';
+
+            // Prepare email payload
+            const emailPayload: any = {
+                to: formData.email,
+                subject: `Confirmación de Reserva - ${bookingRef}`,
+                from: senderEmail,
+                attachments: [
+                    {
+                        filename: `Voucher_Palladium_${bookingRef}.pdf`,
+                        content: base64Voucher,
+                    }
+                ],
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
+                        <div style="background-color: #1a2533; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0;">PALLADIUM TRANSFERS</h1>
+                            <p style="color: #94a3b8; margin: 10px 0 0 0;">CONFIRMACIÓN DE RESERVA</p>
+                        </div>
+                        <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
+                            <h2 style="color: #1a2533; margin-top: 0;">¡Gracias por su reserva!</h2>
+                            <p style="color: #475569; line-height: 1.6;">Hola ${bookingsToInsert[0].passenger},</p>
+                            <p style="color: #475569; line-height: 1.6;">Su reserva ha sido procesada con éxito.</p>
+                            <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF se ha descargado automáticamente en su dispositivo.</p>
+                        </div>
+                    </div>
+                `
+            };
+
+            if (adminEmail) {
+                emailPayload.bcc = adminEmail;
+            }
 
             // Trigger Edge Function for Email
             supabase.functions.invoke('send-email-resend', {
-                body: {
-                    to: formData.email,
-                    subject: `Confirmación de Reserva - ${bookingRef}`,
-                    from: senderEmail,
-                    attachments: [
-                        {
-                            filename: `Voucher_Palladium_${bookingRef}.pdf`,
-                            content: base64Voucher,
-                        }
-                    ],
-                    html: `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
-                            <div style="background-color: #1a2533; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                                <h1 style="color: #ffffff; margin: 0;">PALLADIUM TRANSFERS</h1>
-                                <p style="color: #94a3b8; margin: 10px 0 0 0;">CONFIRMACIÓN DE RESERVA</p>
-                            </div>
-                            <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
-                                <h2 style="color: #1a2533; margin-top: 0;">¡Gracias por su reserva!</h2>
-                                <p style="color: #475569; line-height: 1.6;">Hola ${bookingsToInsert[0].passenger},</p>
-                                <p style="color: #475569; line-height: 1.6;">Su reserva ha sido procesada con éxito.</p>
-                                <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF se ha descargado automáticamente en su dispositivo.</p>
-                            </div>
-                        </div>
-                    `
-                }
+                body: emailPayload
             }).catch(e => console.error("Email error:", e));
 
             showToast(language === 'es' ? '¡Reserva solicitada con éxito!' : 'Booking requested successfully!', 'success');

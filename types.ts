@@ -4,7 +4,8 @@ export interface Flight {
   origin: string;
   scheduled: string;
   estimated: string;
-  status: 'Final Approach' | 'Taxiing' | 'Block In' | 'Delayed' | 'Landed';
+  delay?: number;
+  status: 'Final Approach' | 'Taxiing' | 'Block In' | 'Delayed' | 'Landed' | 'Scheduled' | 'En Route' | 'Cancelled' | 'Unknown';
   passenger: string;
   paxCount?: number;
 }
@@ -63,6 +64,7 @@ export enum ViewState {
   FICHAJES = 'FICHAJES',
   CONFIGURACION = 'CONFIGURACION',
   CLIENT_PORTAL = 'CLIENT_PORTAL',
+  DRIVER_EARNINGS = 'DRIVER_EARNINGS',
 }
 
 export interface ChatMessage {

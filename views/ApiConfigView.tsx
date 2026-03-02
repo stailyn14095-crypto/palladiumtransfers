@@ -22,26 +22,25 @@ export const ApiConfigView: React.FC = () => {
                            <span className="material-icons-round text-slate-900 text-2xl">account_balance</span>
                         </div>
                         <div>
-                           <h3 className="text-lg font-bold text-white">Ministerio de Fomento</h3>
-                           <p className="text-sm text-slate-400">Registro de Comunicaciones VTC y Viajeros</p>
+                           <h3 className="text-lg font-bold text-white">Ministerio de Fomento (RVTC)</h3>
+                           <p className="text-sm text-slate-400">Comunicación Automática de Servicios VTC</p>
                         </div>
                      </div>
                      <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-sm text-emerald-500 font-medium">Conectado</span>
+                        <span className="text-sm text-emerald-500 font-medium">SOAP Activo (Edge Function)</span>
                      </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div>
-                        <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Endpoint URL</label>
-                        <input type="text" value="https://sede.fomento.gob.es/api/vtc/v1" readOnly className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors" />
-                     </div>
-                     <div>
-                        <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Certificado Digital</label>
-                        <div className="flex items-center gap-2">
-                           <input type="text" value="cert_palladium_2024.p12" readOnly className="flex-1 bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors" />
-                           <button className="p-3 bg-brand-charcoal border border-white/5 rounded-xl text-brand-platinum/50 hover:text-white hover:bg-white/5 transition-colors"><span className="material-icons-round text-sm">upload_file</span></button>
-                        </div>
+                  <div className="grid grid-cols-1 gap-6">
+                     <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl text-sm text-brand-platinum/80 leading-relaxed">
+                        <strong className="text-white block mb-2">Instrucciones de Certificado Digital (.p12)</strong>
+                        La comunicación con Fomento requiere de firma criptográfica avanzada (WS-Security). Para proteger tu clave privada, esto se ejecuta mediante un Edge Function seguro en Supabase.
+                        <ul className="list-disc ml-5 mt-2 space-y-1">
+                           <li>Ejecuta <code className="bg-black/50 px-1 py-0.5 rounded text-brand-gold">node encode-cert.mjs tu_certificado.p12</code> en tu ordenador local.</li>
+                           <li>Copia el string Base64 resultante.</li>
+                           <li>Pégalo en el panel de Supabase como el secreto <code className="bg-black/50 px-1 py-0.5 rounded text-brand-gold">FOMENTO_CERT_BASE64</code>.</li>
+                           <li>Configura tu contraseña en el secreto <code className="bg-black/50 px-1 py-0.5 rounded text-brand-gold">FOMENTO_CERT_PASSWORD</code>.</li>
+                        </ul>
                      </div>
                   </div>
                </div>
