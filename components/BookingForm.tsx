@@ -130,6 +130,29 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
             alert(language === 'es' ? "Por favor, completa los campos obligatorios del trayecto." : "Please complete the required fields for the journey.");
             return;
         }
+
+        // 24-hour validation
+        const pickupDateTime = new Date(`${formData.date}T${formData.time}`);
+        const now = new Date();
+        const diffHours = (pickupDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (diffHours < 24) {
+            alert(language === 'es' ? "Las reservas deben hacerse con al menos 24 horas de antelación." : "Bookings must be made at least 24 hours in advance.");
+            return;
+        }
+
+        if (formData.tripType === 'Round Trip') {
+            if (!formData.returnDate || !formData.returnTime) {
+                alert(language === 'es' ? "Por favor, completa los campos de vuelta." : "Please complete the return fields.");
+                return;
+            }
+            const returnDateTime = new Date(`${formData.returnDate}T${formData.returnTime}`);
+            if (returnDateTime <= pickupDateTime) {
+                alert(language === 'es' ? "La fecha de vuelta debe ser posterior a la de ida." : "The return date must be after the outbound date.");
+                return;
+            }
+        }
+
         setStep(2);
     };
 

@@ -60,30 +60,31 @@ export const ConfiguracionView = () => {
                                 <span className="material-icons-round text-brand-gold">email</span>
                                 Configuración de Email
                             </h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Email del Remitente</label>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email del Remitente</label>
                                     <input
                                         type="email"
                                         value={localSettings.email_sender || ''}
                                         onChange={(e) => handleChange('email_sender', e.target.value)}
                                         onBlur={(e) => handleSave('email_sender', e.target.value)}
-                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white focus:ring-1 focus:ring-brand-platinum/50 outline-none transition-all"
                                         placeholder="noreply@palladiumtransfers.com"
                                     />
-                                    <p className="text-[10px] text-brand-platinum/30 mt-2 italic">Dirección de correo para notificaciones automáticas</p>
+                                    <p className="text-[10px] text-amber-500/80 italic mt-1 ml-1 font-medium">Nota: Para asegurar la entrega, este correo DEBE ser de tu dominio verificado (ej. reservas@palladiumtransfers.com). <strong className="font-bold">NO uses @gmail.com</strong> aquí o el proveedor (Resend) bloqueará los envíos.</p>
+                                    <p className="text-[10px] text-slate-600 italic mt-1 ml-1">Dirección de correo para notificaciones automáticas</p>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Email de Notificaciones Admin</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Email de Notificaciones Admin</label>
                                     <input
                                         type="email"
                                         value={localSettings.admin_notification_email || ''}
                                         onChange={(e) => handleChange('admin_notification_email', e.target.value)}
                                         onBlur={(e) => handleSave('admin_notification_email', e.target.value)}
-                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white focus:ring-1 focus:ring-brand-platinum/50 outline-none transition-all"
                                         placeholder="admin@palladiumtransfers.com"
                                     />
-                                    <p className="text-[10px] text-brand-platinum/30 mt-2 italic">A este correo se enviará una copia oculta (BCC) de todas las confirmaciones de reserva</p>
+                                    <p className="text-[10px] text-slate-600 italic mt-1 ml-1">A este correo se enviará una copia oculta (BCC) de todas las confirmaciones de reserva. (Sí puede ser @gmail.com)</p>
                                 </div>
                             </div>
                         </div>

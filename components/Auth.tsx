@@ -100,6 +100,7 @@ export const Auth: React.FC<{ language?: Language }> = ({ language = 'es' }) => 
                         data: {
                             full_name: fullName,
                             phone: phone,
+                            role: 'client',
                         }
                     }
                 });

@@ -1,4 +1,4 @@
-/// <reference types="@supabase/functions-js/edge-runtime.d.ts" />
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { DOMParser, XMLSerializer } from "npm:@xmldom/xmldom@^0.8.10";
 import { SignedXml } from "npm:xml-crypto@^6.0.0";
 import forge from "npm:node-forge@^1.3.1";
