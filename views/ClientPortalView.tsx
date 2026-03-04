@@ -47,7 +47,7 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
                 .from('bookings')
                 .select('*')
                 .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-                .order('pickup_date', { ascending: false })
+                .order('created_at', { ascending: false })
                 .abortSignal(signal);
 
             if (error) {
@@ -74,7 +74,8 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
-    const futureBookings = bookings.filter(b => b.pickup_date >= todayStr && b.status !== 'Cancelled' && b.status !== 'Completed');
+    const futureBookings = bookings.filter(b => b.pickup_date >= todayStr && b.status !== 'Cancelled' && b.status !== 'Completed')
+        .sort((a, b) => new Date(`${a.pickup_date}T${a.pickup_time || '00:00:00'}`).getTime() - new Date(`${b.pickup_date}T${b.pickup_time || '00:00:00'}`).getTime());
     const pastBookings = bookings.filter(b => b.pickup_date < todayStr || b.status === 'Cancelled' || b.status === 'Completed');
 
     const handleCancelBooking = async (booking: any) => {
@@ -332,9 +333,28 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
                     <div className="text-white font-black text-xl leading-tight mb-2 drop-shadow-md">
                         {b.route || `${b.origin} - ${b.destination}`}
                     </div>
-                    <div className="text-brand-gold font-bold text-sm bg-brand-gold/10 inline-block px-3 py-1 rounded-md">
-                        {b.pickup_address || b.origin_address || t('not_specified')}
-                    </div>
+                    {(b.pickup_address || b.origin_address) && (
+                        <div className="text-brand-gold font-bold text-sm bg-brand-gold/10 inline-flex items-center gap-2 px-3 py-1 rounded-md">
+                            <span>Origen: {b.origin_address || b.pickup_address}</span>
+                            {b.origin?.toLowerCase().includes('aeropuerto') && b.flight_number && (
+                                <span className="bg-brand-black/50 text-brand-gold/80 px-2 py-0.5 rounded text-[10px] tracking-wider border border-brand-gold/20">
+                                    <i className="material-icons-round text-[10px] mr-1 align-middle">flight_land</i>
+                                    {b.flight_number}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    {(b.destination_address) && (
+                        <div className="text-brand-platinum font-bold text-sm bg-white/10 inline-flex items-center gap-2 px-3 py-1 rounded-md mt-2">
+                            <span>Destino: {b.destination_address}</span>
+                            {b.destination?.toLowerCase().includes('aeropuerto') && b.flight_number && (
+                                <span className="bg-brand-black/50 text-white/80 px-2 py-0.5 rounded text-[10px] tracking-wider border border-white/20">
+                                    <i className="material-icons-round text-[10px] mr-1 align-middle">flight_takeoff</i>
+                                    {b.flight_number}
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
