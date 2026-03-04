@@ -34,6 +34,7 @@ export const useBooking = (language: string = 'es') => {
     const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
     const [maxCapacity, setMaxCapacity] = useState<number>(8);
     const [roundTripMultiplier, setRoundTripMultiplier] = useState<number>(1.8);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     const [formData, setFormData] = useState<BookingFormData>({
         tripType: 'One Way',
@@ -115,11 +116,23 @@ export const useBooking = (language: string = 'es') => {
     async function fetchInitialData(signal?: AbortSignal) {
         console.log('useBooking: fetchInitialData started');
         try {
-            const [tariffsRes, extrasRes, settingsRes] = await Promise.all([
+            const [tariffsRes, extrasRes, settingsRes, sessionRes] = await Promise.all([
                 supabase.from('tariffs').select('*').abortSignal(signal),
                 supabase.from('service_extras').select('*').abortSignal(signal),
-                supabase.from('system_settings').select('key, value').eq('key', 'round_trip_multiplier').abortSignal(signal)
+                supabase.from('system_settings').select('key, value').eq('key', 'round_trip_multiplier').abortSignal(signal),
+                supabase.auth.getSession()
             ]);
+
+            const session = sessionRes.data?.session;
+            if (session?.user) {
+                setIsLoggedIn(true);
+                setFormData(prev => ({
+                    ...prev,
+                    email: prev.email || session.user.email || '',
+                    name: prev.name || session.user.user_metadata?.full_name || '',
+                    phone: prev.phone || session.user.user_metadata?.phone || ''
+                }));
+            }
 
             if (tariffsRes.error) {
                 if (tariffsRes.error.message?.includes('aborted')) return;
@@ -515,6 +528,7 @@ export const useBooking = (language: string = 'es') => {
         estimatedPrice,
         maxCapacity,
         handleChange,
-        submitBooking
+        submitBooking,
+        isLoggedIn
     };
 };

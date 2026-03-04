@@ -104,7 +104,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
         estimatedPrice,
         maxCapacity,
         handleChange,
-        submitBooking
+        submitBooking,
+        isLoggedIn
     } = useBooking(language);
 
     useEffect(() => {
@@ -434,7 +435,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                 <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-right-6 duration-700 max-h-[550px] overflow-y-auto pr-3 custom-scrollbar">
                     <div className="space-y-5">
                         <div className="space-y-2">
-                            <label className="text-[9px] uppercase font-bold text-slate-500 ml-1 tracking-[0.4em]">{t.email_label}</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 ml-1 tracking-[0.4em]">
+                                {isLoggedIn ? 'Email' : t.email_label}
+                            </label>
                             <input
                                 type="email"
                                 name="email"
