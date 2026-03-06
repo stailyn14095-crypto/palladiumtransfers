@@ -29,6 +29,7 @@ export const useBooking = (language: string = 'es') => {
     const [availableExtras, setAvailableExtras] = useState<any[]>([]);
     const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
     const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+    const [estimatedCollaboratorPrice, setEstimatedCollaboratorPrice] = useState<number | null>(null);
     const [origins, setOrigins] = useState<string[]>([]);
     const [destinations, setDestinations] = useState<string[]>([]);
     const [availableVehicles, setAvailableVehicles] = useState<any[]>([]);
@@ -182,6 +183,7 @@ export const useBooking = (language: string = 'es') => {
     const calculatePrice = () => {
         if (!formData.origin || !formData.destination) {
             setEstimatedPrice(null);
+            setEstimatedCollaboratorPrice(null);
             return;
         }
 
@@ -190,27 +192,55 @@ export const useBooking = (language: string = 'es') => {
             (t.origin === formData.destination && t.destination === formData.origin)
         );
 
-        let match = matchingTariffs.find(t => (t.class || 'Standard').trim() === formData.vehicleModel);
-        if (!match && matchingTariffs.length > 0) {
-            match = matchingTariffs[0];
+        // Client Price Match (for estimating what the client pays)
+        let clientMatch = matchingTariffs.find(t =>
+            (t.audience_type === 'Cliente' || !t.audience_type) &&
+            (t.class || 'Standard').trim() === formData.vehicleModel
+        );
+        if (!clientMatch && matchingTariffs.length > 0) {
+            clientMatch = matchingTariffs.find(t => (t.audience_type === 'Cliente' || !t.audience_type));
+        }
+
+        // Collaborator Price Match (for estimating what the driver gets)
+        let collabMatch = matchingTariffs.find(t =>
+            t.audience_type === 'Conductor' &&
+            (t.class || 'Standard').trim() === formData.vehicleModel
+        );
+        if (!collabMatch && matchingTariffs.length > 0) {
+            collabMatch = matchingTariffs.find(t => t.audience_type === 'Conductor');
         }
 
         let totalPrice = 0;
+        let totalCollabPrice = 0;
 
-        if (match) {
-            totalPrice = parseFloat(match.base_price || match.price || 0);
+        if (clientMatch) {
+            totalPrice = parseFloat(clientMatch.base_price || clientMatch.price || 0);
             if (formData.tripType === 'Round Trip') totalPrice *= roundTripMultiplier;
-        } else {
+        }
+
+        if (collabMatch) {
+            totalCollabPrice = parseFloat(collabMatch.base_price || collabMatch.price || 0);
+            // Each leg should have the base conductor price, but for the total estimated sum:
+            if (formData.tripType === 'Round Trip') totalCollabPrice *= 2; // Split later by 2
+        }
+
+        if (!clientMatch && !collabMatch) {
             setEstimatedPrice(null);
+            setEstimatedCollaboratorPrice(null);
             return;
         }
 
         selectedExtras.forEach(extraId => {
             const extra = availableExtras.find(e => e.id === extraId);
-            if (extra) totalPrice += parseFloat(extra.price || 0);
+            if (extra) {
+                const p = parseFloat(extra.price || 0);
+                totalPrice += p;
+                // extras might not add to collaborator price, but if they do, we could add here
+            }
         });
 
         setEstimatedPrice(totalPrice);
+        setEstimatedCollaboratorPrice(totalCollabPrice);
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -399,8 +429,9 @@ export const useBooking = (language: string = 'es') => {
                 return_date: formData.tripType === 'Round Trip' ? formData.returnDate : null,
                 return_time: formData.tripType === 'Round Trip' ? formData.returnTime : null,
                 status: 'Pending',
-                price: formData.tripType === 'Round Trip' ? estimatedPrice! / 2 : estimatedPrice,
-                driver_price: formData.tripType === 'Round Trip' ? estimatedPrice! / 2 : estimatedPrice,
+                price: formData.tripType === 'Round Trip' ? (estimatedPrice || 0) / 2 : estimatedPrice,
+                driver_price: formData.tripType === 'Round Trip' ? (estimatedCollaboratorPrice || estimatedPrice || 0) / 2 : (estimatedCollaboratorPrice || estimatedPrice),
+                collaborator_price: formData.tripType === 'Round Trip' ? (estimatedCollaboratorPrice || 0) / 2 : (estimatedCollaboratorPrice || 0),
                 payment_method: 'Efectivo',
                 client_name: 'Palladium Transfers S.L.',
                 client_id: 'e2954bc3-fb9f-4702-b371-e910663b7f9e',
@@ -429,8 +460,9 @@ export const useBooking = (language: string = 'es') => {
                     time: new Date(`${formData.returnDate}T${formData.returnTime}`).toISOString(),
                     trip_type: formData.tripType,
                     status: 'Pending',
-                    price: estimatedPrice! / 2,
-                    driver_price: estimatedPrice! / 2,
+                    price: (estimatedPrice || 0) / 2,
+                    driver_price: (estimatedCollaboratorPrice || estimatedPrice || 0) / 2,
+                    collaborator_price: (estimatedCollaboratorPrice || 0) / 2,
                     payment_method: 'Efectivo',
                     client_name: 'Palladium Transfers S.L.',
                     client_id: 'e2954bc3-fb9f-4702-b371-e910663b7f9e',

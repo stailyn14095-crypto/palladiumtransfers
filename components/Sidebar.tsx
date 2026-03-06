@@ -41,7 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
       extras: { es: 'Extras de Servicio', en: 'Service Extras' },
       municipalities: { es: 'Municipios', en: 'Municipalities' },
       clientPortal: { es: 'Mi Portal', en: 'My Portal' },
-      timeTracking: { es: 'Registro Horario', en: 'Time Tracking' }
+      timeTracking: { es: 'Registro Horario', en: 'Time Tracking' },
+      calculator: { es: 'Calculadora de Nóminas', en: 'Payroll Calculator' },
     };
     return dict[key]?.[language] || key;
   };
@@ -135,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
               <NavItem view={ViewState.CONDUCTORES} icon="badge" labelKey="drivers" />
               <NavItem view={ViewState.VEHICULOS} icon="directions_car" labelKey="vehicles" />
               <NavItem view={ViewState.TALLER} icon="build" labelKey="workshop" />
+              <NavItem view={ViewState.CALCULADORA_NOMINAS} icon="calculate" labelKey="calculator" />
             </>
           )}
 

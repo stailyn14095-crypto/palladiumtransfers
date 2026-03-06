@@ -140,7 +140,7 @@ export const TurnosView: React.FC = () => {
    const numDays = daysInMonth(currentDate.getMonth(), currentDate.getFullYear());
    const DAYS_ARRAY = Array.from({ length: numDays }, (_, i) => i + 1);
 
-   const vehicleOptions = vehicles?.map((v: any) => ({
+   const vehicleOptions = vehicles?.filter((v: any) => v.status !== 'Baja' && v.status !== 'Inactive').map((v: any) => ({
       value: v.id,
       label: `${v.model} (${v.plate})${v.status === 'Taller' ? ' ⚠️ EN TALLER' : ''}`
    })) || [];
@@ -360,7 +360,7 @@ export const TurnosView: React.FC = () => {
                            </div>
 
                            <div className="space-y-1">
-                              {drivers?.map((driver: any) => (
+                              {drivers?.filter((d: any) => d.status !== 'Inactive').map((driver: any) => (
                                  <div key={driver.id} className="grid grid-cols-[180px_repeat(31,minmax(40px,1fr))] bg-[#1a2533] border border-slate-800 rounded group hover:border-blue-500/30 transition-all">
                                     <div className="p-3 border-r border-slate-800 bg-[#141e2b] flex items-center gap-2">
                                        <div className="w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-[10px] font-bold">{(driver.name || '?')[0]}</div>
@@ -519,7 +519,7 @@ export const TurnosView: React.FC = () => {
                      <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">1. Selecciona Conductores ({bulkData.driverIds.length})</label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto bg-[#101822] p-3 rounded-lg border border-slate-700">
-                           {drivers?.map((d: any) => (
+                           {drivers?.filter((driver: any) => driver.status !== 'Inactive').map((d: any) => (
                               <div
                                  key={d.id}
                                  onClick={() => toggleBulkDriver(d.id)}

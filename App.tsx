@@ -17,6 +17,7 @@ const FichajesView = React.lazy(() => import('./views/FichajesView').then(module
 const DriverAppView = React.lazy(() => import('./views/DriverAppView').then(module => ({ default: module.DriverAppView })));
 const ReportesView = React.lazy(() => import('./views/ReportesView').then(module => ({ default: module.ReportesView })));
 const ClientPortalView = React.lazy(() => import('./views/ClientPortalView').then(module => ({ default: module.ClientPortalView })));
+const CalculadoraNominasView = React.lazy(() => import('./views/CalculadoraNominasView').then(module => ({ default: module.CalculadoraNominasView })));
 
 // Management Modules
 const ConductoresView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.ConductoresView })));
@@ -173,7 +174,8 @@ export default function App() {
       ViewState.CONDUCTORES, ViewState.VEHICULOS, ViewState.TALLER,
       ViewState.CLIENTES, ViewState.TARIFAS, ViewState.EXTRAS,
       ViewState.USUARIOS, ViewState.FACTURAS, ViewState.FICHAJES,
-      ViewState.REPORTES, ViewState.CONFIGURACION, ViewState.MUNICIPALITIES
+      ViewState.REPORTES, ViewState.CONFIGURACION, ViewState.MUNICIPALITIES,
+      ViewState.CALCULADORA_NOMINAS
     ];
 
     if (session && userRole === 'client' && adminViews.includes(currentView)) {
@@ -270,6 +272,7 @@ export default function App() {
                     {currentView === ViewState.CONDUCTORES && <ConductoresView />}
                     {currentView === ViewState.VEHICULOS && <VehiculosView />}
                     {currentView === ViewState.TALLER && <TallerView />}
+                    {currentView === ViewState.CALCULADORA_NOMINAS && <CalculadoraNominasView />}
                   </>
                 )}
 

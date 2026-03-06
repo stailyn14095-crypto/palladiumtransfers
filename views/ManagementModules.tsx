@@ -87,7 +87,7 @@ export const ConductoresView = () => {
       { name: 'license', label: 'Licencia', type: 'text', required: true },
       { name: 'exp', label: 'Vencimiento Licencia', type: 'date', required: true },
       { name: 'points', label: 'Puntos', type: 'number', required: true },
-      { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive', 'On Leave'], required: true },
+      { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive', 'On Leave'], optionLabels: ['Activo', 'Inactivo', 'De Baja'], required: true },
    ] as any;
 
    const { addToast } = useToast();
@@ -128,7 +128,9 @@ export const ConductoresView = () => {
                   <td className="px-6 py-4 text-slate-300">{d.exp || 'N/A'}</td>
                   <td className="px-6 py-4 text-slate-300">{d.points || 12}</td>
                   <td className="px-6 py-4">
-                     <span className={`px-2 py-0.5 rounded-full text-xs border ${d.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>{d.status}</span>
+                     <span className={`px-2 py-0.5 rounded-full text-xs border ${d.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                        {d.status === 'Active' ? 'Activo' : d.status === 'Inactive' ? 'Inactivo' : d.status === 'On Leave' ? 'De Baja' : d.status}
+                     </span>
                   </td>
                   <td className="px-6 py-4 cursor-pointer">
                      <EditButton onClick={() => { setEditingItem(d); setIsModalOpen(true); }} />
@@ -138,7 +140,7 @@ export const ConductoresView = () => {
                               await deleteItem(d.id);
                               addToast({ title: 'Conductor Eliminado', description: 'El conductor se ha eliminado correctamente.', type: 'success' });
                            } catch (err: any) {
-                              addToast({ title: 'Error al Eliminar', description: 'No se puede eliminar porque tiene historial asociado. Prueba a cambiar su estado a "Inactive".', type: 'error' });
+                              addToast({ title: 'Error al Eliminar', description: 'No se puede eliminar porque tiene historial asociado. Prueba a cambiar su estado a "Inactivo".', type: 'error' });
                            }
                         }
                      }} />
@@ -536,6 +538,7 @@ export const ClientesView = () => {
 // --- TARIFAS VIEW ---
 export const TarifasView = () => {
    const { data: rates, loading, addItem, updateItem, deleteItem } = useSupabaseData('tariffs');
+   const { data: clients } = useSupabaseData('clients');
    // const { data: municipalities } = useSupabaseData('municipalities', { limit: 10000 });
    const [municipalities, setMunicipalities] = useState<any[]>([]);
 
@@ -594,6 +597,8 @@ export const TarifasView = () => {
    const [editingItem, setEditingItem] = useState<any>(null);
 
    const [importing, setImporting] = useState(false);
+   const [searchTerm, setSearchTerm] = useState('');
+   const [filterType, setFilterType] = useState('Todos');
 
    const { addToast } = useToast();
 
@@ -666,37 +671,93 @@ export const TarifasView = () => {
                }
 
                // Map tariff type
-               let tariffType = 'ida';
+               let tariffType = 'Fija';
                if (typeIdx !== -1) {
                   const t = String(r[typeIdx]).toLowerCase();
-                  if (t.includes('vuelta') || t.includes('return')) tariffType = 'vuelta';
-                  else if (t.includes('dispo')) tariffType = 'disposicion';
+                  if (t.includes('vuelta') || t.includes('return')) tariffType = 'Fija'; // Simplify to Fija or Por KM
+                  else if (t.includes('km')) tariffType = 'Por KM';
+               }
+
+               // Map Audience and Client parsing from export format
+               const idColIdx = headers.indexOf('id');
+               const audienceColIdx = headers.indexOf('perfil de tarifa');
+               const clientColIdx = headers.indexOf('id cliente asociado');
+               const vatColIdx = headers.indexOf('iva (%)');
+
+               let audienceType = 'Cliente';
+               let clientId = null;
+               let vat = 10;
+               let originalId = null;
+
+               if (idColIdx !== -1 && r[idColIdx]) {
+                  originalId = String(r[idColIdx]).trim();
+               }
+               if (audienceColIdx !== -1 && String(r[audienceColIdx]).toLowerCase().includes('conductor')) {
+                  audienceType = 'Conductor';
+               }
+               if (clientColIdx !== -1 && r[clientColIdx]) {
+                  clientId = String(r[clientColIdx]).trim();
+               }
+               if (vatColIdx !== -1 && r[vatColIdx]) {
+                  vat = parseFloat(r[vatColIdx]);
                }
 
                if (origin && destination && !isNaN(price)) {
-                  newTariffs.push({
+                  // Fallback to finding existing ID matching characteristics if originalId is missing
+                  if (!originalId && rates) {
+                     const existing = rates.find((existingRate: any) =>
+                        existingRate.origin?.toLowerCase() === origin.toLowerCase() &&
+                        existingRate.destination?.toLowerCase() === destination.toLowerCase() &&
+                        existingRate.audience_type === audienceType &&
+                        existingRate.client_id === (clientId || null) &&
+                        existingRate.class === vehicleClass &&
+                        existingRate.type === tariffType
+                     );
+                     if (existing && existing.id) {
+                        originalId = existing.id;
+                     }
+                  }
+
+                  const payload: any = {
                      origin,
                      destination,
                      base_price: price,
                      class: vehicleClass,
                      type: tariffType,
-                     vat: 10, // Default 10%
-                     name: `${origin} - ${destination}`
-                  });
+                     vat: vat,
+                     name: `${origin} - ${destination}`,
+                     audience_type: audienceType,
+                     client_id: clientId || null,
+                  };
+                  if (originalId) {
+                     payload.id = originalId;
+                  }
+                  newTariffs.push(payload);
                   count++;
                }
             }
 
             if (newTariffs.length > 0) {
-               // Batch insert (chunks of 50)
+               const tariffsToUpdate = newTariffs.filter((t: any) => t.id);
+               const tariffsToInsert = newTariffs.filter((t: any) => !t.id);
+
                const chunkSize = 50;
-               for (let i = 0; i < newTariffs.length; i += chunkSize) {
-                  const chunk = newTariffs.slice(i, i + chunkSize);
+
+               // First process updates
+               for (let i = 0; i < tariffsToUpdate.length; i += chunkSize) {
+                  const chunk = tariffsToUpdate.slice(i, i + chunkSize);
+                  const { error } = await supabase.from('tariffs').upsert(chunk, { onConflict: 'id' });
+                  if (error) throw error;
+               }
+
+               // Then process inserts
+               for (let i = 0; i < tariffsToInsert.length; i += chunkSize) {
+                  const chunk = tariffsToInsert.slice(i, i + chunkSize);
                   const { error } = await supabase.from('tariffs').insert(chunk);
                   if (error) throw error;
                }
 
-               addToast({ title: 'Importación Completada', description: `Se han importado ${count} tarifas.`, type: 'success' });
+               addToast({ title: 'Importación Completada', description: `Se han procesado ${count} tarifas.`, type: 'success' });
                // Refresh data
                window.location.reload(); // Simplest way to refresh distinct hooks
             } else {
@@ -786,6 +847,9 @@ export const TarifasView = () => {
       return municipalities ? municipalities.filter((m: any) => m.cod_prov === code).length : 0;
    };
 
+   const clientOptions = clients?.map((c: any) => c.id) || [];
+   const clientLabels = clients?.map((c: any) => c.name) || [];
+
    const fields = [
       {
          name: 'origin_province',
@@ -842,8 +906,15 @@ export const TarifasView = () => {
          section: 'Destino'
       },
       { name: 'class', label: 'Categoría Vehículo', type: 'select', options: ['Standard', 'Luxury', 'Van', 'Bus'], required: true },
-      { name: 'base_price', label: 'Precio Base (€)', type: 'number', required: true },
-      { name: 'collaborator_price', label: 'Precio Colaborador (€)', type: 'number' },
+      { name: 'audience_type', label: 'Perfil de Tarifa', type: 'select', options: ['Cliente', 'Conductor'], defaultValue: 'Cliente', required: true },
+      {
+         name: 'client_id',
+         label: 'Cliente Asociado (Solo si es Tarifa de Cliente)',
+         type: 'select',
+         options: ['', ...clientOptions],
+         optionLabels: ['[General] Todos los clientes', ...clientLabels],
+      },
+      { name: 'base_price', label: 'Importe / Precio Base (€)', type: 'number', required: true },
       { name: 'type', label: 'Tipo', type: 'select', options: ['Fija', 'Por KM', 'Variable'], required: true },
       { name: 'vat', label: 'IVA (%)', type: 'number', placeholder: '10' },
    ] as any;
@@ -854,6 +925,10 @@ export const TarifasView = () => {
          ...data,
          name: `${data.origin} - ${data.destination}`
       };
+      // Corrección para UUID vacío de client_id
+      if (payload.client_id === '') {
+         payload.client_id = null;
+      }
       try {
          if (editingItem) {
             await updateItem(editingItem.id, payload);
@@ -868,6 +943,41 @@ export const TarifasView = () => {
       }
    };
 
+   const handleExportTariffs = () => {
+      if (!rates || rates.length === 0) {
+         addToast({ title: 'Aviso', description: 'No hay tarifas para exportar.', type: 'warning' });
+         return;
+      }
+
+      const exportData = rates.map((r: any) => ({
+         ID: r.id,
+         Origen: r.origin,
+         Destino: r.destination,
+         'Precio Base': r.base_price,
+         Clase: r.class,
+         Tipo: r.type,
+         'Perfil de Tarifa': r.audience_type || 'Cliente',
+         'ID Cliente Asociado': r.client_id || '',
+         'Nombre Cliente': clients?.find((c: any) => c.id === r.client_id)?.name || '',
+         'IVA (%)': r.vat || 10
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Tarifas");
+      XLSX.writeFile(wb, "Tarifas_Palladium.xlsx");
+   };
+
+   // Filtrar tarifas
+   const filteredRates = rates?.filter((r: any) => {
+      const matchesSearch = !searchTerm ||
+         r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+         r.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+         r.destination?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesType = filterType === 'Todos' || r.audience_type === filterType;
+      return matchesSearch && matchesType;
+   });
+
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
          <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
@@ -875,13 +985,39 @@ export const TarifasView = () => {
                <h1 className="text-xl font-bold text-white tracking-tight">Tarifas y Precios</h1>
                <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">Configuración de Rutas y Precios Fijos/Variables</p>
             </div>
-            <div className="flex flex-wrap gap-3 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+               <div className="relative">
+                  <span className="material-icons-round absolute left-3 top-2 text-brand-platinum/30 text-[18px]">search</span>
+                  <input
+                     type="text"
+                     placeholder="Buscar tarifa..."
+                     value={searchTerm}
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                     className="bg-brand-black border border-white/5 text-slate-200 text-sm rounded-lg pl-9 pr-4 py-2 focus:border-brand-gold outline-none w-full md:w-48"
+                  />
+               </div>
+               <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="bg-brand-black border border-white/5 text-slate-200 text-sm rounded-lg px-4 py-2 focus:border-brand-gold outline-none"
+               >
+                  <option value="Todos">Todas las Tarifas</option>
+                  <option value="Cliente">Tarifas Cliente</option>
+                  <option value="Conductor">Tarifas Conductor</option>
+               </select>
+
                <button
                   onClick={() => { setEditingItem(null); setModalData({}); setIsModalOpen(true); }}
                   className="bg-brand-gold hover:bg-brand-gold/80 text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg transition-all flex items-center gap-2 active:scale-95"
                >
                   <span className="material-icons-round text-lg">add</span>
-                  Nueva Tarifa
+                  Nueva
+               </button>
+               <button
+                  onClick={handleExportTariffs}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-bold flex items-center gap-2 transition-all active:scale-95"
+               >
+                  <span className="material-icons-round text-sm">download_for_offline</span> Exportar
                </button>
                <div className="relative">
                   <input
@@ -900,7 +1036,7 @@ export const TarifasView = () => {
                         </>
                      ) : (
                         <>
-                           <span className="material-icons-round text-sm">upload_file</span> Importar Excel
+                           <span className="material-icons-round text-sm">upload_file</span> Importar
                         </>
                      )}
                   </label>
@@ -916,7 +1052,7 @@ export const TarifasView = () => {
                </div>
             ) : (
                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 pb-20">
-                  {rates?.map((r: any) => (
+                  {filteredRates?.map((r: any) => (
                      <div key={r.id} className="bg-brand-charcoal border border-white/5 rounded-2xl p-6 hover:border-brand-gold/50 transition-all group relative overflow-hidden shadow-xl">
                         {/* ... (card content) ... */}
                         {/* Type Badge */}
@@ -940,6 +1076,13 @@ export const TarifasView = () => {
                                  <h3 className="font-bold text-white text-lg leading-tight">{r.name}</h3>
                               </div>
                               <p className="text-xs text-slate-500 uppercase tracking-tighter">{r.class || 'Standard'} Class</p>
+                              {r.audience_type === 'Conductor' ? (
+                                 <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">TARIFA CONDUCTOR</span>
+                              ) : r.client_id ? (
+                                 <span className="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20" title={clients?.find((c: any) => c.id === r.client_id)?.name}>
+                                    CLIENTE: {clients?.find((c: any) => c.id === r.client_id)?.name || 'Específico'}
+                                 </span>
+                              ) : null}
                            </div>
                         </div>
 

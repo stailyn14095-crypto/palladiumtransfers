@@ -44,30 +44,44 @@ export const ReservasView: React.FC = () => {
       unassignDriver: true // true = desasignar y precio colaborador 0€, false = mantener
    });
 
-   // Helper to get prices from tariffs
+   // Helper to get prices from tariffs (checks both directions)
    const getTariffPrices = (booking: any) => {
       if (!tariffs || !booking.origin || !booking.destination) return null;
 
-      const vehicleClass = booking.vehicle_class || 'Standard';
-      const tariff = tariffs.find((t: any) =>
-         t.origin === booking.origin &&
-         t.destination === booking.destination &&
-         (t.vehicle_class?.toLowerCase() === vehicleClass.toLowerCase() ||
-            t.class?.toLowerCase() === vehicleClass.toLowerCase() ||
-            t.vehicle_type?.toLowerCase() === vehicleClass.toLowerCase() ||
-            !t.vehicle_class)
+      const vehicleClass = (booking.vehicle_class || 'Standard').toLowerCase();
+      // 'class' is the column name in the tariffs table
+      const classMatch = (t: any) =>
+         !t.class || t.class.toLowerCase() === vehicleClass;
+
+      // Search in both directions: origin->dest and dest->origin
+      const routeMatch = (t: any, orig: string, dest: string) =>
+         (t.origin === orig && t.destination === dest) ||
+         (t.origin === dest && t.destination === orig);
+
+      // Find client-facing tariff for price
+      const clientTariff = tariffs.find((t: any) =>
+         routeMatch(t, booking.origin, booking.destination) &&
+         t.audience_type !== 'Conductor' &&
+         classMatch(t)
       );
 
-      if (!tariff) return null;
+      // Find driver tariff for collaborator_price
+      const driverTariff = tariffs.find((t: any) =>
+         routeMatch(t, booking.origin, booking.destination) &&
+         t.audience_type === 'Conductor' &&
+         classMatch(t)
+      );
 
-      let price = tariff.base_price || tariff.price || 0;
-      let collabPrice = tariff.collaborator_price || 0;
+      if (!clientTariff && !driverTariff) return null;
+
+      let price = clientTariff ? parseFloat(clientTariff.base_price || clientTariff.price || 0) : 0;
+      let collabPrice = driverTariff ? parseFloat(driverTariff.base_price || driverTariff.price || 0) : 0;
 
       const roundTripMultiplier = parseFloat(settings?.find((s: any) => s.key === 'round_trip_multiplier')?.value || '1.8');
 
       if (booking.trip_type === 'Round Trip') {
-         price = Math.round(price * roundTripMultiplier);
-         collabPrice = Math.round(collabPrice * roundTripMultiplier);
+         price = Math.round((price * roundTripMultiplier) / 2);
+         collabPrice = Math.round((collabPrice * roundTripMultiplier) / 2);
       }
 
       return { price, collaborator_price: collabPrice };
@@ -829,7 +843,7 @@ export const ReservasView: React.FC = () => {
                            className="w-full bg-brand-black border border-white/5 rounded-xl px-3 py-2.5 text-sm text-brand-platinum/80 outline-none"
                         >
                            <option value="Todos" className="bg-brand-black text-white">Todos</option>
-                           {drivers?.map((d: any) => (
+                           {drivers?.filter((d: any) => d.status !== 'Inactive' && d.status !== 'Baja').map((d: any) => (
                               <option key={d.id} value={d.id} className="bg-brand-black text-white">{d.name}</option>
                            ))}
                         </select>
@@ -1007,7 +1021,7 @@ export const ReservasView: React.FC = () => {
                                                       onChange={(e) => handleAssignDriver(b.id, e.target.value)}
                                                    >
                                                       <option value="">-- Sin Asignar --</option>
-                                                      {drivers?.map((d: any) => (
+                                                      {drivers?.filter((d: any) => d.status !== 'Inactive' && d.status !== 'Baja').map((d: any) => (
                                                          <option key={d.id} value={d.id}>{d.name}</option>
                                                       ))}
                                                    </select>
@@ -1039,8 +1053,16 @@ export const ReservasView: React.FC = () => {
                                              <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-2">
                                                    <button
-                                                      onClick={() => { setEditingItem(b); setIsModalOpen(true); }}
-                                                      className="w-9 h-9 rounded-xl bg-slate-800 text-brand-platinum/50 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-all"
+                                                       onClick={() => {
+                                                           // Always sync collaborator_price from the Conductor tariff
+                                                           const bookingToEdit = { ...b };
+                                                           const prices = getTariffPrices(bookingToEdit);
+                                                           if (prices && prices.collaborator_price) {
+                                                              bookingToEdit.collaborator_price = prices.collaborator_price;
+                                                           }
+                                                           setEditingItem(bookingToEdit);
+                                                           setIsModalOpen(true);
+                                                        }}
                                                    >
                                                       <span className="material-icons-round text-base">edit</span>
                                                    </button>
