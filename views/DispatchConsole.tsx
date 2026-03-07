@@ -42,15 +42,23 @@ export const DispatchConsole: React.FC = () => {
    }, [bookings, selectedDate]);
 
    const filteredDrivers = useMemo(() => {
-      if (!drivers) return [];
-      const activeDrivers = drivers.filter((d: any) => d.current_status === 'Working' || d.current_status === 'Paused');
-      if (!searchQuery) return activeDrivers;
+      if (!drivers || !shifts) return [];
 
-      return activeDrivers.filter((d: any) =>
-         d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-         (d.plate && d.plate.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-   }, [drivers, searchQuery]);
+      const driversWithShift = drivers.filter((d: any) => {
+         return shifts.some((s: any) => s.driver_id === d.id && s.date === selectedDate);
+      });
+
+      if (!searchQuery) return driversWithShift;
+
+      return driversWithShift.filter((d: any) => {
+         const shift = shifts.find((s: any) => s.driver_id === d.id && s.date === selectedDate);
+         const assignedVehicle = shift && vehicles ? vehicles.find((v: any) => v.id === shift.vehicle_id) : null;
+         const vehicleStr = assignedVehicle ? `${assignedVehicle.plate} ${assignedVehicle.model}`.toLowerCase() : '';
+
+         return d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            vehicleStr.includes(searchQuery.toLowerCase());
+      });
+   }, [drivers, shifts, selectedDate, searchQuery, vehicles]);
 
    const handleReassign = async (bookingId: string, newDriverId: string) => {
       const newDriver = drivers?.find((d: any) => d.id === newDriverId);
@@ -127,7 +135,7 @@ export const DispatchConsole: React.FC = () => {
             <div className="flex items-center gap-4 w-full md:w-auto mt-2 md:mt-0">
                <div className="w-full md:w-auto px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{filteredDrivers.length} Conductores Activos</span>
+                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{filteredDrivers.length} Conductores con Turno</span>
                </div>
             </div>
          </header>
@@ -153,25 +161,41 @@ export const DispatchConsole: React.FC = () => {
                         <span className="material-icons-round text-brand-platinum/20 text-4xl mb-4">no_accounts</span>
                         <p className="text-xs text-brand-platinum/30 font-bold uppercase tracking-tighter">Sin servicios asignados</p>
                      </div>
-                  ) : filteredDrivers.map((d: any) => (
-                     <div key={d.id} className="h-20 md:h-24 px-4 md:px-5 border-b border-white/5/50 flex items-center gap-3 md:gap-4 hover:bg-blue-600/5 cursor-pointer transition-all group min-w-max md:min-w-0">
-                        <div className="relative">
-                           <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white font-black text-base md:text-lg ring-2 ring-white/5 group-hover:ring-blue-500 transition-all">
-                              {d.name.charAt(0)}
+                  ) : filteredDrivers.map((d: any) => {
+                     const shift = shifts?.find((s: any) => s.driver_id === d.id && s.date === selectedDate);
+                     const assignedVehicle = shift && vehicles ? vehicles.find((v: any) => v.id === shift.vehicle_id) : null;
+
+                     return (
+                        <div key={d.id} className="h-20 md:h-24 px-4 md:px-5 border-b border-white/5/50 flex items-center gap-3 md:gap-4 hover:bg-blue-600/5 cursor-pointer transition-all group min-w-max md:min-w-0">
+                           <div className="relative">
+                              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white font-black text-base md:text-lg ring-2 ring-white/5 group-hover:ring-blue-500 transition-all">
+                                 {d.name.charAt(0)}
+                              </div>
+                              <span className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 rounded-lg border-2 border-[#1a2533] shadow-lg ${d.current_status === 'Working' ? 'bg-emerald-500' :
+                                    d.current_status === 'En Route' || d.current_status === 'In Progress' ? 'bg-blue-500' :
+                                       d.current_status === 'Paused' ? 'bg-amber-500' : 'bg-slate-500'
+                                 }`} title={`Estado: ${d.current_status || 'Apagado'}`}></span>
                            </div>
-                           <span className="absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 rounded-lg border-2 border-[#1a2533] bg-emerald-500 shadow-lg"></span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                           <h3 className="text-xs md:text-sm font-black text-white truncate leading-tight mb-0.5">{d.name}</h3>
-                           <p className="text-[9px] md:text-[10px] text-brand-platinum/30 font-bold uppercase tracking-tight">{d.license || 'VTC Profesional'}</p>
-                           <div className="flex items-center gap-2 mt-1 md:mt-2">
-                              <span className="text-[8px] md:text-[9px] font-black text-brand-gold bg-blue-400/10 px-1.5 py-0.5 rounded-md border border-blue-400/20 uppercase tracking-tighter">
-                                 {filteredBookings.filter(b => b.driver_id === d.id).length} Viajes
-                              </span>
+                           <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                 <h3 className="text-xs md:text-sm font-black text-white truncate leading-tight overflow-hidden text-ellipsis whitespace-nowrap">{d.name}</h3>
+                                 {assignedVehicle && (
+                                    <span className="text-[9px] font-black bg-white/10 px-1.5 py-0.5 rounded text-white whitespace-nowrap border border-white/5 flex items-center gap-1 shrink-0">
+                                       <span className="material-icons-round text-[10px]">directions_car</span>
+                                       {assignedVehicle.plate}
+                                    </span>
+                                 )}
+                              </div>
+                              <p className="text-[9px] md:text-[10px] text-brand-platinum/30 font-bold uppercase tracking-tight truncate">{assignedVehicle ? assignedVehicle.model : (d.license || 'VTC Profesional')}</p>
+                              <div className="flex items-center gap-2 mt-1 md:mt-2">
+                                 <span className="text-[8px] md:text-[9px] font-black text-brand-gold bg-blue-400/10 px-1.5 py-0.5 rounded-md border border-blue-400/20 uppercase tracking-tighter">
+                                    {filteredBookings.filter(b => b.driver_id === d.id).length} Viajes
+                                 </span>
+                              </div>
                            </div>
                         </div>
-                     </div>
-                  ))}
+                     )
+                  })}
                </div>
             </div>
 
