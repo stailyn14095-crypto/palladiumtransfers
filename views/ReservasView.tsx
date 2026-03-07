@@ -1220,7 +1220,31 @@ export const ReservasView: React.FC = () => {
                                                    {/* 4. Telemetría y Rastreo (Full Width) */}
                                                    {(b.max_speed !== undefined || (b.status_logs && b.status_logs.length > 0)) && (
                                                       <div className="mt-8 border-t border-white/5 pt-6 pb-2">
-                                                         <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-4">Telemetría y Rastreo GPS</h4>
+                                                         <div className="flex items-center justify-between mb-4">
+                                                            <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest">Telemetría y Rastreo GPS</h4>
+                                                            {b.status_logs && b.status_logs.length > 0 && (
+                                                               <button
+                                                                  onClick={(e) => {
+                                                                     e.stopPropagation();
+                                                                     const content = `REPORTE DE TELEMETRÍA - RESERVA #${b.display_id || b.id.substring(0, 8)}\nPasajero: ${b.passenger}\nFecha de creación del reporte: ${new Date().toLocaleString('es-ES')}\n\nHISTORIAL DE UBICACIONES:\n\n` + b.status_logs.map((log: any) => `ESTADO: ${log.status}\nHORA: ${new Date(log.time).toLocaleString('es-ES')}\nCOORDENADAS: ${log.lat}, ${log.lng}\nMAPA: https://maps.google.com/?q=${log.lat},${log.lng}\n------------------------------------------------\n`).join('');
+                                                                     const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+                                                                     const link = document.createElement("a");
+                                                                     const url = URL.createObjectURL(blob);
+                                                                     link.setAttribute("href", url);
+                                                                     link.setAttribute("download", `telemetria_${b.display_id || b.id.slice(0, 8)}.txt`);
+                                                                     link.style.visibility = 'hidden';
+                                                                     document.body.appendChild(link);
+                                                                     link.click();
+                                                                     document.body.removeChild(link);
+                                                                  }}
+                                                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[10px] right uppercase tracking-widest font-black rounded-lg border border-blue-500/20 transition-all active:scale-95"
+                                                                  title="Descargar historial de ubicaciones en archivo de texto"
+                                                               >
+                                                                  <span className="material-icons-round text-sm">download</span>
+                                                                  Descargar TXT
+                                                               </button>
+                                                            )}
+                                                         </div>
                                                          <div className="flex flex-col md:flex-row gap-6">
                                                             {b.max_speed !== undefined && b.max_speed !== null && (
                                                                <div className="bg-brand-black p-4 rounded-xl border border-white/5 min-w-[200px] shrink-0">
