@@ -52,10 +52,12 @@ export const CalculadoraNominasView = () => {
             let bYear = '';
             let bMonth = '';
 
-            if (booking.date) {
+            const rawDate = booking.pickup_date || booking.date;
+
+            if (rawDate) {
                 // If it's already YYYY-MM-DD
-                if (booking.date.includes('-')) {
-                    const parts = booking.date.split('-');
+                if (rawDate.includes('-')) {
+                    const parts = rawDate.split('-');
                     if (parts[0].length === 4) { // YYYY-MM-DD
                         bYear = parts[0];
                         bMonth = parts[1];
@@ -65,8 +67,8 @@ export const CalculadoraNominasView = () => {
                     }
                 }
                 // If it's DD/MM/YYYY
-                else if (booking.date.includes('/')) {
-                    const parts = booking.date.split('/');
+                else if (rawDate.includes('/')) {
+                    const parts = rawDate.split('/');
                     if (parts[2].length === 4) { // DD/MM/YYYY
                         bYear = parts[2];
                         bMonth = parts[1];
@@ -77,13 +79,15 @@ export const CalculadoraNominasView = () => {
                 }
                 // Fallback to JS Date
                 else {
-                    const bookingDate = new Date(booking.date);
+                    const bookingDate = new Date(rawDate);
                     if (!isNaN(bookingDate.getTime())) {
                         bYear = bookingDate.getFullYear().toString();
                         bMonth = (bookingDate.getMonth() + 1).toString().padStart(2, '0');
                     }
                 }
             }
+
+            // console.log(`Parsed: Y=${bYear} M=${bMonth} | Target: Y=${year} M=${month} | Match=${bYear === year && bMonth === month}`);
 
             if (bYear === year && bMonth === month) {
                 return sum + (Number(booking.collaborator_price) || 0);
