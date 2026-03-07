@@ -114,18 +114,34 @@ export const DriverAppView: React.FC = () => {
       if (selectedDriverId && activeDriver?.current_status === 'Working') {
          const interval = setInterval(() => {
             navigator.geolocation.getCurrentPosition((pos) => {
-               const { latitude, longitude } = pos.coords;
+               const { latitude, longitude, speed } = pos.coords;
                supabase.from('driver_locations').upsert({
                   driver_id: selectedDriverId,
                   lat: latitude,
                   lng: longitude,
                   updated_at: new Date().toISOString()
                }).then();
+
+               // Track max speed for active bookings
+               if (speed !== null && speed > 0 && allBookings) {
+                  const speedKmh = Math.round(speed * 3.6);
+                  const activeBookings = allBookings.filter((b: any) =>
+                     b.driver_id === selectedDriverId &&
+                     (b.status === 'En Route' || b.status === 'At Origin' || b.status === 'In Progress')
+                  );
+
+                  activeBookings.forEach((b: any) => {
+                     const currentMax = Number(b.max_speed) || 0;
+                     if (speedKmh > currentMax) {
+                        updateBooking(b.id, { max_speed: speedKmh });
+                     }
+                  });
+               }
             });
          }, 30000);
          return () => clearInterval(interval);
       }
-   }, [selectedDriverId, activeDriver?.current_status]);
+   }, [selectedDriverId, activeDriver?.current_status, allBookings]);
 
    const checkActiveShift = async () => {
       const { data } = await supabase
@@ -197,7 +213,29 @@ export const DriverAppView: React.FC = () => {
    };
 
    const updateStatus = async (bookingId: string, status: string) => {
-      await updateBooking(bookingId, { status });
+      let currentLog = null;
+      try {
+         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) return reject('No geolocation');
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+         });
+         currentLog = {
+            status,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            time: new Date().toISOString()
+         };
+      } catch (err) {
+         console.warn("No se pudo obtener GPS para el log", err);
+      }
+
+      const bookingToUpdate = allBookings?.find((b: any) => b.id === bookingId);
+      let newLogs = bookingToUpdate?.status_logs || [];
+      if (currentLog) {
+         newLogs = [...newLogs, currentLog];
+      }
+
+      await updateBooking(bookingId, { status, status_logs: newLogs });
    };
 
    const openGoogleMaps = (address: string) => {
@@ -213,12 +251,34 @@ export const DriverAppView: React.FC = () => {
       const tpv = parseFloat(tpvAmount) || 0;
       const total = cash + tpv;
 
+      let currentLog = null;
+      try {
+         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) return reject('No geolocation');
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+         });
+         currentLog = {
+            status: 'Completed',
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            time: new Date().toISOString()
+         };
+      } catch (err) {
+         console.warn("No se pudo obtener GPS para el log", err);
+      }
+
+      let newLogs = collectingBooking.status_logs || [];
+      if (currentLog) {
+         newLogs = [...newLogs, currentLog];
+      }
+
       await updateBooking(collectingBooking.id, {
          status: 'Completed',
          collected_amount: total,
          cash_amount: cash,
          tpv_amount: tpv,
-         actual_payment_method: actualPaymentMethod
+         actual_payment_method: actualPaymentMethod,
+         status_logs: newLogs
       });
       setPaymentModalOpen(false);
       setCollectingBooking(null);

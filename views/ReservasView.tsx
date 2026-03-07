@@ -1053,16 +1053,16 @@ export const ReservasView: React.FC = () => {
                                              <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-2">
                                                    <button
-                                                       onClick={() => {
-                                                           // Always sync collaborator_price from the Conductor tariff
-                                                           const bookingToEdit = { ...b };
-                                                           const prices = getTariffPrices(bookingToEdit);
-                                                           if (prices && prices.collaborator_price) {
-                                                              bookingToEdit.collaborator_price = prices.collaborator_price;
-                                                           }
-                                                           setEditingItem(bookingToEdit);
-                                                           setIsModalOpen(true);
-                                                        }}
+                                                      onClick={() => {
+                                                         // Always sync collaborator_price from the Conductor tariff
+                                                         const bookingToEdit = { ...b };
+                                                         const prices = getTariffPrices(bookingToEdit);
+                                                         if (prices && prices.collaborator_price) {
+                                                            bookingToEdit.collaborator_price = prices.collaborator_price;
+                                                         }
+                                                         setEditingItem(bookingToEdit);
+                                                         setIsModalOpen(true);
+                                                      }}
                                                    >
                                                       <span className="material-icons-round text-base">edit</span>
                                                    </button>
@@ -1216,6 +1216,42 @@ export const ReservasView: React.FC = () => {
                                                          </div>
                                                       </div>
                                                    </div>
+
+                                                   {/* 4. Telemetría y Rastreo (Full Width) */}
+                                                   {(b.max_speed > 0 || (b.status_logs && b.status_logs.length > 0)) && (
+                                                      <div className="mt-8 border-t border-white/5 pt-6 pb-2">
+                                                         <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-4">Telemetría y Rastreo GPS</h4>
+                                                         <div className="flex flex-col md:flex-row gap-6">
+                                                            {b.max_speed > 0 && (
+                                                               <div className="bg-brand-black p-4 rounded-xl border border-white/5 min-w-[200px]">
+                                                                  <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Velocidad Máxima</span>
+                                                                  <div className="flex items-end gap-2">
+                                                                     <span className="text-3xl font-black text-white leading-none">{b.max_speed}</span>
+                                                                     <span className="text-brand-platinum/50 font-bold mb-1">km/h</span>
+                                                                  </div>
+                                                               </div>
+                                                            )}
+                                                            {b.status_logs && b.status_logs.length > 0 && (
+                                                               <div className="flex-1 overflow-x-auto pb-2 custom-scrollbar">
+                                                                  <div className="flex gap-3">
+                                                                     {b.status_logs.map((log: any, idx: number) => (
+                                                                        <div key={idx} className="bg-slate-800/50 p-3 rounded-lg min-w-[160px] border border-white/5 shrink-0 flex flex-col justify-between hover:bg-slate-800 transition-colors">
+                                                                           <div>
+                                                                              <span className="text-[10px] font-black uppercase text-brand-gold mb-1 block">{log.status}</span>
+                                                                              <span className="text-xs text-brand-platinum block mb-2">{new Date(log.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                                                           </div>
+                                                                           <a href={`https://maps.google.com/?q=${log.lat},${log.lng}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] uppercase font-bold text-blue-400 hover:text-blue-300 transition-colors w-fit">
+                                                                              <span className="material-icons-round text-sm">location_on</span>
+                                                                              DÓNDE ESTABA
+                                                                           </a>
+                                                                        </div>
+                                                                     ))}
+                                                                  </div>
+                                                               </div>
+                                                            )}
+                                                         </div>
+                                                      </div>
+                                                   )}
                                                 </td>
                                              </tr>
                                           )}
@@ -1263,90 +1299,93 @@ export const ReservasView: React.FC = () => {
                      </div>
                   ))}
                </div>
-            )}
-         </div>
+            )
+            }
+         </div >
 
          {/* Cancel Reservation Modal */}
-         {isCancelModalOpen && bookingToCancel && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-               <div className="bg-[#151e29] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
-                  <div className="flex justify-between items-center p-6 border-b border-white/5 bg-slate-800/30">
-                     <h2 className="text-lg font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
-                        <span className="material-icons-round text-red-500">warning</span>
-                        Cancelar Reserva
-                     </h2>
-                     <button
-                        onClick={() => setIsCancelModalOpen(false)}
-                        className="text-brand-platinum/50 hover:text-white transition-colors"
-                     >
-                        <span className="material-icons-round text-xl">close</span>
-                     </button>
-                  </div>
-
-                  <div className="p-6 space-y-6">
-                     <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-sm">
-                        <p className="font-bold text-red-400 mb-1">Reserva #{bookingToCancel.display_id || bookingToCancel.id.slice(0, 6)}</p>
-                        <p className="text-red-200">{bookingToCancel.passenger} - {bookingToCancel.pickup_date?.split('T')[0]} {bookingToCancel.pickup_time}</p>
+         {
+            isCancelModalOpen && bookingToCancel && (
+               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+                  <div className="bg-[#151e29] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+                     <div className="flex justify-between items-center p-6 border-b border-white/5 bg-slate-800/30">
+                        <h2 className="text-lg font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
+                           <span className="material-icons-round text-red-500">warning</span>
+                           Cancelar Reserva
+                        </h2>
+                        <button
+                           onClick={() => setIsCancelModalOpen(false)}
+                           className="text-brand-platinum/50 hover:text-white transition-colors"
+                        >
+                           <span className="material-icons-round text-xl">close</span>
+                        </button>
                      </div>
 
-                     <div className="space-y-4">
-                        <label className="flex items-start gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer border border-white/5 transition-colors">
-                           <input
-                              type="checkbox"
-                              checked={cancelOptions.hasCost}
-                              onChange={(e) => setCancelOptions({ ...cancelOptions, hasCost: e.target.checked })}
-                              className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-red-500 mt-0.5 focus:ring-red-500"
-                           />
-                           <div>
-                              <p className="font-bold text-white text-sm">Cancelación con coste</p>
-                              <p className="text-xs text-brand-platinum/50 mt-1">
-                                 Deja esta opción <strong className="text-red-400">DESMARCADA</strong> si la cancelación es gratuita. Si la marcas, se mantendrán los importes de cobro y comisión, pero se cambiará el estado a cancelado.
-                              </p>
-                           </div>
-                        </label>
+                     <div className="p-6 space-y-6">
+                        <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20 text-sm">
+                           <p className="font-bold text-red-400 mb-1">Reserva #{bookingToCancel.display_id || bookingToCancel.id.slice(0, 6)}</p>
+                           <p className="text-red-200">{bookingToCancel.passenger} - {bookingToCancel.pickup_date?.split('T')[0]} {bookingToCancel.pickup_time}</p>
+                        </div>
 
-                        {bookingToCancel.driver_id && (
+                        <div className="space-y-4">
                            <label className="flex items-start gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer border border-white/5 transition-colors">
                               <input
                                  type="checkbox"
-                                 checked={cancelOptions.unassignDriver}
-                                 onChange={(e) => setCancelOptions({ ...cancelOptions, unassignDriver: e.target.checked })}
-                                 className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-brand-gold mt-0.5 focus:ring-brand-gold"
+                                 checked={cancelOptions.hasCost}
+                                 onChange={(e) => setCancelOptions({ ...cancelOptions, hasCost: e.target.checked })}
+                                 className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-red-500 mt-0.5 focus:ring-red-500"
                               />
                               <div>
-                                 <p className="font-bold text-white text-sm">Desasignar Conductor y Poner Precio a 0€</p>
+                                 <p className="font-bold text-white text-sm">Cancelación con coste</p>
                                  <p className="text-xs text-brand-platinum/50 mt-1">
-                                    Desvincula al conductor <strong className="text-brand-gold">({bookingToCancel.assigned_driver_name})</strong> dejándolo libre. Su precio a percibir se establecerá a 0€.
+                                    Deja esta opción <strong className="text-red-400">DESMARCADA</strong> si la cancelación es gratuita. Si la marcas, se mantendrán los importes de cobro y comisión, pero se cambiará el estado a cancelado.
                                  </p>
                               </div>
                            </label>
-                        )}
 
-                        {!bookingToCancel.driver_id && (
-                           <div className="p-4 bg-slate-800/30 rounded-xl border border-white/5 opacity-50 text-sm italic text-brand-platinum/50">
-                              Esta reserva no tiene conductor asignado todavía.
-                           </div>
-                        )}
+                           {bookingToCancel.driver_id && (
+                              <label className="flex items-start gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl cursor-pointer border border-white/5 transition-colors">
+                                 <input
+                                    type="checkbox"
+                                    checked={cancelOptions.unassignDriver}
+                                    onChange={(e) => setCancelOptions({ ...cancelOptions, unassignDriver: e.target.checked })}
+                                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-brand-gold mt-0.5 focus:ring-brand-gold"
+                                 />
+                                 <div>
+                                    <p className="font-bold text-white text-sm">Desasignar Conductor y Poner Precio a 0€</p>
+                                    <p className="text-xs text-brand-platinum/50 mt-1">
+                                       Desvincula al conductor <strong className="text-brand-gold">({bookingToCancel.assigned_driver_name})</strong> dejándolo libre. Su precio a percibir se establecerá a 0€.
+                                    </p>
+                                 </div>
+                              </label>
+                           )}
+
+                           {!bookingToCancel.driver_id && (
+                              <div className="p-4 bg-slate-800/30 rounded-xl border border-white/5 opacity-50 text-sm italic text-brand-platinum/50">
+                                 Esta reserva no tiene conductor asignado todavía.
+                              </div>
+                           )}
+                        </div>
+                     </div>
+
+                     <div className="p-6 border-t border-white/5 bg-slate-800/20 flex gap-3 justify-end rounded-b-2xl">
+                        <button
+                           onClick={() => setIsCancelModalOpen(false)}
+                           className="px-5 py-2.5 rounded-xl text-brand-platinum/80 text-sm font-bold hover:bg-white/5 transition-colors"
+                        >
+                           Volver
+                        </button>
+                        <button
+                           onClick={confirmCancelBooking}
+                           className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all shadow-lg shadow-red-500/20 flex items-center gap-2"
+                        >
+                           Confirmar Cancelación
+                        </button>
                      </div>
                   </div>
-
-                  <div className="p-6 border-t border-white/5 bg-slate-800/20 flex gap-3 justify-end rounded-b-2xl">
-                     <button
-                        onClick={() => setIsCancelModalOpen(false)}
-                        className="px-5 py-2.5 rounded-xl text-brand-platinum/80 text-sm font-bold hover:bg-white/5 transition-colors"
-                     >
-                        Volver
-                     </button>
-                     <button
-                        onClick={confirmCancelBooking}
-                        className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all shadow-lg shadow-red-500/20 flex items-center gap-2"
-                     >
-                        Confirmar Cancelación
-                     </button>
-                  </div>
                </div>
-            </div>
-         )}
+            )
+         }
 
 
          <DataEntryModal
@@ -1358,6 +1397,6 @@ export const ReservasView: React.FC = () => {
             fields={fields}
             onFormDataChange={handleFormDataChange}
          />
-      </div>
+      </div >
    );
 };
