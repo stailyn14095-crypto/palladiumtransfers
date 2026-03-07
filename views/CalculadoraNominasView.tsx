@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useSupabaseData } from '../hooks/useSupabaseData';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 export const CalculadoraNominasView = () => {
+    const { data: drivers } = useSupabaseData('drivers');
+    const { data: bookings } = useSupabaseData('bookings');
+
+    // New State for Selector
+    const [selectedDriverId, setSelectedDriverId] = useState<string>('');
+    const [selectedMonth, setSelectedMonth] = useState<string>(
+        new Date().toISOString().substring(0, 7) // YYYY-MM
+    );
+
     // State for the main inputs
     const [factBruta, setFactBruta] = useState<number>(8000);
     const [iva, setIva] = useState<number>(10);
@@ -23,6 +35,34 @@ export const CalculadoraNominasView = () => {
     const [resCosteTotal, setResCosteTotal] = useState<number>(0);
     const [resRatio, setResRatio] = useState<number>(0);
     const [desglose, setDesglose] = useState<string[]>([]);
+
+    // Facturación Update Effect
+    useEffect(() => {
+        if (!bookings || !selectedDriverId || !selectedMonth) return;
+
+        const [year, month] = selectedMonth.split('-');
+
+        const total = bookings.reduce((sum: number, booking: any) => {
+            if (booking.driver_id !== selectedDriverId) return sum;
+
+            // Only count completed or ongoing bookings for revenue? Usually "Completada"
+            if (booking.status !== 'Completada' && booking.status !== 'Asignada') return sum;
+
+            // Check date match
+            const bookingDate = new Date(booking.date);
+            if (
+                bookingDate.getFullYear().toString() === year &&
+                (bookingDate.getMonth() + 1).toString().padStart(2, '0') === month
+            ) {
+                return sum + (Number(booking.collaborator_price) || 0);
+            }
+            return sum;
+        }, 0);
+
+        setFactBruta(total);
+
+    }, [selectedDriverId, selectedMonth, bookings]);
+
 
     useEffect(() => {
         calcular();
@@ -82,6 +122,94 @@ export const CalculadoraNominasView = () => {
         ratioText = 'Aceptable: Zona de precaución.';
     }
 
+    const handleDownloadPDF = () => {
+        const doc = new jsPDF();
+
+        let driverName = 'General';
+        if (selectedDriverId && drivers) {
+            const d = drivers.find((d: any) => d.id === selectedDriverId);
+            if (d) driverName = d.name;
+        }
+
+        const mesAnio = selectedMonth ? `${selectedMonth.split('-')[1]}/${selectedMonth.split('-')[0]}` : '';
+
+        // Header
+        doc.setFontSize(20);
+        doc.setTextColor(40);
+        doc.text('Calculadora de Nóminas - Rentabilidad', 14, 22);
+
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        doc.text(`Conductor: ${driverName}`, 14, 32);
+        doc.text(`Mes/Año: ${mesAnio}`, 14, 38);
+
+        // Parametros
+        (doc as any).autoTable({
+            startY: 45,
+            head: [['Parámetros Base', 'Valor']],
+            body: [
+                ['Facturación Bruta (Mes)', `${factBruta.toFixed(2)} €`],
+                ['Sueldo Base Bruto', `${sueldoBase.toFixed(2)} €`],
+                ['IVA Aplicado', `${iva}%`],
+                ['Coste Seguridad Social (%)', `${ssPct}%`],
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [41, 128, 185] }
+        });
+
+        // Tramos Check
+        const tramosRows = desglose.map((txt) => {
+            // strip simple markdown
+            return [txt.replace(/\*\*/g, '')];
+        });
+
+        (doc as any).autoTable({
+            startY: (doc as any).lastAutoTable.finalY + 10,
+            head: [['Desglose de Comisiones (Tramos)']],
+            body: tramosRows.length ? tramosRows : [['No hay comisiones']],
+            theme: 'grid',
+            headStyles: { fillColor: [39, 174, 96] }
+        });
+
+        // Final Results
+        (doc as any).autoTable({
+            startY: (doc as any).lastAutoTable.finalY + 10,
+            head: [['Resultados Finales', 'Importe']],
+            body: [
+                ['Facturación Neta (Sin IVA)', `${resNeta.toFixed(2)} €`],
+                ['Comisiones Extra', `${resComision.toFixed(2)} €`],
+                ['Total Bruto Conductor', `${resBruto.toFixed(2)} €`],
+                ['Coste Seg. Social (Empresa)', `${resSs.toFixed(2)} €`],
+                ['Coste Total Empresa', `${resCosteTotal.toFixed(2)} €`],
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [44, 62, 80] },
+            alternateRowStyles: { fillColor: [240, 240, 240] },
+        });
+
+        // Ratio Alert
+        const finalY = (doc as any).lastAutoTable.finalY + 15;
+        doc.setFontSize(12);
+        if (resRatio > 45) {
+            doc.setTextColor(231, 76, 60); // red
+        } else if (resRatio > 40) {
+            doc.setTextColor(243, 156, 18); // yellow
+        } else {
+            doc.setTextColor(46, 204, 113); // green
+        }
+
+        doc.text(`Ratio Gasto Personal / Ingreso Neto: ${resRatio.toFixed(2)}%`, 14, finalY);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(ratioText, 14, finalY + 6);
+
+        // Footer
+        doc.setFontSize(8);
+        doc.text('Generado por Palladium Operations Hub', 14, 285);
+
+        doc.save(`Nomina_${driverName.replace(/\s+/g, '_')}_${selectedMonth}.pdf`);
+    };
+
     return (
         <div className="flex-1 flex flex-col h-full bg-brand-black overflow-y-auto custom-scrollbar">
             <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex items-center justify-between shrink-0">
@@ -99,17 +227,54 @@ export const CalculadoraNominasView = () => {
                         {/* Main Input */}
                         <div className="bg-brand-charcoal border border-blue-500/30 rounded-xl p-6 shadow-lg shadow-blue-500/5 relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
-                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative z-10">
+
+                            {/* Driver and Month Selection */}
+                            <div className="flex flex-col md:flex-row gap-4 mb-6 relative z-10 p-4 bg-black/20 rounded-xl border border-white/5">
+                                <div className="flex-1">
+                                    <label className="block text-xs text-brand-platinum/50 uppercase font-bold tracking-widest mb-2">
+                                        Seleccionar Conductor
+                                    </label>
+                                    <select
+                                        value={selectedDriverId}
+                                        onChange={(e) => setSelectedDriverId(e.target.value)}
+                                        className="w-full bg-brand-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-brand-gold outline-none transition-colors"
+                                    >
+                                        <option value="">-- Manual (Sin Auto-completar) --</option>
+                                        {drivers?.map((d: any) => (
+                                            <option key={d.id} value={d.id}>
+                                                {d.name} {d.status === 'Inactive' || d.status === 'Baja' ? '(Inactivo)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="w-full md:w-48 shrink-0">
+                                    <label className="block text-xs text-brand-platinum/50 uppercase font-bold tracking-widest mb-2">
+                                        Mes
+                                    </label>
+                                    <input
+                                        type="month"
+                                        value={selectedMonth}
+                                        onChange={(e) => setSelectedMonth(e.target.value)}
+                                        className="w-full bg-brand-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-brand-gold outline-none transition-colors [color-scheme:dark]"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative z-10 border-t border-white/5 pt-6">
                                 <div>
                                     <label className="block text-white font-bold mb-1">Facturación Bruta (Mes):</label>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">Introduce lo que ha facturado el conductor (con IVA)</p>
+                                    <p className="text-[10px] text-slate-400 uppercase tracking-widest">
+                                        {selectedDriverId ? 'Suma automática de las reservas completadas' : 'Introduce lo que ha facturado el conductor (con IVA)'}
+                                    </p>
                                 </div>
                                 <div className="relative">
                                     <input
                                         type="number"
                                         value={factBruta}
                                         onChange={(e) => setFactBruta(Number(e.target.value))}
-                                        className="bg-brand-black border border-white/10 rounded-lg px-4 py-2 text-white font-mono text-xl w-40 focus:border-blue-500 outline-none transition-colors text-right"
+                                        className={`bg-brand-black border rounded-lg px-4 py-2 text-white font-mono text-xl w-40 outline-none transition-colors text-right ${selectedDriverId ? 'border-brand-gold/50 text-brand-gold bg-brand-gold/10 pointer-events-none' : 'border-white/10 focus:border-blue-500'
+                                            }`}
+                                        readOnly={!!selectedDriverId}
                                     />
                                     <span className="absolute right-12 top-2.5 text-slate-400 font-bold">€</span>
                                 </div>
@@ -253,6 +418,17 @@ export const CalculadoraNominasView = () => {
                                             </li>
                                         ))}
                                     </ul>
+                                </div>
+
+                                {/* Botón Descargar PDF */}
+                                <div className="pt-6 mt-4 border-t border-white/10">
+                                    <button
+                                        onClick={handleDownloadPDF}
+                                        className="w-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-brand-gold/50 text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group"
+                                    >
+                                        <span className="material-icons-round text-brand-gold group-hover:-translate-y-1 transition-transform">picture_as_pdf</span>
+                                        Descargar Nómina PDF
+                                    </button>
                                 </div>
                             </div>
                         </div>
