@@ -45,8 +45,8 @@ export const CalculadoraNominasView = () => {
         const total = bookings.reduce((sum: number, booking: any) => {
             if (booking.driver_id !== selectedDriverId) return sum;
 
-            // Only count completed or ongoing bookings for revenue? Usually "Completada"
-            if (booking.status !== 'Completada' && booking.status !== 'Asignada') return sum;
+            // Only count completed or ongoing bookings for revenue
+            if (booking.status !== 'Completed' && booking.status !== 'Completada' && booking.status !== 'Confirmed' && booking.status !== 'Asignada') return sum;
 
             // Check date match
             let bYear = '';
