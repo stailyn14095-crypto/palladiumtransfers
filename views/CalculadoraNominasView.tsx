@@ -49,11 +49,43 @@ export const CalculadoraNominasView = () => {
             if (booking.status !== 'Completada' && booking.status !== 'Asignada') return sum;
 
             // Check date match
-            const bookingDate = new Date(booking.date);
-            if (
-                bookingDate.getFullYear().toString() === year &&
-                (bookingDate.getMonth() + 1).toString().padStart(2, '0') === month
-            ) {
+            let bYear = '';
+            let bMonth = '';
+
+            if (booking.date) {
+                // If it's already YYYY-MM-DD
+                if (booking.date.includes('-')) {
+                    const parts = booking.date.split('-');
+                    if (parts[0].length === 4) { // YYYY-MM-DD
+                        bYear = parts[0];
+                        bMonth = parts[1];
+                    } else if (parts[2].length === 4) { // DD-MM-YYYY
+                        bYear = parts[2];
+                        bMonth = parts[1];
+                    }
+                }
+                // If it's DD/MM/YYYY
+                else if (booking.date.includes('/')) {
+                    const parts = booking.date.split('/');
+                    if (parts[2].length === 4) { // DD/MM/YYYY
+                        bYear = parts[2];
+                        bMonth = parts[1];
+                    } else if (parts[0].length === 4) { // YYYY/MM/DD
+                        bYear = parts[0];
+                        bMonth = parts[1];
+                    }
+                }
+                // Fallback to JS Date
+                else {
+                    const bookingDate = new Date(booking.date);
+                    if (!isNaN(bookingDate.getTime())) {
+                        bYear = bookingDate.getFullYear().toString();
+                        bMonth = (bookingDate.getMonth() + 1).toString().padStart(2, '0');
+                    }
+                }
+            }
+
+            if (bYear === year && bMonth === month) {
                 return sum + (Number(booking.collaborator_price) || 0);
             }
             return sum;
