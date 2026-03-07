@@ -1218,15 +1218,15 @@ export const ReservasView: React.FC = () => {
                                                    </div>
 
                                                    {/* 4. Telemetría y Rastreo (Full Width) */}
-                                                   {(b.max_speed > 0 || (b.status_logs && b.status_logs.length > 0)) && (
+                                                   {(b.max_speed !== undefined || (b.status_logs && b.status_logs.length > 0)) && (
                                                       <div className="mt-8 border-t border-white/5 pt-6 pb-2">
                                                          <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-4">Telemetría y Rastreo GPS</h4>
                                                          <div className="flex flex-col md:flex-row gap-6">
-                                                            {b.max_speed > 0 && (
-                                                               <div className="bg-brand-black p-4 rounded-xl border border-white/5 min-w-[200px]">
+                                                            {b.max_speed !== undefined && b.max_speed !== null && (
+                                                               <div className="bg-brand-black p-4 rounded-xl border border-white/5 min-w-[200px] shrink-0">
                                                                   <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Velocidad Máxima</span>
                                                                   <div className="flex items-end gap-2">
-                                                                     <span className="text-3xl font-black text-white leading-none">{b.max_speed}</span>
+                                                                     <span className="text-3xl font-black text-white leading-none">{b.max_speed > 0 ? b.max_speed : 0}</span>
                                                                      <span className="text-brand-platinum/50 font-bold mb-1">km/h</span>
                                                                   </div>
                                                                </div>
