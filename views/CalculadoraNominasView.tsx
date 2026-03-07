@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export const CalculadoraNominasView = () => {
     const { data: drivers } = useSupabaseData('drivers');
@@ -180,7 +180,7 @@ export const CalculadoraNominasView = () => {
         doc.text(`Mes/Año: ${mesAnio}`, 14, 38);
 
         // Parametros
-        (doc as any).autoTable({
+        autoTable(doc, {
             startY: 45,
             head: [['Parámetros Base', 'Valor']],
             body: [
@@ -199,7 +199,7 @@ export const CalculadoraNominasView = () => {
             return [txt.replace(/\*\*/g, '')];
         });
 
-        (doc as any).autoTable({
+        autoTable(doc, {
             startY: (doc as any).lastAutoTable.finalY + 10,
             head: [['Desglose de Comisiones (Tramos)']],
             body: tramosRows.length ? tramosRows : [['No hay comisiones']],
@@ -208,7 +208,7 @@ export const CalculadoraNominasView = () => {
         });
 
         // Final Results
-        (doc as any).autoTable({
+        autoTable(doc, {
             startY: (doc as any).lastAutoTable.finalY + 10,
             head: [['Resultados Finales', 'Importe']],
             body: [
