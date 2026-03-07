@@ -19,6 +19,8 @@ const createDriverIcon = (status: string, name: string) => {
     if (status === 'Paused') color = '#f59e0b';
     if (status === 'En Route' || status === 'In Progress') color = '#3b82f6';
 
+    const shortName = name ? name.substring(0, 2).toUpperCase() : '?';
+
     // Create an SVG string for a custom marker
     const svgIcon = `
     <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
@@ -26,7 +28,7 @@ const createDriverIcon = (status: string, name: string) => {
         ${status === 'Working' ? '<animate attributeName="r" values="12;16;12" dur="2s" repeatCount="indefinite" />' : ''}
       </circle>
       <circle cx="20" cy="20" r="8" fill="${color}" />
-      <text x="20" y="20" font-family="sans-serif" font-size="8" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">${name}</text>
+      <text x="20" y="20" font-family="sans-serif" font-size="7" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">${shortName}</text>
     </svg>`;
 
     return L.divIcon({
@@ -60,6 +62,8 @@ const zoomLevel = 11;
 export const FleetMap: React.FC = () => {
     const { data: drivers } = useSupabaseData('drivers');
     const { data: locations } = useSupabaseData('driver_locations', { orderBy: 'updated_at' });
+    const { data: shifts } = useSupabaseData('shifts');
+    const { data: vehicles } = useSupabaseData('vehicles');
 
     return (
         <div className="w-full h-full relative overflow-hidden rounded-2xl isolate">
@@ -96,13 +100,25 @@ export const FleetMap: React.FC = () => {
 
                     if (loc && loc.lat && loc.lng) {
                         const position: [number, number] = [loc.lat, loc.lng];
-                        const icon = createDriverIcon(d.current_status || 'Off', (d.name || '?')[0]);
+                        const icon = createDriverIcon(d.current_status || 'Off', d.name || '');
+
+                        // Find assigned vehicle for today
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const shift = shifts?.find((s: any) => s.driver_id === d.id && s.date === todayStr);
+                        const assignedVehicle = shift ? vehicles?.find((v: any) => v.id === shift.vehicle_id) : null;
 
                         return (
                             <Marker key={d.id} position={position} icon={icon}>
                                 <Popup className="custom-popup">
-                                    <div className="bg-white p-1 rounded">
-                                        <p className="font-bold text-slate-800 mb-1">{d.name}</p>
+                                    <div className="bg-white p-1 rounded min-w-[140px]">
+                                        <p className="font-bold text-slate-800 mb-0.5">{d.name}</p>
+                                        {assignedVehicle && (
+                                            <p className="text-xs font-bold text-slate-600 mb-1 flex items-center gap-1">
+                                                <span className="material-icons-round text-[10px]">directions_car</span>
+                                                {assignedVehicle.plate} <span className="text-[10px] text-slate-400 font-normal">({assignedVehicle.model})</span>
+                                            </p>
+                                        )}
+                                        <div className="w-full h-px bg-slate-100 mb-1"></div>
                                         <p className="text-xs text-slate-500 mb-0.5">Estado: <span className="font-semibold">{d.current_status}</span></p>
                                         <p className="text-[10px] text-slate-400">Última señal: {new Date(loc.updated_at).toLocaleTimeString()}</p>
                                     </div>
