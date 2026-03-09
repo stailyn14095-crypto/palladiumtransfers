@@ -170,7 +170,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
 
             <div className="flex justify-between items-center mb-8 relative z-10">
                 <div>
-                    <h3 className="text-2xl font-light text-white leading-tight uppercase tracking-tight">Tu Traslado</h3>
+                    <h2 className="text-2xl font-light text-white leading-tight uppercase tracking-tight">Tu Traslado</h2>
                     <p className="text-[10px] text-brand-platinum font-bold uppercase tracking-[0.3em] mt-2">
                         {step < 4 ? `${t.step} ${step} ${t.of} 4` : t.booking_confirmed}
                     </p>
@@ -233,18 +233,20 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
 
             {step === 1 ? (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                    <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5 shadow-inner">
+                    <div className="flex bg-black/40 p-1 rounded-2xl border border-white/20 shadow-inner">
                         <button
                             type="button"
                             onClick={() => setFormData(p => ({ ...p, tripType: 'One Way' }))}
-                            className={`flex-1 py-4 rounded-xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all duration-500 ${formData.tripType === 'One Way' ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-4 rounded-xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all duration-500 ${formData.tripType === 'One Way' ? 'bg-white text-black shadow-xl' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
+                            aria-pressed={formData.tripType === 'One Way'}
                         >
                             {t.one_way}
                         </button>
                         <button
                             type="button"
                             onClick={() => setFormData(p => ({ ...p, tripType: 'Round Trip' }))}
-                            className={`flex-1 py-4 rounded-xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all duration-500 ${formData.tripType === 'Round Trip' ? 'bg-white text-black shadow-xl' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                            className={`flex-1 py-4 rounded-xl text-[10px] font-bold uppercase tracking-[0.3em] transition-all duration-500 ${formData.tripType === 'Round Trip' ? 'bg-white text-black shadow-xl' : 'text-slate-300 hover:text-white hover:bg-white/10'}`}
+                            aria-pressed={formData.tripType === 'Round Trip'}
                         >
                             {t.round_trip}
                         </button>
@@ -252,23 +254,27 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
 
                     <div className="space-y-4">
                         <div className="relative group">
+                            <label htmlFor="origin-select" className="sr-only">{t.select_origin}</label>
                             <span className="material-icons-round absolute left-4 top-[18px] text-brand-platinum/50 transition-all group-focus-within:text-brand-platinum">trip_origin</span>
                             <select
+                                id="origin-select"
                                 name="origin"
-                                className="w-full bg-white/5 border border-white/5 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-1 focus:ring-brand-platinum/30 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
+                                className="w-full bg-white/5 border border-white/20 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-2 focus:ring-brand-platinum/50 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.origin}
                             >
                                 <option value="" disabled className="bg-slate-900 text-white">{t.select_origin}</option>
                                 {origins.map(o => <option key={o} value={o} className="bg-slate-900 text-white">{o}</option>)}
                             </select>
-                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-600 pointer-events-none">expand_more</span>
+                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-400 pointer-events-none">expand_more</span>
                         </div>
                         <div className="relative group">
+                            <label htmlFor="destination-select" className="sr-only">{t.select_destination}</label>
                             <span className="material-icons-round absolute left-4 top-[18px] text-brand-platinum/50 transition-all group-focus-within:text-brand-platinum">location_on</span>
                             <select
+                                id="destination-select"
                                 name="destination"
-                                className="w-full bg-white/5 border border-white/5 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-1 focus:ring-brand-platinum/30 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
+                                className="w-full bg-white/5 border border-white/20 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-2 focus:ring-brand-platinum/50 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.destination}
                                 disabled={!formData.origin}
@@ -276,13 +282,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                 <option value="" disabled className="bg-slate-900 text-white">{t.select_destination}</option>
                                 {destinations.map(d => <option key={d} value={d} className="bg-slate-900 text-white">{d}</option>)}
                             </select>
-                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-600 pointer-events-none">expand_more</span>
+                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-400 pointer-events-none">expand_more</span>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-[0.2em]">
+                            <label htmlFor="pickup-date" className="text-[9px] uppercase font-black text-slate-300 ml-1 tracking-[0.2em]">
                                 {formData.origin?.toLowerCase().includes('aeropuerto') || formData.origin?.toLowerCase().includes('alc')
                                     ? (language === 'es' ? 'Fecha de llegada (Vuelo)' : 'Arrival Date (Flight)')
                                     : (formData.destination?.toLowerCase().includes('aeropuerto') || formData.destination?.toLowerCase().includes('alc')
@@ -290,15 +296,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                         : t.pickup_date)}
                             </label>
                             <input
+                                id="pickup-date"
                                 type="date"
                                 name="date"
-                                className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
+                                className="w-full bg-white/5 border border-white/20 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-2 focus:ring-brand-platinum/50 outline-none transition-all hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.date}
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-[0.2em]">
+                            <label htmlFor="pickup-time" className="text-[9px] uppercase font-black text-slate-300 ml-1 tracking-[0.2em]">
                                 {formData.origin?.toLowerCase().includes('aeropuerto') || formData.origin?.toLowerCase().includes('alc')
                                     ? (language === 'es' ? 'Hora de llegada (Vuelo)' : 'Arrival Time (Flight)')
                                     : (formData.destination?.toLowerCase().includes('aeropuerto') || formData.destination?.toLowerCase().includes('alc')
@@ -306,9 +313,10 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                         : t.time)}
                             </label>
                             <input
+                                id="pickup-time"
                                 type="time"
                                 name="time"
-                                className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
+                                className="w-full bg-white/5 border border-white/20 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-2 focus:ring-brand-platinum/50 outline-none transition-all hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.time}
                             />
@@ -318,29 +326,31 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                     {formData.tripType === 'Round Trip' && (
                         <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in duration-300">
                             <div className="space-y-2">
-                                <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-[0.2em]">
+                                <label htmlFor="return-date" className="text-[9px] uppercase font-black text-slate-300 ml-1 tracking-[0.2em]">
                                     {formData.destination?.toLowerCase().includes('aeropuerto') || formData.destination?.toLowerCase().includes('alc')
                                         ? (language === 'es' ? 'Fecha de Vuelta (Vuelo)' : 'Return Date (Flight)')
                                         : t.return_date}
                                 </label>
                                 <input
+                                    id="return-date"
                                     type="date"
                                     name="returnDate"
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
+                                    className="w-full bg-white/5 border border-white/20 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-2 focus:ring-brand-platinum/50 outline-none transition-all hover:bg-white/[0.08]"
                                     onChange={handleChange}
                                     value={formData.returnDate}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-[0.2em]">
+                                <label htmlFor="return-time" className="text-[9px] uppercase font-black text-slate-300 ml-1 tracking-[0.2em]">
                                     {formData.destination?.toLowerCase().includes('aeropuerto') || formData.destination?.toLowerCase().includes('alc')
                                         ? (language === 'es' ? 'Hora de Vuelta (Vuelo)' : 'Return Time (Flight)')
                                         : t.return_time}
                                 </label>
                                 <input
+                                    id="return-time"
                                     type="time"
                                     name="returnTime"
-                                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
+                                    className="w-full bg-white/5 border border-white/20 rounded-2xl px-5 py-5 text-white text-sm font-bold focus:ring-2 focus:ring-brand-platinum/50 outline-none transition-all hover:bg-white/[0.08]"
                                     onChange={handleChange}
                                     value={formData.returnTime}
                                 />
@@ -349,12 +359,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                     )}
 
                     <div className="space-y-2">
-                        <label className="text-[9px] uppercase font-black text-slate-500 ml-1 tracking-[0.2em]">{t.pax_label}</label>
+                        <label htmlFor="passengers-select" className="text-[9px] uppercase font-black text-slate-300 ml-1 tracking-[0.2em]">{t.pax_label}</label>
                         <div className="relative group">
                             <span className="material-icons-round absolute left-4 top-[18px] text-brand-platinum/50 transition-all group-focus-within:text-brand-platinum">groups</span>
                             <select
+                                id="passengers-select"
                                 name="passengers"
-                                className="w-full bg-white/5 border border-white/5 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-1 focus:ring-brand-platinum/30 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
+                                className="w-full bg-white/5 border border-white/20 rounded-2xl pl-12 pr-10 py-5 text-white font-bold tracking-tight focus:ring-2 focus:ring-brand-platinum/50 outline-none appearance-none transition-all cursor-pointer hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.passengers}
                             >
@@ -364,7 +375,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                     </option>
                                 ))}
                             </select>
-                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-600 pointer-events-none">expand_more</span>
+                            <span className="material-icons-round absolute right-4 top-[18px] text-slate-400 pointer-events-none">expand_more</span>
                         </div>
                     </div>
 

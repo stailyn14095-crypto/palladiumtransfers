@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://palladiumtransfers.com/sitemap.xml

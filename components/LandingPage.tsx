@@ -175,7 +175,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                         </div>
                     </div>
 
-                    <div className="hidden lg:flex gap-10 items-center text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
+                    <div className="hidden lg:flex gap-10 items-center text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
                         <a href="#sector" onClick={(e) => scrollToSection(e, 'sector')} className="hover:text-white transition-colors uppercase cursor-pointer">{t.excellence}</a>
                         <a href="#flota" onClick={(e) => scrollToSection(e, 'flota')} className="hover:text-white transition-colors uppercase cursor-pointer">{t.fleet}</a>
                         <a href="#reservar" onClick={(e) => scrollToSection(e, 'reservar')} className="text-white border border-white/10 px-6 py-2 rounded-full hover:bg-white hover:text-black transition-all uppercase cursor-pointer">{t.book}</a>
@@ -183,8 +183,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
 
                     <div className="flex gap-4 items-center">
                         <div className="flex bg-white/5 p-1 rounded-full border border-white/10 shadow-inner">
-                            <button onClick={() => setLanguage('es')} className={`px-3 py-1 text-[9px] font-bold rounded-full transition-all ${language === 'es' ? 'bg-white text-black shadow-lg' : 'text-slate-500 hover:text-white'}`}>ES</button>
-                            <button onClick={() => setLanguage('en')} className={`px-3 py-1 text-[9px] font-bold rounded-full transition-all ${language === 'en' ? 'bg-white text-black shadow-lg' : 'text-slate-500 hover:text-white'}`}>EN</button>
+                            <button onClick={() => setLanguage('es')} className={`px-3 py-1 text-[9px] font-bold rounded-full transition-all ${language === 'es' ? 'bg-white text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}>ES</button>
+                            <button onClick={() => setLanguage('en')} className={`px-3 py-1 text-[9px] font-bold rounded-full transition-all ${language === 'en' ? 'bg-white text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}>EN</button>
                         </div>
                         <button
                             onClick={onEnterApp}
@@ -257,7 +257,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                                 <span className="material-icons-round text-xl">{aspect.icon}</span>
                                             </div>
                                             <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-widest">{aspect.title}</h3>
-                                            <p className="text-slate-500 text-[11px] font-medium leading-relaxed group-hover:text-slate-300 transition-colors uppercase tracking-widest">{aspect.desc}</p>
+                                            <p className="text-slate-400 text-[11px] font-medium leading-relaxed group-hover:text-slate-300 transition-colors uppercase tracking-widest">{aspect.desc}</p>
                                         </div>
                                     ))}
                                 </div>
@@ -269,7 +269,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                             <div className="container mx-auto px-6 text-center mb-32">
                                 <span className="text-brand-platinum font-bold tracking-[0.5em] uppercase text-[9px] mb-6 block">{t.fleet}</span>
                                 <h2 className="text-6xl lg:text-7xl font-light text-white tracking-tighter uppercase">{t.fleet_title}</h2>
-                                <p className="text-slate-500 mt-8 max-w-xl mx-auto font-light text-lg italic">{t.fleet_desc}</p>
+                                <p className="text-slate-400 mt-8 max-w-xl mx-auto font-light text-lg italic">{t.fleet_desc}</p>
                             </div>
 
                             <div className="container mx-auto px-6 grid lg:grid-cols-3 gap-12">
@@ -334,13 +334,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                         <span className="text-[10px] text-brand-platinum font-bold uppercase tracking-[0.6em] mt-3 italic opacity-50">Excellence in Motion</span>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap justify-center gap-16 mb-24 text-[10px] font-bold uppercase tracking-[0.5em] text-slate-500">
+                                <div className="flex flex-wrap justify-center gap-16 mb-24 text-[10px] font-bold uppercase tracking-[0.5em] text-slate-400">
                                     <button onClick={() => setActiveModal('legal')} className="hover:text-white transition-colors">{t.legal}</button>
                                     <button onClick={() => setActiveModal('terms')} className="hover:text-white transition-colors">Términos y Condiciones</button>
                                     <button onClick={() => setActiveModal('privacy')} className="hover:text-white transition-colors">{t.privacy}</button>
                                     <button onClick={() => setActiveModal('cookies')} className="hover:text-white transition-colors">{t.cookies}</button>
                                 </div>
-                                <p className="text-slate-800 text-[9px] font-bold uppercase tracking-[0.6em]">
+                                <p className="text-slate-600 text-[9px] font-bold uppercase tracking-[0.6em]">
                                     &copy; {new Date().getFullYear()} Palladium Transfers S.L. • Reserved to Excellence
                                 </p>
                             </div>
