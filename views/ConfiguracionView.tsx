@@ -160,6 +160,28 @@ export const ConfiguracionView = () => {
                                         placeholder="+34 600 000 000"
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">NIF / CIF</label>
+                                    <input
+                                        type="text"
+                                        value={localSettings.company_nif || ''}
+                                        onChange={(e) => handleChange('company_nif', e.target.value)}
+                                        onBlur={(e) => handleSave('company_nif', e.target.value)}
+                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        placeholder="B12345678"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Domicilio Social</label>
+                                    <input
+                                        type="text"
+                                        value={localSettings.company_address || ''}
+                                        onChange={(e) => handleChange('company_address', e.target.value)}
+                                        onBlur={(e) => handleSave('company_address', e.target.value)}
+                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        placeholder="Calle Ejemplo 1, 28000 Madrid"
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Multiplicador Reserva Ida y Vuelta</label>

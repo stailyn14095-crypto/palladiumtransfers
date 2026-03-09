@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Language } from '../types';
+import { useSupabaseData } from '../hooks/useSupabaseData';
 
 interface LegalModalsProps {
     type: 'legal' | 'privacy' | 'cookies' | 'terms' | null;
@@ -8,6 +9,27 @@ interface LegalModalsProps {
 }
 
 export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClose }) => {
+    const { data: settings } = useSupabaseData('system_settings');
+    const [companyInfo, setCompanyInfo] = useState({
+        name: 'Palladium Transfers S.L.',
+        nif: '[Pendiente de completar]',
+        address: '[Pendiente de completar]',
+        email: 'info@palladiumtransfers.com'
+    });
+
+    useEffect(() => {
+        if (settings) {
+            const info = { ...companyInfo };
+            settings.forEach((s: any) => {
+                if (s.key === 'company_name' && s.value) info.name = s.value;
+                if (s.key === 'company_nif' && s.value) info.nif = s.value;
+                if (s.key === 'company_address' && s.value) info.address = s.value;
+                if (s.key === 'email_sender' && s.value) info.email = s.value;
+            });
+            setCompanyInfo(info);
+        }
+    }, [settings]);
+
     if (!type) return null;
 
     const content = {
@@ -18,14 +40,14 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                     <div className="space-y-4 text-sm text-slate-300">
                         <p>En cumplimiento con el deber de información recogido en artículo 10 de la Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información y del Comercio Electrónico (LSSI-CE), a continuación se hacen constar los siguientes datos identificativos:</p>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Titular de la web:</strong> Palladium Transfers S.L.</li>
-                            <li><strong>NIF:</strong> [Pendiente de completar]</li>
-                            <li><strong>Domicilio Social:</strong> [Pendiente de completar]</li>
-                            <li><strong>Correo electrónico de contacto:</strong> info@palladiumtransfers.com</li>
+                            <li><strong>Titular de la web:</strong> {companyInfo.name}</li>
+                            <li><strong>NIF:</strong> {companyInfo.nif}</li>
+                            <li><strong>Domicilio Social:</strong> {companyInfo.address}</li>
+                            <li><strong>Correo electrónico de contacto:</strong> {companyInfo.email}</li>
                             <li><strong>Actividad principal:</strong> Servicios de transporte privado y traslado (VTC).</li>
                         </ul>
                         <h3 className="text-white font-bold mt-6 mb-2">Propiedad Intelectual e Industrial</h3>
-                        <p>Los derechos de propiedad intelectual de la página web, su código fuente, diseño, estructuras de navegación y los distintos elementos en ella contenidos son titularidad de Palladium Transfers S.L., a quien corresponde el ejercicio exclusivo de los derechos de explotación de los mismos.</p>
+                        <p>Los derechos de propiedad intelectual de la página web, su código fuente, diseño, estructuras de navegación y los distintos elementos en ella contenidos son titularidad de {companyInfo.name}, a quien corresponde el ejercicio exclusivo de los derechos de explotación de los mismos.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Condiciones de Uso</h3>
                         <p>El usuario de la web se compromete a hacer un uso adecuado y lícito del sitio web y de sus contenidos, de conformidad con la Legislación aplicable y el presente Aviso Legal.</p>
                     </div>
@@ -35,9 +57,9 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Política de Privacidad',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>En Palladium Transfers S.L. nos tomamos muy en serio la protección de sus datos personales. Esta Política de Privacidad describe cómo recogemos, usamos y protegemos sus datos, de acuerdo con el Reglamento General de Protección de Datos (RGPD) y la Ley Orgánica 3/2018 de Protección de Datos Personales y garantía de los derechos digitales (LOPDGDD).</p>
+                        <p>En {companyInfo.name} nos tomamos muy en serio la protección de sus datos personales. Esta Política de Privacidad describe cómo recogemos, usamos y protegemos sus datos, de acuerdo con el Reglamento General de Protección de Datos (RGPD) y la Ley Orgánica 3/2018 de Protección de Datos Personales y garantía de los derechos digitales (LOPDGDD).</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Responsable del Tratamiento</h3>
-                        <p>Identidad: Palladium Transfers S.L. | Email: info@palladiumtransfers.com</p>
+                        <p>Identidad: {companyInfo.name} | Email: {companyInfo.email}</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Finalidad</h3>
                         <p>Tus datos se recopilan exclusivamente para: gestionar las reservas de servicios de traslado, contactar en caso de incidencias con el servicio o facturación, y garantizar su correcta prestación.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Legitimación</h3>
@@ -45,7 +67,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                         <h3 className="text-white font-bold mt-6 mb-2">Destinatarios</h3>
                         <p>No se cederán datos a terceros salvo obligación legal. Los datos correspondientes de recogida y destino son compartidos únicamente con el conductor asignado para poder llevar a cabo el servicio.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Derechos (ARCO+)</h3>
-                        <p>Cualquier persona tiene derecho a solicitar el acceso, rectificación, supresión, limitación y oposición del tratamiento de sus datos, enviando un correo a info@palladiumtransfers.com adjuntando copia de su DNI o documento equivalente.</p>
+                        <p>Cualquier persona tiene derecho a solicitar el acceso, rectificación, supresión, limitación y oposición del tratamiento de sus datos, enviando un correo a {companyInfo.email} adjuntando copia de su DNI o documento equivalente.</p>
                     </div>
                 )
             },
@@ -68,7 +90,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Términos y Condiciones',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>Las presentes Condiciones Generales de Venta rigen la compra de servicios de traslado de Palladium Transfers S.L. a través del sitio web.</p>
+                        <p>Las presentes Condiciones Generales de Venta rigen la compra de servicios de traslado de {companyInfo.name} a través del sitio web.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">1. Reservas y Confirmación</h3>
                         <p>Todas las reservas deben realizarse con la debida antelación. La reserva no se considerará "confirmada" hasta que el sistema emita un comprobante o voucher (PDF/Email) y el pago, si corresponde por adelantado, haya sido debidamente procesado.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">2. Política de Espera (Retrasos)</h3>
@@ -78,7 +100,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                         </ul>
                         <p>Superados estos tiempos sin localizar al cliente (No-Show), el servicio se podrá dar por finalizado aplicándose penalización del 100%.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">3. Política de Cancelación</h3>
-                        <p>Las cancelaciones realizadas con un plazo superior a 24 horas antes del servicio no tendrán recargo. Si se cancela con un plazo menor, Palladium Transfers S.L. retendrá el 100% del importe presupuestado.</p>
+                        <p>Las cancelaciones realizadas con un plazo superior a 24 horas antes del servicio no tendrán recargo. Si se cancela con un plazo menor, {companyInfo.name} retendrá el 100% del importe presupuestado.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">4. Equipaje y Capacidad</h3>
                         <p>La capacidad especificada para nuestros vehículos estándar/premium es estrictamente de un máximo de <strong>3 pasajeros y 2 maletas de medida estándar</strong> (dimensiones máximas aprox. 63 x 36 x 21 cm por maleta).</p>
                         <p className="mt-2">Esta capacidad es limitante. Si el grupo excede el volumen declarado o la capacidad legal máxima del vehículo a su llegada, el conductor no podrá realizar el servicio por vulneración de la normativa de seguridad vial, considerándose una cancelación por parte del cliente.</p>
@@ -93,14 +115,14 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                     <div className="space-y-4 text-sm text-slate-300">
                         <p>In compliance with the duty of information contained in article 10 of Law 34/2002, of July 11, on Services of the Information Society and Electronic Commerce (LSSI-CE), the following identifying data are recorded:</p>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Website Owner:</strong> Palladium Transfers S.L.</li>
-                            <li><strong>Tax ID (NIF):</strong> [To be completed]</li>
-                            <li><strong>Registered Office:</strong> [To be completed]</li>
-                            <li><strong>Contact Email:</strong> info@palladiumtransfers.com</li>
+                            <li><strong>Website Owner:</strong> {companyInfo.name}</li>
+                            <li><strong>Tax ID (NIF):</strong> {companyInfo.nif}</li>
+                            <li><strong>Registered Office:</strong> {companyInfo.address}</li>
+                            <li><strong>Contact Email:</strong> {companyInfo.email}</li>
                             <li><strong>Main Activity:</strong> Private transport and transfer services (VTC).</li>
                         </ul>
                         <h3 className="text-white font-bold mt-6 mb-2">Intellectual and Industrial Property</h3>
-                        <p>The intellectual property rights of the website, its source code, design, navigation structures, and the various elements contained therein belong to Palladium Transfers S.L., to whom corresponds the exclusive exercise of the rights to exploit them.</p>
+                        <p>The intellectual property rights of the website, its source code, design, navigation structures, and the various elements contained therein belong to {companyInfo.name}, to whom corresponds the exclusive exercise of the rights to exploit them.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Conditions of Use</h3>
                         <p>The user of the website undertakes to make appropriate and lawful use of the website and its contents, in accordance with the applicable Legislation and this Legal Notice.</p>
                     </div>
@@ -110,9 +132,9 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Privacy Policy',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>At Palladium Transfers S.L. we take the protection of your personal data very seriously. This Privacy Policy describes how we collect, use, and protect your data, in accordance with the General Data Protection Regulation (GDPR) and current EU privacy laws.</p>
+                        <p>At {companyInfo.name} we take the protection of your personal data very seriously. This Privacy Policy describes how we collect, use, and protect your data, in accordance with the General Data Protection Regulation (GDPR) and current EU privacy laws.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Data Controller</h3>
-                        <p>Identity: Palladium Transfers S.L. | Email: info@palladiumtransfers.com</p>
+                        <p>Identity: {companyInfo.name} | Email: {companyInfo.email}</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Purpose</h3>
                         <p>Your data is collected exclusively to: manage reservations for transfer services, contact you in case of incidents with the service or billing, and ensure its correct provision.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Legitimation</h3>
@@ -120,7 +142,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                         <h3 className="text-white font-bold mt-6 mb-2">Recipients</h3>
                         <p>Data will not be transferred to third parties except under legal obligation. The corresponding pick-up and destination data are shared only with the assigned driver in order to carry out the service.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">Rights (GDPR)</h3>
-                        <p>Anyone has the right to request access, rectification, deletion, limitation, and opposition to the processing of their data by sending an email to info@palladiumtransfers.com attaching a copy of their ID or equivalent document.</p>
+                        <p>Anyone has the right to request access, rectification, deletion, limitation, and opposition to the processing of their data by sending an email to {companyInfo.email} attaching a copy of their ID or equivalent document.</p>
                     </div>
                 )
             },
@@ -143,7 +165,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Terms and Conditions',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>These General Sales Conditions govern the purchase of transfer services from Palladium Transfers S.L. through the website.</p>
+                        <p>These General Sales Conditions govern the purchase of transfer services from {companyInfo.name} through the website.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">1. Reservations and Confirmation</h3>
                         <p>All reservations must be made well in advance. The reservation will not be considered "confirmed" until the system issues a voucher (PDF/Email) and payment, if applicable in advance, has been duly processed.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">2. Waiting Policy (Delays)</h3>
@@ -153,7 +175,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                         </ul>
                         <p>If these times are exceeded without locating the client (No-Show), the service may be considered complete, applying a 100% penalty.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">3. Cancellation Policy</h3>
-                        <p>Cancellations made more than 24 hours before the service will have no surcharge. If canceled with less notice, Palladium Transfers S.L. will retain 100% of the budgeted amount.</p>
+                        <p>Cancellations made more than 24 hours before the service will have no surcharge. If canceled with less notice, {companyInfo.name} will retain 100% of the budgeted amount.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">4. Luggage and Capacity</h3>
                         <p>The specified capacity for our standard/premium vehicles is strictly a maximum of <strong>3 passengers and 2 standard-sized suitcases</strong> (maximum dimensions approx. 63 x 36 x 21 cm per suitcase).</p>
                         <p className="mt-2">This capacity is limiting. If the group exceeds the declared volume or the legal maximum capacity of the vehicle upon arrival, the driver will not be able to perform the service due to a violation of traffic safety regulations, which will be considered a cancellation by the client.</p>
@@ -187,7 +209,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
 
                 {/* Footer Optional Addon inside modal */}
                 <div className="p-4 border-t border-white/5 bg-black/20 text-center shrink-0">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest">&copy; {new Date().getFullYear()} Palladium Transfers S.L.</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest">&copy; {new Date().getFullYear()} {companyInfo.name}</p>
                 </div>
             </div>
         </div>

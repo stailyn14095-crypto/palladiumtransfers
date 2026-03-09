@@ -318,7 +318,7 @@ export default function App() {
       </main>
 
       {/* Gemini AI Assistant Widget */}
-      <AiAssistant />
+      {userRole !== 'client' && <AiAssistant />}
     </div>
   );
 }

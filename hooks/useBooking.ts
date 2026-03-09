@@ -284,17 +284,26 @@ export const useBooking = (language: string = 'es') => {
         const primaryColor = [20, 30, 43];
         const accentColor = [59, 130, 246];
 
+        const logoSvg = `
+        <svg viewBox="0 0 440 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 40 85 L 340 85" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M 120 68 Q 220 20 310 80 Q 325 85 340 85 L 380 85 Q 405 85 415 110" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <path d="M 160 110 L 415 110" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <text x="220" y="140" text-anchor="middle" fill="#ffffff" style="font-family: helvetica, sans-serif; font-weight: 300; letter-spacing: 0.15em; font-size: 24px; text-transform: uppercase;">PALLADIUM TRANSFERS</text>
+            <text x="220" y="165" text-anchor="middle" fill="#ffffff" style="font-family: helvetica, sans-serif; font-weight: bold; letter-spacing: 0.4em; font-size: 10px; text-transform: uppercase; opacity: 0.8;">EXCELLENCE IN MOTION</text>
+        </svg>`.trim();
+
         bookings.forEach((booking, index) => {
             if (index > 0) doc.addPage();
 
-            // Header
+            // Header Background
             doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
             doc.rect(0, 0, 210, 40, 'F');
 
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(22);
-            doc.setFont('helvetica', 'bold');
-            doc.text('PALLADIUM TRANSFERS', 20, 25);
+            // Add SVG Logo 
+            // We use addImage with a base64 encoded SVG data URI.
+            const svgBase64 = 'data:image/svg+xml;base64,' + btoa(encodeURIComponent(logoSvg).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode(parseInt(p1, 16))));
+            doc.addImage(svgBase64, 'SVG', 10, 5, 80, 32);
 
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
@@ -349,10 +358,14 @@ export const useBooking = (language: string = 'es') => {
             // Footer
             doc.setFontSize(9);
             doc.setTextColor(100, 100, 100);
-            const footerY = 270;
+            const footerY = 265;
             doc.text('Gracias por confiar en Palladium Transfers.', 105, footerY, { align: 'center' });
-            doc.text('Para cualquier duda o modificación, contacte con soporte: +34 600 000 000', 105, footerY + 5, { align: 'center' });
-            doc.text('Este documento sirve como comprobante de su reserva.', 105, footerY + 10, { align: 'center' });
+            doc.text('Puede solicitar cambios en su reserva directamente desde su Portal de Cliente.', 105, footerY + 5, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+            doc.text('* Cambios de hora solo permitidos hasta 24h antes. Para cambios urgentes (<24h),', 105, footerY + 12, { align: 'center' });
+            doc.text('contacte a reservas@palladiumtransfers.com.', 105, footerY + 16, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.text('Este documento sirve como comprobante de su reserva.', 105, footerY + 23, { align: 'center' });
         });
 
         doc.save(`Voucher_Palladium_${formData.name || 'Reserva'}.pdf`);
@@ -501,6 +514,18 @@ export const useBooking = (language: string = 'es') => {
 
             const bookingRef = bookingsToInsert[0].id?.substring(0, 8).toUpperCase() || 'NUEVA';
 
+            const logoSvg = `
+            <svg viewBox="0 0 440 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 40 85 L 340 85" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+                <path d="M 120 68 Q 220 20 310 80 Q 325 85 340 85 L 380 85 Q 405 85 415 110" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+                <path d="M 160 110 L 415 110" stroke="#dbb35e" stroke-width="4" stroke-linecap="round" fill="none"/>
+                <text x="220" y="140" text-anchor="middle" fill="#ffffff" style="font-family: helvetica, sans-serif; font-weight: 300; letter-spacing: 0.15em; font-size: 24px; text-transform: uppercase;">PALLADIUM TRANSFERS</text>
+                <text x="220" y="165" text-anchor="middle" fill="#ffffff" style="font-family: helvetica, sans-serif; font-weight: bold; letter-spacing: 0.4em; font-size: 10px; text-transform: uppercase; opacity: 0.8;">EXCELLENCE IN MOTION</text>
+            </svg>`.trim();
+
+            // We need the logoSvg encoded for the HTML src attribute too
+            const svgBase64Url = 'data:image/svg+xml;base64,' + btoa(encodeURIComponent(logoSvg).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode(parseInt(p1, 16))));
+
             // Prepare email payload
             const emailPayload: any = {
                 to: formData.email,
@@ -515,14 +540,15 @@ export const useBooking = (language: string = 'es') => {
                 html: `
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
                         <div style="background-color: #1a2533; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                            <h1 style="color: #ffffff; margin: 0;">PALLADIUM TRANSFERS</h1>
+                            <img src="${svgBase64Url}" alt="Palladium Transfers Logo" style="max-height: 60px; margin-bottom: 10px;" />
                             <p style="color: #94a3b8; margin: 10px 0 0 0;">CONFIRMACIÓN DE RESERVA</p>
                         </div>
                         <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
                             <h2 style="color: #1a2533; margin-top: 0;">¡Gracias por su reserva!</h2>
                             <p style="color: #475569; line-height: 1.6;">Hola ${bookingsToInsert[0].passenger},</p>
                             <p style="color: #475569; line-height: 1.6;">Su reserva ha sido procesada con éxito.</p>
-                            <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF se ha descargado automáticamente en su dispositivo.</p>
+                            <p style="color: #475569; line-height: 1.6; margin-top: 20px;">Puede acceder a su <a href="https://palladiumtransfers.com/" style="color: #3b82f6;">Portal de Cliente</a> para gestionar su reserva o solicitar cambios (cambios de hora permitidos hasta 24h antes por el portal, o a través de reservas@palladiumtransfers.com).</p>
+                            <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF adjunto contiene todos los detalles de su traslado.</p>
                         </div>
                     </div>
                 `

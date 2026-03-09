@@ -5,6 +5,7 @@ import { supabase } from '../services/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Logo } from './ui/Logo';
 import { LegalModals } from './LegalModals';
+import { CookieConsentBanner } from './CookieConsentBanner';
 
 interface LandingPageProps {
     onEnterApp: () => void;
@@ -51,7 +52,7 @@ const translations = {
             {
                 icon: 'auto_awesome',
                 title: 'Flota de Lujo',
-                desc: 'Vehículos Mercedes-Benz Clase S y Clase V mantenidos bajo estándares VIP.'
+                desc: 'Vehículos 100% eléctricos.'
             },
             {
                 icon: 'payments',
@@ -97,7 +98,7 @@ const translations = {
             {
                 icon: 'auto_awesome',
                 title: 'Luxury Fleet',
-                desc: 'Mercedes-Benz S-Class and V-Class vehicles maintained under VIP standards.'
+                desc: '100% electric vehicles.'
             },
             {
                 icon: 'payments',
@@ -214,7 +215,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
 
                         <div className="flex flex-wrap gap-12 pt-6">
                             <div className="flex flex-col">
-                                <span className="text-5xl font-light text-white leading-none">5.0</span>
+                                <span className="text-5xl font-light text-white leading-none">-</span>
                                 <span className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.4em] mt-3">{t.google_rating}</span>
                             </div>
                             <div className="flex flex-col">
@@ -349,6 +350,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
 
             {/* Legal Modals Component */}
             <LegalModals type={activeModal} language={language} onClose={() => setActiveModal(null)} />
+            <CookieConsentBanner language={language} onReadMore={() => setActiveModal('cookies')} />
         </div >
     );
 };

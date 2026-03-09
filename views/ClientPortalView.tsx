@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase';
 import { Session } from '@supabase/supabase-js';
 import { useToast } from '../components/ui/Toast';
 import { ViewState, Language } from '../types';
-import { sendCancellationEmail } from '../services/emailService';
+import { sendCancellationEmail, sendChangeRequestEmail } from '../services/emailService';
 
 interface ClientPortalProps {
     session: Session | null;
@@ -14,6 +14,10 @@ interface ClientPortalProps {
 export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBooking, language = 'es' }) => {
     const [bookings, setBookings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
+    const [selectedBookingForChange, setSelectedBookingForChange] = useState<any>(null);
+    const [changeRequestText, setChangeRequestText] = useState('');
+    const [isSubmittingChange, setIsSubmittingChange] = useState(false);
     const { showToast } = useToast();
 
     const t = (key: string) => {
@@ -34,6 +38,15 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
             cancelSuccess: { es: 'Reserva cancelada correctamente', en: 'Booking cancelled correctly' },
             cancelError: { es: 'Error al cancelar la reserva', en: 'Error cancelling the booking' },
             loadError: { es: 'Error al cargar reservas', en: 'Error loading bookings' },
+            changeRequestTitle: { es: 'Solicitar Cambios', en: 'Request Changes' },
+            changeRequestDesc: { es: '¿Qué cambios te gustaría realizar en esta reserva?', en: 'What changes would you like to make to this booking?' },
+            changeRequestPlaceholder: { es: 'Ej: Necesito cambiar la dirección de recogida a...', en: 'Ex: I need to change the pickup address to...' },
+            changeNotice: { es: 'Nota Importante: Los cambios de hora solo están permitidos con más de 24 horas de antelación. Si su recogida es en menos de 24 horas, por favor contacte directamente a reservas@palladiumtransfers.com.', en: 'Important Note: Time changes are only allowed with more than 24 hours notice. If your pickup is in less than 24 hours, please contact reservas@palladiumtransfers.com directly.' },
+            changeErrorTime: { es: 'Esta reserva es en menos de 24h. Para cambiar la hora, contacte a reservas@palladiumtransfers.com', en: 'This booking is in less than 24h. To change the time, contact reservas@palladiumtransfers.com' },
+            changeSuccess: { es: 'Solicitud de cambio enviada. Nuestro equipo la revisará en breve.', en: 'Change request sent. Our team will review it shortly.' },
+            changeError: { es: 'Error al enviar la solicitud.', en: 'Error sending request.' },
+            sendRequest: { es: 'Enviar Solicitud', en: 'Send Request' },
+            cancelBtn: { es: 'Cancelar', en: 'Cancel' },
         };
         return dict[key]?.[language] || key;
     };
@@ -108,6 +121,38 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
         }
     };
 
+    const handleOpenChangeModal = (booking: any) => {
+        setSelectedBookingForChange(booking);
+        setChangeRequestText('');
+        setIsChangeModalOpen(true);
+    };
+
+    const handleSubmitChangeRequest = async () => {
+        if (!selectedBookingForChange || !changeRequestText.trim()) return;
+
+        const pickupDateTime = new Date(`${selectedBookingForChange.pickup_date}T${selectedBookingForChange.pickup_time}`);
+        const hoursDifference = (pickupDateTime.getTime() - new Date().getTime()) / (1000 * 60 * 60);
+
+        if (hoursDifference <= 24) {
+            const lowerText = changeRequestText.toLowerCase();
+            if (lowerText.includes('hora') || lowerText.includes('time') || lowerText.includes('retras') || lowerText.includes('adelant')) {
+                showToast(t('changeErrorTime'), 'error');
+                return; // Block submission if it seems to be about time and < 24h
+            }
+        }
+
+        setIsSubmittingChange(true);
+        try {
+            await sendChangeRequestEmail(selectedBookingForChange, changeRequestText);
+            showToast(t('changeSuccess'), 'success');
+            setIsChangeModalOpen(false);
+        } catch (error) {
+            showToast(t('changeError'), 'error');
+        } finally {
+            setIsSubmittingChange(false);
+        }
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'Confirmed': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -168,7 +213,7 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
 
                             {futureBookings.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {futureBookings.map(b => <BookingCard key={b.id} b={b} onCancel={handleCancelBooking} language={language} />)}
+                                    {futureBookings.map(b => <BookingCard key={b.id} b={b} onCancel={handleCancelBooking} onChange={handleOpenChangeModal} language={language} />)}
                                 </div>
                             ) : (
                                 <p className="text-brand-platinum/30 italic text-sm">{t('noUpcoming')}</p>
@@ -193,6 +238,52 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
                     </div>
                 )}
             </div>
+
+            {/* Change Request Modal */}
+            {isChangeModalOpen && selectedBookingForChange && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-brand-charcoal border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6">
+                            <h3 className="text-xl font-bold text-white mb-2">{t('changeRequestTitle')}</h3>
+                            <p className="text-brand-platinum/70 text-sm mb-6">{t('changeRequestDesc')}</p>
+
+                            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl mb-6 flex items-start gap-3">
+                                <span className="material-icons-round text-blue-400 mt-0.5 text-lg">info</span>
+                                <p className="text-xs text-blue-200/90 leading-relaxed">
+                                    {t('changeNotice')}
+                                </p>
+                            </div>
+
+                            <textarea
+                                value={changeRequestText}
+                                onChange={(e) => setChangeRequestText(e.target.value)}
+                                placeholder={t('changeRequestPlaceholder')}
+                                className="w-full bg-brand-black border border-white/10 rounded-xl p-4 text-white placeholder:text-white/20 min-h-[120px] focus:outline-none focus:border-brand-gold/50 focus:ring-1 focus:ring-brand-gold/50 resize-none"
+                            ></textarea>
+                        </div>
+                        <div className="bg-brand-black/50 p-4 border-t border-white/5 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsChangeModalOpen(false)}
+                                className="px-6 py-2 rounded-lg text-brand-platinum/70 hover:text-white hover:bg-white/5 font-bold transition-all"
+                            >
+                                {t('cancelBtn')}
+                            </button>
+                            <button
+                                onClick={handleSubmitChangeRequest}
+                                disabled={isSubmittingChange || !changeRequestText.trim()}
+                                className="bg-brand-gold hover:bg-brand-gold/80 text-black px-6 py-2 rounded-lg font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                            >
+                                {isSubmittingChange ? (
+                                    <span className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                    <span className="material-icons-round text-sm">send</span>
+                                )}
+                                {t('sendRequest')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -200,10 +291,11 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
 interface BookingCardProps {
     b: any;
     onCancel?: (b: any) => void;
+    onChange?: (b: any) => void;
     language: Language;
 }
 
-const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
+const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, onChange, language }) => {
     const [driverInfo, setDriverInfo] = useState<any>(null);
     const [vehicleInfo, setVehicleInfo] = useState<any>(null);
 
@@ -232,6 +324,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
             standard: { es: 'Standard', en: 'Standard' },
             price: { es: 'Precio', en: 'Price' },
             cancel_service: { es: 'Cancelar Servicio', en: 'Cancel Service' },
+            request_changes: { es: 'Solicitar Cambios', en: 'Request Changes' },
         };
         return dict[key]?.[language] || key;
     };
@@ -421,14 +514,24 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, language }) => {
             <div className="mt-8 pt-4 border-t border-white/5 flex items-center justify-between">
                 <div className="text-2xl font-black text-white">{b.price || 0}€</div>
 
-                {onCancel && b.status !== 'Cancelled' && b.status !== 'Completed' && (
-                    <button
-                        onClick={() => onCancel(b)}
-                        className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase tracking-widest px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/25 transition-all border border-red-500/10"
-                    >
-                        Cancelar Servicio
-                    </button>
-                )}
+                <div className="flex gap-2">
+                    {onChange && b.status !== 'Cancelled' && b.status !== 'Completed' && (
+                        <button
+                            onClick={() => onChange(b)}
+                            className="text-[10px] text-brand-gold hover:text-brand-gold/80 font-black uppercase tracking-widest px-4 py-2 rounded-lg bg-brand-gold/10 hover:bg-brand-gold/25 transition-all border border-brand-gold/10"
+                        >
+                            {t('request_changes')}
+                        </button>
+                    )}
+                    {onCancel && b.status !== 'Cancelled' && b.status !== 'Completed' && (
+                        <button
+                            onClick={() => onCancel(b)}
+                            className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase tracking-widest px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/25 transition-all border border-red-500/10"
+                        >
+                            {t('cancel_service')}
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
