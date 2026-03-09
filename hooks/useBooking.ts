@@ -316,7 +316,7 @@ export const useBooking = (language: string = 'es') => {
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(11);
             doc.setFont('helvetica', 'normal');
-            doc.text('VOUCHER DE RESERVA', 20, 35);
+            doc.text('VOUCHER DE RESERVA', 20, 38);
 
             // Booking Details
             doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
