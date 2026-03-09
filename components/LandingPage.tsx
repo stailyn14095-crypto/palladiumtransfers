@@ -4,8 +4,9 @@ import { Language } from '../types';
 import { supabase } from '../services/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Logo } from './ui/Logo';
-import { LegalModals } from './LegalModals';
-import { CookieConsentBanner } from './CookieConsentBanner';
+
+const LegalModals = React.lazy(() => import('./LegalModals').then(module => ({ default: module.LegalModals })));
+const CookieConsentBanner = React.lazy(() => import('./CookieConsentBanner').then(module => ({ default: module.CookieConsentBanner })));
 
 interface LandingPageProps {
     onEnterApp: () => void;
@@ -349,8 +350,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
             }
 
             {/* Legal Modals Component */}
-            <LegalModals type={activeModal} language={language} onClose={() => setActiveModal(null)} />
-            <CookieConsentBanner language={language} onReadMore={() => setActiveModal('cookies')} />
+            <React.Suspense fallback={null}>
+                <LegalModals type={activeModal} language={language} onClose={() => setActiveModal(null)} />
+                <CookieConsentBanner language={language} onReadMore={() => setActiveModal('cookies')} />
+            </React.Suspense>
         </div >
     );
 };

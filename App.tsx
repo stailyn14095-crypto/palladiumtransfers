@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
-import { AiAssistant } from './components/AiAssistant';
+
+const AiAssistant = React.lazy(() => import('./components/AiAssistant').then(module => ({ default: module.AiAssistant })));
 
 // Lazy loaded views
 const OperationsHub = React.lazy(() => import('./views/OperationsHub').then(module => ({ default: module.OperationsHub })));
@@ -318,7 +319,11 @@ export default function App() {
       </main>
 
       {/* Gemini AI Assistant Widget */}
-      {userRole !== 'client' && <AiAssistant />}
+      {userRole !== 'client' && (
+        <Suspense fallback={null}>
+          <AiAssistant />
+        </Suspense>
+      )}
     </div>
   );
 }
