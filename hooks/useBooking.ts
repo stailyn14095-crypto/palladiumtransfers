@@ -377,7 +377,8 @@ export const useBooking = (language: string = 'es') => {
             doc.text('Este documento sirve como comprobante de su reserva.', 105, footerY + 23, { align: 'center' });
         });
 
-        doc.save(`Voucher_Palladium_${formData.name || 'Reserva'}.pdf`);
+        // doc.save is removed because it can interrupt the mobile browser flow 
+        // and cancel the subsequent email fetch request
         return doc.output('datauristring').split(',')[1];
     };
 
@@ -567,8 +568,8 @@ export const useBooking = (language: string = 'es') => {
                 emailPayload.bcc = adminEmail;
             }
 
-            // Trigger Edge Function for Email
-            supabase.functions.invoke('send-email-resend', {
+            // Trigger Edge Function for Email (awaited to ensure it finishes before navigation/unmount)
+            await supabase.functions.invoke('send-email-resend', {
                 body: emailPayload
             }).catch(e => console.error("Email error:", e));
 
