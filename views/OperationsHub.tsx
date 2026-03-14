@@ -167,95 +167,103 @@ export const OperationsHub: React.FC = () => {
 
   const syncFlightsWithAirLabs = async () => {
     try {
-      showToast('Actualizando alertas de reservas con AirLabs...', 'info');
+      showToast('Sincronizando vuelos con AirLabs...', 'info');
       const airlabsKey = import.meta.env.VITE_AIRLABS_API_KEY;
 
       if (!airlabsKey) {
-        showToast('Falta la API Key de AirLabs en .env.local', 'error');
+        showToast('Falta la API Key de AirLabs.', 'error');
         return;
       }
 
-      if (!flights || flights.length === 0) {
-        showToast('No hay vuelos activos para sincronizar.', 'warning');
-        return;
-      }
+      // 1. Obtener todos los números de vuelo ÚNICOS de las reservas visibles
+      const bookingFlightNumbers = Array.from(new Set(
+        filteredBookings
+          .map((b: any) => b.flight_number)
+          .filter(Boolean)
+          .map((n: string) => n.replace(/\s+/g, '').toUpperCase())
+      ));
 
-      // Filtrar vuelos que no estén Landed o Cancelled (para no desperdiciar cuota de AirLabs)
-      const activeFlights = flights.filter((f: any) =>
-        ['Scheduled', 'En Route', 'Delayed', 'Taxiing', 'Final Approach'].includes(f.status)
-      );
-
-      if (activeFlights.length === 0) {
-        showToast('Todos los vuelos ya han aterrizado.', 'success');
+      if (bookingFlightNumbers.length === 0) {
+        showToast('No hay vuelos en las reservas actuales para sincronizar.', 'warning');
         return;
       }
 
       let syncCount = 0;
       let updates = [];
 
-      for (const flight of activeFlights) {
-        if (!flight.number) continue;
-
-        const flightIata = flight.number.replace(/\s+/g, '').toUpperCase();
+      for (const flightIata of bookingFlightNumbers) {
+        // Consultar AirLabs
         const res = await fetch(`https://airlabs.co/api/v9/flights?api_key=${airlabsKey}&flight_iata=${flightIata}`);
-
         if (!res.ok) continue;
         const data = await res.json();
 
         if (data && data.response && data.response.length > 0) {
           const flightData = data.response[0];
-          let newStatus = flight.status;
 
-          // Mapeo detallado de estados de AirLabs
+          // Mapear estado
+          let newStatus: Flight['status'] = 'Scheduled';
           switch (flightData.status) {
-            case 'en-route':
-            case 'active':
-              newStatus = flightData.delayed ? 'Delayed' : 'En Route';
-              break;
-            case 'scheduled':
-              newStatus = flightData.delayed ? 'Delayed' : 'Scheduled';
-              break;
-            case 'landed':
-              newStatus = 'Landed';
-              break;
-            case 'cancelled':
-              newStatus = 'Cancelled';
-              break;
-            default:
-              newStatus = flight.status;
+            case 'en-route': case 'active': newStatus = flightData.delayed ? 'Delayed' : 'En Route'; break;
+            case 'scheduled': newStatus = flightData.delayed ? 'Delayed' : 'Scheduled'; break;
+            case 'landed': newStatus = 'Landed'; break;
+            case 'cancelled': newStatus = 'Cancelled'; break;
+            default: newStatus = 'Scheduled';
           }
 
+          // Calcular delay y ETA
           const delayMinutes = flightData.delayed || 0;
           const estimatedArrival = flightData.arr_estimated_utc || flightData.arr_time_utc;
+          let finalDelay = delayMinutes;
 
-          // Si el vuelo llegó antes de lo previsto o el delay es negativo, marcamos como adelantado
-          // AirLabs a veces no da 'delay' como negativo, sino que simplemente el arr_estimated es menor que arr_time_scheduled
-          let isEarly = false;
           if (flightData.arr_time_utc && flightData.arr_estimated_utc) {
             const scheduled = new Date(flightData.arr_time_utc).getTime();
             const estimated = new Date(flightData.arr_estimated_utc).getTime();
             if (estimated < scheduled) {
-              isEarly = true;
-              // Calculamos minutos de adelanto para mostrarlo
-              const earlyMins = Math.round((scheduled - estimated) / 60000);
-              console.log(`Flight ${flight.number} is early by ${earlyMins} mins`);
+              finalDelay = -Math.round((scheduled - estimated) / 60000);
             }
           }
 
-          if (newStatus !== flight.status || estimatedArrival !== flight.estimated || delayMinutes !== (flight.delay || 0)) {
-            const { error: updateError } = await supabase
-              .from('flights')
-              .update({
-                status: newStatus,
-                delay: isEarly ? -(Math.round((new Date(flightData.arr_time_utc).getTime() - new Date(flightData.arr_estimated_utc).getTime()) / 60000)) : delayMinutes,
-                estimated: estimatedArrival,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', flight.id);
+          // 2. Buscar si el vuelo ya existe en la tabla 'flights'
+          const existingFlight = flights?.find(f => f.number.replace(/\s+/g, '').toUpperCase() === flightIata);
 
-            if (!updateError) {
+          if (existingFlight) {
+            // ACTUALIZAR existente si hay cambios
+            const hasStatusChange = newStatus !== existingFlight.status;
+            const hasDelayChange = finalDelay !== (existingFlight.delay || 0);
+            const hasEtaChange = (estimatedArrival || '') !== (existingFlight.estimated || '');
+
+            if (hasStatusChange || hasDelayChange || hasEtaChange) {
+              const { error: updateError } = await supabase
+                .from('flights')
+                .update({
+                  status: newStatus,
+                  delay: finalDelay,
+                  estimated: estimatedArrival,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingFlight.id);
+
+              if (!updateError) {
+                syncCount++;
+                updates.push(`${flightIata} (Act.)`);
+              }
+            }
+          } else {
+            // 3. AUTO-REGISTRO: Insertar nuevo vuelo si no existe
+            const { error: insertError } = await supabase
+              .from('flights')
+              .insert({
+                number: flightIata,
+                status: newStatus,
+                delay: finalDelay,
+                estimated: estimatedArrival,
+                origin: 'Sincronizado',
+                updated_at: new Date().toISOString()
+              });
+
+            if (!insertError) {
               syncCount++;
-              updates.push(`${flight.number} (${newStatus})`);
+              updates.push(`${flightIata} (Nuevo)`);
             }
           }
         }
@@ -269,7 +277,7 @@ export const OperationsHub: React.FC = () => {
 
     } catch (error) {
       console.error(error);
-      showToast('Error conectando con AirLabs', 'error');
+      showToast('Error en la sincronización con AirLabs', 'error');
     }
   };
 
