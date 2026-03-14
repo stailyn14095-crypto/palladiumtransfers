@@ -192,45 +192,85 @@ export const OperationsHub: React.FC = () => {
       let updates = [];
 
       for (const flightIata of bookingFlightNumbers) {
-        // Consultar AirLabs
-        const res = await fetch(`https://airlabs.co/api/v9/flights?api_key=${airlabsKey}&flight_iata=${flightIata}`);
-        if (!res.ok) continue;
-        const data = await res.json();
+        let flightData: any = null;
+        let dataSource = 'radar';
 
-        if (data && data.response && data.response.length > 0) {
-          const flightData = data.response[0];
+        // Intentar primero con el Radar (Live Flights) - Filtrado por destino ALC
+        try {
+          const res = await fetch(`https://airlabs.co/api/v9/flights?api_key=${airlabsKey}&flight_iata=${flightIata}&arr_iata=ALC`);
+          const data = await res.json();
+          if (data && data.response && data.response.length > 0) {
+            flightData = data.response[0];
+          }
+        } catch (e) {
+          console.error(`Error en radar para ${flightIata}:`, e);
+        }
 
+        // Si no hay datos en radar O faltan tiempos críticos, intentar con el Schedule (Horarios)
+        const missingTimes = !flightData || (!flightData.arr_time_utc && !flightData.arr_time);
+        if (missingTimes) {
+          try {
+            const res = await fetch(`https://airlabs.co/api/v9/schedules?api_key=${airlabsKey}&flight_iata=${flightIata}&arr_iata=ALC`);
+            const data = await res.json();
+            if (data && data.response && data.response.length > 0) {
+              const scheduleData = data.response[0];
+              if (!flightData) {
+                flightData = scheduleData;
+                dataSource = 'schedule';
+              } else {
+                // Mezclar: usar radar para estado real y schedule para tiempos programados
+                flightData = { ...scheduleData, ...flightData };
+                dataSource = 'mixed';
+              }
+            }
+          } catch (e) {
+            console.error(`Error en schedule para ${flightIata}:`, e);
+          }
+        }
+
+        if (flightData) {
           // Mapear estado
           let newStatus: Flight['status'] = 'Scheduled';
-          switch (flightData.status) {
-            case 'en-route': case 'active': newStatus = flightData.delayed ? 'Delayed' : 'En Route'; break;
-            case 'scheduled': newStatus = flightData.delayed ? 'Delayed' : 'Scheduled'; break;
-            case 'landed': newStatus = 'Landed'; break;
-            case 'cancelled': newStatus = 'Cancelled'; break;
-            default: newStatus = 'Scheduled';
+          const airlabsStatus = (flightData.status || '').toLowerCase();
+          
+          if (airlabsStatus === 'en-route' || airlabsStatus === 'active') {
+            newStatus = flightData.delayed ? 'Delayed' : 'En Route';
+          } else if (airlabsStatus === 'landed') {
+            newStatus = 'Landed';
+          } else if (airlabsStatus === 'cancelled') {
+            newStatus = 'Cancelled';
+          } else if (airlabsStatus === 'scheduled') {
+            newStatus = flightData.delayed ? 'Delayed' : 'Scheduled';
           }
 
           // Calcular delay y ETA
-          const delayMinutes = flightData.delayed || 0;
-          const estimatedArrival = flightData.arr_estimated_utc || flightData.arr_time_utc;
-          let finalDelay = delayMinutes;
-
-          if (flightData.arr_time_utc && flightData.arr_estimated_utc) {
-            const scheduled = new Date(flightData.arr_time_utc).getTime();
-            const estimated = new Date(flightData.arr_estimated_utc).getTime();
+          // Nota: El endpoint de schedules usa arr_time y arr_estimated (sin _utc a veces, dependiendo de la versión)
+          const scheduledStr = flightData.arr_time_utc || flightData.arr_time;
+          const estimatedStr = flightData.arr_estimated_utc || flightData.arr_estimated || scheduledStr;
+          
+          let finalDelay = flightData.delayed || 0;
+          
+          if (scheduledStr && estimatedStr) {
+            const scheduled = new Date(scheduledStr).getTime();
+            const estimated = new Date(estimatedStr).getTime();
             if (estimated < scheduled) {
+              // Adelanto: delay negativo
               finalDelay = -Math.round((scheduled - estimated) / 60000);
+            } else if (estimated > scheduled) {
+              // Retraso: delay positivo
+              finalDelay = Math.round((estimated - scheduled) / 60000);
             }
           }
+
+          console.log(`[AirLabs ${dataSource}] Vuelo ${flightIata}: Status=${newStatus}, Delay=${finalDelay}, ETA=${estimatedStr}`);
 
           // 2. Buscar si el vuelo ya existe en la tabla 'flights'
           const existingFlight = flights?.find(f => f.number.replace(/\s+/g, '').toUpperCase() === flightIata);
 
           if (existingFlight) {
-            // ACTUALIZAR existente si hay cambios
             const hasStatusChange = newStatus !== existingFlight.status;
             const hasDelayChange = finalDelay !== (existingFlight.delay || 0);
-            const hasEtaChange = (estimatedArrival || '') !== (existingFlight.estimated || '');
+            const hasEtaChange = (estimatedStr || '') !== (existingFlight.estimated || '');
 
             if (hasStatusChange || hasDelayChange || hasEtaChange) {
               const { error: updateError } = await supabase
@@ -238,26 +278,27 @@ export const OperationsHub: React.FC = () => {
                 .update({
                   status: newStatus,
                   delay: finalDelay,
-                  estimated: estimatedArrival,
+                  estimated: estimatedStr,
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', existingFlight.id);
 
               if (!updateError) {
                 syncCount++;
-                updates.push(`${flightIata} (Act.)`);
+                updates.push(`${flightIata}${finalDelay < 0 ? ' (EARLY)' : ''}`);
               }
             }
           } else {
-            // 3. AUTO-REGISTRO: Insertar nuevo vuelo si no existe
+            // 3. AUTO-REGISTRO
             const { error: insertError } = await supabase
               .from('flights')
               .insert({
                 number: flightIata,
                 status: newStatus,
                 delay: finalDelay,
-                estimated: estimatedArrival,
-                origin: 'Sincronizado',
+                scheduled: scheduledStr,
+                estimated: estimatedStr,
+                origin: flightData.dep_iata || 'Sincronizado',
                 updated_at: new Date().toISOString()
               });
 
@@ -484,12 +525,14 @@ export const OperationsHub: React.FC = () => {
                             <div className="flex justify-between items-start">
                               <div className="flex flex-col">
                                 <h4 className="text-sm font-medium text-white">{b.flight_number} • {b.passenger}</h4>
-                                {flightInfo?.delay ? (
-                                  <span className="text-[10px] text-red-400 font-medium">+{flightInfo.delay} min. de retraso</span>
+                                {flightInfo?.delay !== undefined && flightInfo.delay !== 0 ? (
+                                  <span className={`text-[10px] font-medium ${flightInfo.delay < 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {flightInfo.delay > 0 ? `+${flightInfo.delay} min. de retraso` : `${Math.abs(flightInfo.delay)} min. de adelanto`}
+                                  </span>
                                 ) : null}
                               </div>
                               <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shadow-sm flex flex-col items-center ${bgClass} ${textClass}`}>
-                                <span>{(flightInfo?.status || 'Scheduled').toUpperCase()}</span>
+                                <span>{flightInfo?.delay && flightInfo.delay < 0 ? 'EARLY' : (flightInfo?.status || 'Scheduled').toUpperCase()}</span>
                               </span>
                             </div>
                             <div className="flex justify-between items-center mt-1">
