@@ -191,23 +191,22 @@ export const OperationsHub: React.FC = () => {
       }
 
       let syncCount = 0;
+      let updates = [];
 
       for (const flight of activeFlights) {
         if (!flight.number) continue;
 
-        // Limpiar el formato del número (ej: "FR 2070" -> "FR2070")
         const flightIata = flight.number.replace(/\s+/g, '').toUpperCase();
-
         const res = await fetch(`https://airlabs.co/api/v9/flights?api_key=${airlabsKey}&flight_iata=${flightIata}`);
 
         if (!res.ok) continue;
-
         const data = await res.json();
 
         if (data && data.response && data.response.length > 0) {
-          const flightData = data.response[0]; // Primer coincidencia
+          const flightData = data.response[0];
           let newStatus = flight.status;
 
+          // Mapeo detallado de estados de AirLabs
           switch (flightData.status) {
             case 'en-route':
             case 'active':
@@ -229,30 +228,43 @@ export const OperationsHub: React.FC = () => {
           const delayMinutes = flightData.delayed || 0;
           const estimatedArrival = flightData.arr_estimated_utc || flightData.arr_time_utc;
 
-          // Actualizamos siempre si hay retraso detectado o si cambia la hora o estado
-          if (newStatus !== flight.status || delayMinutes !== (flight.delay || 0) || estimatedArrival !== flight.estimated) {
-            // Actualizar Supabase
+          // Si el vuelo llegó antes de lo previsto o el delay es negativo, marcamos como adelantado
+          // AirLabs a veces no da 'delay' como negativo, sino que simplemente el arr_estimated es menor que arr_time_scheduled
+          let isEarly = false;
+          if (flightData.arr_time_utc && flightData.arr_estimated_utc) {
+            const scheduled = new Date(flightData.arr_time_utc).getTime();
+            const estimated = new Date(flightData.arr_estimated_utc).getTime();
+            if (estimated < scheduled) {
+              isEarly = true;
+              // Calculamos minutos de adelanto para mostrarlo
+              const earlyMins = Math.round((scheduled - estimated) / 60000);
+              console.log(`Flight ${flight.number} is early by ${earlyMins} mins`);
+            }
+          }
+
+          if (newStatus !== flight.status || estimatedArrival !== flight.estimated || delayMinutes !== (flight.delay || 0)) {
             const { error: updateError } = await supabase
               .from('flights')
               .update({
                 status: newStatus,
-                delay: delayMinutes,
-                estimated: estimatedArrival, // Actualizar ETA en BD
+                delay: isEarly ? -(Math.round((new Date(flightData.arr_time_utc).getTime() - new Date(flightData.arr_estimated_utc).getTime()) / 60000)) : delayMinutes,
+                estimated: estimatedArrival,
                 updated_at: new Date().toISOString()
               })
               .eq('id', flight.id);
 
             if (!updateError) {
               syncCount++;
+              updates.push(`${flight.number} (${newStatus})`);
             }
           }
         }
       }
 
       if (syncCount > 0) {
-        showToast(`Se sincronizaron ${syncCount} vuelos correctamente.`, 'success');
+        showToast(`Sincronizados: ${updates.join(', ')}`, 'success');
       } else {
-        showToast('Los vuelos ya están al día. No hubo cambios.', 'success');
+        showToast('Los vuelos ya están al día.', 'success');
       }
 
     } catch (error) {
@@ -579,11 +591,13 @@ export const OperationsHub: React.FC = () => {
                             }}
                             className={`group hover:bg-white/5 transition-colors border-b border-white/5/50 last:border-0 ${draggedBookingId === b.id ? 'opacity-50' : ''}`}
                           >
-                            <td className={`py-4 pl-2 font-mono ${status === 'Delayed' ? 'text-red-500' : 'text-white'}`}>
+                            <td className={`py-4 pl-2 font-mono ${delayMins > 0 ? 'text-red-500' : delayMins < 0 ? 'text-emerald-500' : 'text-white'}`}>
                               <div className="flex flex-col gap-0.5">
                                 <span>{b.flight_number}</span>
-                                {status === 'Delayed' && delayMins > 0 && (
-                                  <span className="text-[10px] text-red-500 font-bold">+{delayMins} min</span>
+                                {delayMins !== 0 && (
+                                  <span className={`text-[10px] font-bold ${delayMins > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {delayMins > 0 ? `+${delayMins}` : delayMins} min
+                                  </span>
                                 )}
                               </div>
                             </td>
@@ -599,12 +613,13 @@ export const OperationsHub: React.FC = () => {
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border text-center whitespace-nowrap
                             ${status === 'Final Approach' || status === 'Taxiing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' :
                                     status === 'Landed' ? 'bg-blue-500/20 text-brand-gold border-brand-gold/30' :
-                                      status === 'Delayed' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                                        'bg-slate-800 text-brand-platinum/50 border-white/5'}`}>
-                                  {status}
+                                      status === 'Delayed' || (delayMins > 0) ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+                                        delayMins < 0 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                                          'bg-slate-800 text-brand-platinum/50 border-white/5'}`}>
+                                  {delayMins < 0 ? 'EARLY' : status}
                                 </span>
                                 {eta && (
-                                  <span className="text-[9px] text-brand-platinum/60 font-mono mt-0.5 text-center">
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center font-mono ${delayMins < 0 ? 'text-emerald-400 bg-emerald-500/10' : delayMins > 0 ? 'text-red-400 bg-red-500/10' : 'text-brand-platinum/60 bg-white/5'}`}>
                                     ETA: {new Date(eta).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 )}
