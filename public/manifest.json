@@ -1,0 +1,17 @@
+{
+  "name": "Palladium Operations Hub",
+  "short_name": "Palladium Hub",
+  "description": "Operations portal for Palladium Transfers drivers and staff.",
+  "start_url": "/driver",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

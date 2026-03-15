@@ -91,7 +91,7 @@ export const DriverAppView: React.FC = () => {
             .upsert({
                user_id: myUserId,
                subscription: subscription.toJSON()
-            });
+            }, { onConflict: 'user_id' });
 
          if (error) throw error;
 
