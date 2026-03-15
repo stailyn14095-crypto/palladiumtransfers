@@ -76,8 +76,14 @@ export const DriverAppView: React.FC = () => {
    const subscribeUser = async () => {
       setSubscriptionLoading(true);
       try {
+         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+         const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+
          if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            throw new Error('Notificaciones no soportadas en este navegador.');
+            if (isIOS && !isStandalone) {
+               throw new Error('En iPhone, debes "Añadir a pantalla de inicio" para activar las notificaciones.');
+            }
+            throw new Error('Tu navegador no soporta notificaciones push.');
          }
 
          const registration = await navigator.serviceWorker.register('/sw.js');
