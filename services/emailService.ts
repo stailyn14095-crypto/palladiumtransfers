@@ -44,7 +44,7 @@ export const sendCancellationEmail = async (booking: any) => {
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
                     <div style="background-color: #b91c1c; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                        <img src="${logoBase64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
+                        <img src="${LOGO_BASE64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
                         <p style="color: #fca5a5; margin: 10px 0 0 0;">AVISO DE CANCELACIÓN</p>
                     </div>
                     <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -105,7 +105,7 @@ export const sendChangeRequestEmail = async (booking: any, requestDetails: strin
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
                     <div style="background-color: #1a2533; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                        <img src="${logoBase64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
+                        <img src="${LOGO_BASE64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
                         <p style="color: #94a3b8; margin: 10px 0 0 0;">Reserva: ${bookingRef}</p>
                     </div>
                     <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -159,3 +159,4 @@ export const sendChangeRequestEmail = async (booking: any, requestDetails: strin
         throw error;
     }
 };
+
