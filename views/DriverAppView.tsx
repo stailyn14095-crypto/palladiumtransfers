@@ -4,6 +4,23 @@ import { useSupabaseData } from '../hooks/useSupabaseData';
 import { GananciasDriverView } from './GananciasDriverView';
 import { HistoricoDriverView } from './HistoricoDriverView';
 
+const VAPID_PUBLIC_KEY = 'BIkf8Kxpm3nN7n1ShQhbTS6TKWLummppl6-hXos65jNkvi7BL0Rm8z2fYhKBKBvroSy9GIub9D6pDaGLcAgvi44';
+
+function urlBase64ToUint8Array(base64String: string) {
+   const padding = '='.repeat((4 - base64String.length % 4) % 4);
+   const base64 = (base64String + padding)
+      .replace(/\-/g, '+')
+      .replace(/_/g, '/');
+
+   const rawData = window.atob(base64);
+   const outputArray = new Uint8Array(rawData.length);
+
+   for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+   }
+   return outputArray;
+}
+
 export const DriverAppView: React.FC = () => {
    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
    const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -40,6 +57,99 @@ export const DriverAppView: React.FC = () => {
    const [kmModalOpen, setKmModalOpen] = useState(false);
    const [currentKm, setCurrentKm] = useState('');
    const [pendingAction, setPendingAction] = useState<'clockIn' | 'clockOut' | null>(null);
+
+   const [isSubscribed, setIsSubscribed] = useState(false);
+   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+
+   useEffect(() => {
+      checkSubscription();
+   }, [myUserId]);
+
+   const checkSubscription = async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setIsSubscribed(!!subscription);
+   };
+
+   const subscribeUser = async () => {
+      setSubscriptionLoading(true);
+      try {
+         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+            throw new Error('Notificaciones no soportadas en este navegador.');
+         }
+
+         const registration = await navigator.serviceWorker.register('/sw.js');
+         const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+         });
+
+         const { error } = await supabase
+            .from('push_subscriptions')
+            .upsert({
+               user_id: myUserId,
+               subscription: subscription.toJSON()
+            });
+
+         if (error) throw error;
+
+         setIsSubscribed(true);
+         // addToast({ title: 'Notificaciones Activas', description: 'Recibirás avisos de tus próximos servicios.', type: 'success' });
+      } catch (err: any) {
+         console.error('Error al suscribir:', err);
+         alert(err.message || 'No se pudieron activar las notificaciones.');
+      } finally {
+         setSubscriptionLoading(false);
+      }
+   };
+
+   const unsubscribeUser = async () => {
+      setSubscriptionLoading(true);
+      try {
+         const registration = await navigator.serviceWorker.ready;
+         const subscription = await registration.pushManager.getSubscription();
+         if (subscription) {
+            await subscription.unsubscribe();
+            await supabase.from('push_subscriptions').delete().eq('user_id', myUserId);
+         }
+         setIsSubscribed(false);
+         // addToast({ title: 'Notificaciones Desactivadas', description: 'Ya no recibirás avisos automáticos.', type: 'info' });
+      } catch (err: any) {
+         alert('No se pudieron desactivar las notificaciones.');
+      } finally {
+         setSubscriptionLoading(false);
+      }
+   };
+
+   const [currentTime, setCurrentTime] = useState(new Date());
+
+   useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+      return () => clearInterval(timer);
+   }, []);
+
+   const getTimeRemaining = (pickupDate: string, pickupTime: string) => {
+      try {
+         const [hours, minutes] = pickupTime.split(':').map(Number);
+         const targetDate = new Date(pickupDate);
+         targetDate.setHours(hours, minutes, 0, 0);
+
+         const diffMs = targetDate.getTime() - currentTime.getTime();
+         const diffMins = Math.round(diffMs / 60000);
+
+         if (diffMins <= 0) return null;
+         if (diffMins < 60) return `Siguiente traslado en ${diffMins} minutos`;
+         
+         const diffHours = Math.floor(diffMins / 60);
+         const remainingMins = diffMins % 60;
+         if (remainingMins === 0) return `Siguiente traslado en ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
+         return `Siguiente traslado en ${diffHours}h ${remainingMins}min`;
+      } catch (e) {
+         return null;
+      }
+   };
 
    const driverBookings = allBookings?.filter((b: any) => b.driver_id === selectedDriverId && b.status !== 'Completed' && b.status !== 'Cancelled') || [];
    const completedThisWeek = allBookings?.filter((b: any) => {
@@ -347,12 +457,28 @@ export const DriverAppView: React.FC = () => {
                      {activeDriver?.current_status === 'Working' ? 'En servicio' : activeDriver?.current_status === 'Paused' ? 'En pausa' : 'Fuera de servicio'}
                   </p>
                </div>
-               <button
-                  onClick={() => { localStorage.removeItem('activeDriverId'); setSelectedDriverId(null); }}
-                  className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-brand-platinum hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] transition-all"
-               >
-                  Salir
-               </button>
+               <div className="flex gap-2">
+                  <button
+                     onClick={isSubscribed ? unsubscribeUser : subscribeUser}
+                     disabled={subscriptionLoading}
+                     className={`px-4 py-2 border rounded-full text-[9px] font-bold uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${
+                        isSubscribed 
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
+                        : 'bg-white/5 border-white/10 text-brand-platinum hover:bg-white/10'
+                     }`}
+                  >
+                     <span className="material-icons-round text-xs">
+                        {isSubscribed ? 'notifications_active' : 'notifications_none'}
+                     </span>
+                     {subscriptionLoading ? '...' : isSubscribed ? 'Alertas On' : 'Activar Alertas'}
+                  </button>
+                  <button
+                     onClick={() => { localStorage.removeItem('activeDriverId'); setSelectedDriverId(null); }}
+                     className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-brand-platinum hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] transition-all"
+                  >
+                     Salir
+                  </button>
+               </div>
             </div>
 
             {/* Assigned Vehicle */}
@@ -451,6 +577,14 @@ export const DriverAppView: React.FC = () => {
                                        {new Date(b.pickup_date).toLocaleDateString('es-ES')} {b.pickup_time}h
                                     </p>
                                  </div>
+                                 {getTimeRemaining(b.pickup_date, b.pickup_time) && (
+                                    <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20 animate-pulse">
+                                       <span className="material-icons-round text-emerald-500 text-sm">schedule</span>
+                                       <p className="text-emerald-500 font-bold text-[10px] tracking-widest uppercase">
+                                          {getTimeRemaining(b.pickup_date, b.pickup_time)}
+                                       </p>
+                                    </div>
+                                 )}
                               </div>
                               <h3 className="text-4xl font-light text-white tracking-tighter uppercase group-hover:platinum-text transition-all leading-tight">{b.passenger}</h3>
                               <p className="text-brand-platinum text-[10px] font-bold tracking-[0.3em] flex items-center gap-2 uppercase opacity-50 mt-1">

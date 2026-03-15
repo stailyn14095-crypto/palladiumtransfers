@@ -1162,6 +1162,7 @@ export const UsuariosView = () => {
 
    const fields = [
       { name: 'full_name', label: 'Nombre Completo', type: 'text', required: true },
+      { name: 'phone', label: 'Teléfono', type: 'text' },
       { name: 'role', label: 'Rol del Sistema', type: 'select', options: ['admin', 'operator', 'accountant', 'driver', 'client'], required: true },
    ] as any;
 
@@ -1169,7 +1170,8 @@ export const UsuariosView = () => {
       if (editingItem) {
          await updateItem(editingItem.id, {
             role: data.role,
-            full_name: data.full_name
+            full_name: data.full_name,
+            phone: data.phone
          });
       }
       setIsModalOpen(false);

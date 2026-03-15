@@ -18,6 +18,12 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
     const [selectedBookingForChange, setSelectedBookingForChange] = useState<any>(null);
     const [changeRequestText, setChangeRequestText] = useState('');
     const [isSubmittingChange, setIsSubmittingChange] = useState(false);
+
+    const [profile, setProfile] = useState<any>(null);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+    const [tempProfile, setTempProfile] = useState({ full_name: '', phone: '' });
+
     const { showToast } = useToast();
 
     const t = (key: string) => {
@@ -47,6 +53,12 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
             changeError: { es: 'Error al enviar la solicitud.', en: 'Error sending request.' },
             sendRequest: { es: 'Enviar Solicitud', en: 'Send Request' },
             cancelBtn: { es: 'Cancelar', en: 'Cancel' },
+            profileSettings: { es: 'Configuración de Mi Cuenta', en: 'My Account Settings' },
+            saveChanges: { es: 'Guardar Cambios', en: 'Save Changes' },
+            fullName: { es: 'Nombre Completo', en: 'Full Name' },
+            phone: { es: 'Teléfono', en: 'Phone' },
+            profileUpdated: { es: 'Perfil actualizado con éxito', en: 'Profile updated successfully' },
+            profileUpdateError: { es: 'Error al actualizar el perfil', en: 'Error updating profile' },
         };
         return dict[key]?.[language] || key;
     };
@@ -77,9 +89,27 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
         }
     };
 
+    const fetchProfile = async () => {
+        if (!session?.user?.id) return;
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+        if (!error && data) {
+            setProfile(data);
+            setTempProfile({
+                full_name: data.full_name || '',
+                phone: data.phone || ''
+            });
+        }
+    };
+
     useEffect(() => {
         const controller = new AbortController();
         fetchMyBookings(controller.signal);
+        fetchProfile();
         return () => controller.abort();
     }, [session]);
 
@@ -87,9 +117,21 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
-    const futureBookings = bookings.filter(b => b.pickup_date >= todayStr && b.status !== 'Cancelled' && b.status !== 'Completed')
-        .sort((a, b) => new Date(`${a.pickup_date}T${a.pickup_time || '00:00:00'}`).getTime() - new Date(`${b.pickup_date}T${b.pickup_time || '00:00:00'}`).getTime());
-    const pastBookings = bookings.filter(b => b.pickup_date < todayStr || b.status === 'Cancelled' || b.status === 'Completed');
+    // Helper to get comparable timestamp
+    const getTimestamp = (b: any) => {
+        if (!b.pickup_date) return 0;
+        const datePart = b.pickup_date.includes('T') ? b.pickup_date.split('T')[0] : b.pickup_date;
+        const timePart = b.pickup_time ? (b.pickup_time.length === 5 ? `${b.pickup_time}:00` : b.pickup_time) : '00:00:00';
+        return new Date(`${datePart}T${timePart}`).getTime();
+    };
+
+    const futureBookings = bookings
+        .filter(b => b.pickup_date >= todayStr && b.status !== 'Cancelled' && b.status !== 'Completed')
+        .sort((a, b) => getTimestamp(a) - getTimestamp(b));
+
+    const pastBookings = bookings
+        .filter(b => b.pickup_date < todayStr || b.status === 'Cancelled' || b.status === 'Completed')
+        .sort((a, b) => getTimestamp(b) - getTimestamp(a)); // History: most recent first
 
     const handleCancelBooking = async (booking: any) => {
         // ... (rest of the code remains similar)
@@ -153,6 +195,42 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
         }
     };
 
+    const handleUpdateProfile = async () => {
+        if (!session?.user?.id || isUpdatingProfile) return;
+
+        setIsUpdatingProfile(true);
+        try {
+            // Update auth metadata
+            const { error: authError } = await supabase.auth.updateUser({
+                data: {
+                    full_name: tempProfile.full_name,
+                    phone: tempProfile.phone
+                }
+            });
+            if (authError) throw authError;
+
+            // Update profiles table
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: tempProfile.full_name,
+                    phone: tempProfile.phone
+                })
+                .eq('id', session.user.id);
+
+            if (profileError) throw profileError;
+
+            showToast(t('profileUpdated'), 'success');
+            setProfile({ ...profile, ...tempProfile });
+            setIsProfileModalOpen(false);
+        } catch (err: any) {
+            console.error('Error updating profile:', err);
+            showToast(t('profileUpdateError'), 'error');
+        } finally {
+            setIsUpdatingProfile(false);
+        }
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'Confirmed': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -172,15 +250,25 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
                         <h1 className="text-4xl font-black text-white mb-2 tracking-tight">{t('title')}</h1>
                         <p className="text-brand-platinum/50 font-medium italic">{t('subtitle')}</p>
                     </div>
-                    {onNewBooking && (
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={onNewBooking}
-                            className="bg-brand-gold hover:bg-brand-gold/80 text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-xl transition-all active:scale-95"
+                            onClick={() => setIsProfileModalOpen(true)}
+                            className="bg-white/5 hover:bg-white/10 text-white p-3 rounded-xl transition-all active:scale-95 border border-white/10 flex items-center gap-2 group"
+                            title={t('profileSettings')}
                         >
-                            <span className="material-icons-round">add_circle</span>
-                            {t('newBooking')}
+                            <span className="material-icons-round text-brand-gold group-hover:rotate-45 transition-transform">settings</span>
+                            <span className="text-xs font-bold uppercase tracking-wider hidden sm:block">Mis Datos</span>
                         </button>
-                    )}
+                        {onNewBooking && (
+                            <button
+                                onClick={onNewBooking}
+                                className="bg-brand-gold hover:bg-brand-gold/80 text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-xl transition-all active:scale-95"
+                            >
+                                <span className="material-icons-round">add_circle</span>
+                                {t('newBooking')}
+                            </button>
+                        )}
+                    </div>
                 </header>
 
                 {loading ? (
@@ -279,6 +367,73 @@ export const ClientPortalView: React.FC<ClientPortalProps> = ({ session, onNewBo
                                     <span className="material-icons-round text-sm">send</span>
                                 )}
                                 {t('sendRequest')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Profile Management Modal */}
+            {isProfileModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-brand-charcoal border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-8 border-b border-white/5 bg-brand-black/20">
+                            <h3 className="text-xl font-black text-white flex items-center gap-3 uppercase tracking-wider">
+                                <span className="material-icons-round text-brand-gold">manage_accounts</span>
+                                {t('profileSettings')}
+                            </h3>
+                        </div>
+                        
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-brand-platinum/40 uppercase tracking-[0.2em] ml-1">{t('fullName')}</label>
+                                <div className="relative">
+                                    <span className="material-icons-round absolute left-4 top-3.5 text-slate-500 text-lg">person</span>
+                                    <input
+                                        type="text"
+                                        value={tempProfile.full_name}
+                                        onChange={(e) => setTempProfile({ ...tempProfile, full_name: e.target.value })}
+                                        className="w-full bg-brand-black border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-white placeholder-brand-platinum/20 focus:outline-none focus:ring-1 focus:ring-brand-gold/50 transition-all font-bold"
+                                        placeholder="Tu Nombre"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-brand-platinum/40 uppercase tracking-[0.2em] ml-1">{t('phone')}</label>
+                                <div className="relative">
+                                    <span className="material-icons-round absolute left-4 top-3.5 text-slate-500 text-lg">phone</span>
+                                    <input
+                                        type="tel"
+                                        value={tempProfile.phone}
+                                        onChange={(e) => setTempProfile({ ...tempProfile, phone: e.target.value })}
+                                        className="w-full bg-brand-black border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-white placeholder-brand-platinum/20 focus:outline-none focus:ring-1 focus:ring-brand-gold/50 transition-all font-bold"
+                                        placeholder="+34"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-brand-black/40 p-6 border-t border-white/5 flex gap-3">
+                            <button
+                                onClick={() => setIsProfileModalOpen(false)}
+                                className="flex-1 py-3.5 rounded-xl text-brand-platinum/70 hover:text-white hover:bg-white/5 font-bold transition-all"
+                            >
+                                {t('cancelBtn')}
+                            </button>
+                            <button
+                                onClick={handleUpdateProfile}
+                                disabled={isUpdatingProfile}
+                                className="flex-[2] bg-brand-gold hover:bg-brand-gold/80 text-black py-4 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-brand-gold/10 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                {isUpdatingProfile ? (
+                                    <span className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                    <>
+                                        <span className="material-icons-round text-sm">save</span>
+                                        {t('saveChanges')}
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -413,10 +568,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ b, onCancel, onChange, langua
 
     return (
         <div className="bg-brand-charcoal border border-white/5 flex flex-col rounded-2xl p-6 hover:border-brand-gold/20 transition-colors">
-            <div className="flex items-start justify-between mb-4">
-                <div className={`px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full border ${getStatusColor(b.status || 'Pending')}`}>
-                    {getStatusLabel(b.status || 'Pending')}
-                </div>
+            <div className="flex items-start justify-end mb-4">
                 <span className="text-brand-platinum/30 font-mono text-[10px] max-w-24 truncate" title={b.id}>#{b.display_id || b.id?.split('-')[0]}</span>
             </div>
 
