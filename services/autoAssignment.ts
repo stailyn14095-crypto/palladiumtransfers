@@ -135,6 +135,49 @@ function isTimeWithinShift(timeStr: string, shiftHours: string): boolean {
     }
 }
 
+/**
+ * Checks if a driver is available for a new booking given their existing schedule,
+ * vehicle compatibility, AND SHIFT ASSIGNMENT.
+ */
+export function getDriverShiftForTime(driverId: string, pickupDate: string | Date, pickupTime: string, allShifts: any[]): any {
+    if (!pickupDate || !pickupTime || !driverId || !allShifts) return null;
+    
+    const targetMs = parseDateTime(pickupDate, pickupTime).getTime();
+    
+    // Check all shifts for this driver, as a shift from yesterday could cover early morning today
+    return allShifts.find(s => {
+        if (s.driver_id !== driverId) return false;
+        
+        let shiftStartMs = parseDateTime(s.date, '00:00').getTime();
+        let shiftEndMs = parseDateTime(s.date, '23:59').getTime();
+        
+        if (s.hours && s.hours.includes('-')) {
+            const [startH, endH] = s.hours.split('-');
+            const shiftStart = parseDateTime(s.date, startH);
+            const shiftEnd = parseDateTime(s.date, endH);
+            if (shiftEnd.getTime() < shiftStart.getTime()) {
+                shiftEnd.setDate(shiftEnd.getDate() + 1); // Overnight shift
+            }
+            shiftStartMs = shiftStart.getTime();
+            shiftEndMs = shiftEnd.getTime();
+        } else {
+            // No explicit hours, fallback to day matching
+            const bDateStr = typeof pickupDate === 'string' ? pickupDate.split('T')[0] : new Date(pickupDate).toISOString().split('T')[0];
+            return s.date === bDateStr;
+        }
+        
+        // Exact time containment
+        return targetMs >= shiftStartMs && targetMs <= shiftEndMs;
+    });
+}
+
+export function getAssignedVehicleForBooking(booking: any, allShifts: any[], allVehicles: any[]): any {
+    if (!booking || !booking.driver_id || !allShifts || !allVehicles) return null;
+    const shift = getDriverShiftForTime(booking.driver_id, booking.pickup_date, booking.pickup_time || '00:00', allShifts);
+    if (!shift || !shift.vehicle_id) return null;
+    return allVehicles.find(v => v.id === shift.vehicle_id) || null;
+}
+
 const CITY_DELAY_TOLERANCE = 15; // minutes
 const AIRPORT_DELAY_TOLERANCE = 30; // minutes
 
@@ -143,21 +186,16 @@ const AIRPORT_DELAY_TOLERANCE = 30; // minutes
  * vehicle compatibility, AND SHIFT ASSIGNMENT.
  */
 export function isDriverAvailable(driver: any, vehicle: any, newBooking: any, allBookings: any[], allShifts: any[] = []): boolean {
-    // 0. Shift Check (New Strict Logic)
-    // Find shift for this driver on this booking's date
     const bookingDateStr = typeof newBooking.pickup_date === 'string' ? newBooking.pickup_date.split('T')[0] : new Date(newBooking.pickup_date).toISOString().split('T')[0];
-    const shift = allShifts.find(s => s.driver_id === driver.id && s.date === bookingDateStr);
+
+    // 0. Shift Check (Strict Logic with overnight handling)
+    const shift = getDriverShiftForTime(driver.id, newBooking.pickup_date, newBooking.pickup_time || '00:00', allShifts);
 
     // Rule: If no shift is assigned, driver is NOT available.
     if (!shift) return false;
 
     // Rule: If shift type is explicitly 'Libre' or 'OFF', driver is NOT available.
     if (shift.type === 'Libre' || shift.type === 'OFF') return false;
-
-    // Rule: Check time constraints if hours are defined
-    if (shift.hours && !isTimeWithinShift(newBooking.pickup_time, shift.hours)) {
-        return false;
-    }
 
     // 1. Compatibility Check
     const reqPax = newBooking.pax_count || 1;

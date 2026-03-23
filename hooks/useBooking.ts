@@ -95,13 +95,14 @@ export const useBooking = (language: string = 'es') => {
 
             // Extract unique vehicle classes and their prices
             const vehiclesMap = new Map();
-            matchingTariffs.forEach(t => {
+            const clientTariffs = matchingTariffs.filter(t => t.audience_type === 'Cliente' || !t.audience_type);
+            clientTariffs.forEach(t => {
                 const cls = (t.class || 'Standard').trim();
                 const price = parseFloat(t.base_price || t.price || 0);
                 let displayPrice = price;
                 if (formData.tripType === 'Round Trip') displayPrice = price * roundTripMultiplier;
 
-                if (!vehiclesMap.has(cls) || vehiclesMap.get(cls).price > price) {
+                if (!vehiclesMap.has(cls) || vehiclesMap.get(cls).price > displayPrice) {
                     vehiclesMap.set(cls, { id: cls, price: displayPrice });
                 }
             });

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
-import { suggestDriver, detectScheduleConflicts } from '../services/autoAssignment';
+import { suggestDriver, detectScheduleConflicts, getAssignedVehicleForBooking } from '../services/autoAssignment';
 import { supabase } from '../services/supabase';
 import { sendCancellationEmail } from '../services/emailService';
 
@@ -1029,9 +1029,7 @@ export const ReservasView: React.FC = () => {
                                                       <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-md border border-white/5 w-fit">
                                                          <span className="material-icons-round text-[10px] text-brand-gold">directions_car</span>
                                                          {(() => {
-                                                            const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
-                                                            const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
-                                                            const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
+                                                            const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
                                                             return svcVehicle ? (
                                                                <span className="text-[10px] font-bold text-brand-gold/70">{svcVehicle.plate} <span className="text-brand-platinum/30 font-medium whitespace-nowrap">({svcVehicle.model})</span></span>
                                                             ) : (
@@ -1151,9 +1149,7 @@ export const ReservasView: React.FC = () => {
                                                                <div className="bg-brand-black p-3 rounded-lg border border-white/5 mb-3">
                                                                   <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Vehículo Asignado (Día del Servicio)</span>
                                                                   {(() => {
-                                                                     const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
-                                                                     const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
-                                                                     const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
+                                                                     const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
                                                                      return svcVehicle ? (
                                                                         <span className="text-sm font-bold text-brand-gold flex items-center gap-2">
                                                                            <span className="material-icons-round text-sm">directions_car</span>

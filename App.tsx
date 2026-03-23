@@ -29,6 +29,7 @@ const UsuariosView = React.lazy(() => import('./views/ManagementModules').then(m
 const FacturasView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.FacturasView })));
 const ExtrasView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.ExtrasView })));
 const TallerView = React.lazy(() => import('./views/ManagementModules').then(module => ({ default: module.TallerView })));
+const CashReconciliationView = React.lazy(() => import('./views/CashReconciliationView').then(module => ({ default: module.CashReconciliationView })));
 import { supabase } from './services/supabase';
 import { ViewState, Language } from './types';
 import { Session } from '@supabase/supabase-js';
@@ -282,6 +283,7 @@ export default function App() {
                     {currentView === ViewState.REPORTES && <ReportesView />}
                     {currentView === ViewState.CLIENTES && <ClientesView />}
                     {currentView === ViewState.FACTURAS && <FacturasView />}
+                    {currentView === ViewState.CASH_RECONCILIATION && <CashReconciliationView />}
                     {currentView === ViewState.EXTRAS && <ExtrasView />}
                     {currentView === ViewState.TARIFAS && <TarifasView />}
                   </>

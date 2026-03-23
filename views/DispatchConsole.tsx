@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
-import { isDriverAvailable } from '../services/autoAssignment';
+import { isDriverAvailable, getAssignedVehicleForBooking } from '../services/autoAssignment';
 
 export const DispatchConsole: React.FC = () => {
    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -267,13 +267,11 @@ export const DispatchConsole: React.FC = () => {
                                  <div className="flex justify-between items-center gap-2">
                                     <p className="text-xs font-black text-white truncate leading-none">{b.passenger}</p>
                                     {(() => {
-                                       const bDate = b.pickup_date ? b.pickup_date.split("T")[0] : null;
-                                       const svcShift = bDate && shifts ? shifts.find((s: any) => s.driver_id === b.driver_id && s.date === bDate) : null;
-                                       const svcVehicle = svcShift && vehicles ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
-                                       return svcVehicle ? (
-                                          <span className="text-[8px] font-black bg-white/20 px-1 rounded text-white whitespace-nowrap">{svcVehicle.plate}</span>
-                                       ) : null;
-                                    })()}
+                                        const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
+                                        return svcVehicle ? (
+                                           <span className="text-[8px] font-black bg-white/20 px-1 rounded text-white whitespace-nowrap">{svcVehicle.plate}</span>
+                                        ) : null;
+                                     })()}
                                  </div>
                                  <p className="text-[9px] text-white/60 font-medium truncate uppercase tracking-tighter mt-1">{b.origin} {"->"} {b.destination}</p>
                               </div>
@@ -367,3 +365,4 @@ export const DispatchConsole: React.FC = () => {
       </div>
    );
 };
+

@@ -1,14 +1,19 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// @ts-ignore
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
+// @ts-ignore
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
+// @ts-ignore
 import webpush from "npm:web-push@3.6.7"
+
+declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -29,15 +34,29 @@ serve(async (req) => {
 
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
 
-    const now = new Date()
-    const lookaheadDate = new Date(now.getTime() + 70 * 60 * 1000)
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Europe/Madrid',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    });
+    const madridTimeStr = formatter.format(new Date());
+    const [datePart, timePart] = madridTimeStr.split(', ');
+    const [month, day, year] = datePart.split('/');
+    const [hoursStr, minutesStr, secondsStr] = timePart.split(':');
+    
+    // nowLocal represents the "wall time" in Madrid, constructed as a native Date for exact math
+    const nowLocal = new Date(Number(year), Number(month) - 1, Number(day), Number(hoursStr), Number(minutesStr), Number(secondsStr));
+    
+    // Get Madrid today's date in YYYY-MM-DD
+    const madridTodayStr = `${year}-${month}-${day}`;
 
-    // Fetch confirmed bookings within the window
+    // Fetch confirmed bookings within the window (from today onwards, handles midnight crossing safely)
     const { data: bookings, error: bookingsError } = await supabaseClient
       .from('bookings')
       .select('*, driver:driver_id(*)')
       .eq('status', 'Confirmed')
-      .lte('pickup_date', lookaheadDate.toISOString().split('T')[0])
+      .gte('pickup_date', madridTodayStr)
       .not('driver_id', 'is', null)
 
     if (bookingsError) throw bookingsError
@@ -45,11 +64,13 @@ serve(async (req) => {
     const notificationsSent = []
 
     for (const booking of bookings || []) {
-        const [hours, minutes] = booking.pickup_time.split(':').map(Number)
-        const pickupDateTime = new Date(booking.pickup_date)
-        pickupDateTime.setHours(hours, minutes, 0, 0)
+        const [pickupYear, pickupMonth, pickupDay] = booking.pickup_date.split('-').map(Number);
+        const [hours, minutes] = booking.pickup_time.split(':').map(Number);
+        
+        // pickupLocal represents the "wall time" of the pickup
+        const pickupLocal = new Date(pickupYear, pickupMonth - 1, pickupDay, hours, minutes, 0);
 
-        const diffMinutes = Math.floor((pickupDateTime.getTime() - now.getTime()) / 60000)
+        const diffMinutes = Math.floor((pickupLocal.getTime() - nowLocal.getTime()) / 60000);
         
         // Define notification slots
         let slot = null
@@ -75,21 +96,7 @@ serve(async (req) => {
         const sentSlots = booking.push_notifications_sent || {}
         if (sentSlots[slot]) continue
 
-        // For slots < 60, only send if NOT "En Camino" (or similar started status)
-        // Note: DriverAppView updates driver status, but we should check booking status or driver current status
-        // Usually, when a driver is "En Camino", they change the booking specific state or their own shift state.
-        // Assuming there is a field or we check the driver status
-        if (slot !== '60m') {
-            const { data: driver } = await supabaseClient
-                .from('drivers')
-                .select('current_status')
-                .eq('id', booking.driver_id)
-                .single()
-            
-            if (driver && driver.current_status === 'En Camino') {
-                continue // Already on the way, skip notification
-            }
-        }
+
 
         // Get driver's subscription
         const { data: subData } = await supabaseClient
