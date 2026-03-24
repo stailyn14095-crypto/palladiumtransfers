@@ -44,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
       timeTracking: { es: 'Registro Horario', en: 'Time Tracking' },
       calculator: { es: 'Calculadora de Nóminas', en: 'Payroll Calculator' },
       efectivo: { es: 'Cuadre de Efectivo', en: 'Cash Reconciliations' },
+      aliasDictionary: { es: 'Diccionario de Alias', en: 'Alias Dictionary' },
     };
     return dict[key]?.[language] || key;
   };
@@ -148,6 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
               <NavItem view={ViewState.CLIENTES} icon="business" labelKey="clients" />
               <NavItem view={ViewState.FACTURAS} icon="receipt_long" labelKey="invoices" />
               <NavItem view={ViewState.CASH_RECONCILIATION} icon="account_balance_wallet" labelKey="efectivo" />
+              <NavItem view={ViewState.ALIAS_DICTIONARY} icon="spellcheck" labelKey="aliasDictionary" />
               <NavItem view={ViewState.EXTRAS} icon="add_reaction" labelKey="extras" />
               <NavItem view={ViewState.TARIFAS} icon="price_change" labelKey="rates" />
             </>

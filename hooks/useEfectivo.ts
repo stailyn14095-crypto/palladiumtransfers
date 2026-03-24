@@ -18,6 +18,8 @@ export function useEfectivo() {
     const [cycle, setCycle] = useState<any>(null);
     const [reconciliations, setReconciliations] = useState<EfectivoReconciliation[]>([]);
     const [aliases, setAliases] = useState<any[]>([]);
+    const [uploadHistory, setUploadHistory] = useState({ uber: 'Ninguno', entregas: 'Ninguno', vgd: 'Ninguno' });
+    const [allCycles, setAllCycles] = useState<any[]>([]);
 
     const normalizeName = (name: any) => {
         if (!name) return "";
@@ -54,12 +56,68 @@ export function useEfectivo() {
                 .eq('is_active', true)
                 .single();
                 
-            if (error) {
-                console.error("No active cycle found.");
+            if (error || !data) {
+                console.log("No active cycle found. Creating 'Ciclo 1'...");
+                const { data: newCycle, error: insertError } = await supabase
+                    .from('efectivo_cycles')
+                    .insert({ name: 'Ciclo 1', is_active: true })
+                    .select()
+                    .single();
+                
+                if (newCycle) {
+                    setCycle(newCycle);
+                    await loadReconciliations(newCycle.id);
+                } else if (insertError) {
+                    console.error("Failed to auto-create cycle:", insertError);
+                }
             } else {
                 setCycle(data);
                 await loadReconciliations(data.id);
             }
+            await fetchAllCycles();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchAllCycles = async () => {
+        const { data, error } = await supabase.from('efectivo_cycles').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+            setAllCycles(data);
+        }
+    };
+
+    const loadSpecificCycle = async (cycleId: number) => {
+        const target = allCycles.find(c => c.id === cycleId);
+        if (target) {
+            setCycle(target);
+            await loadReconciliations(cycleId);
+        }
+    };
+
+    const renameCycle = async (cycleId: number, newName: string) => {
+        const { error } = await supabase.from('efectivo_cycles').update({ name: newName }).eq('id', cycleId);
+        if (!error) {
+            setCycle((prev: any) => prev && prev.id === cycleId ? { ...prev, name: newName } : prev);
+            await fetchAllCycles();
+        } else {
+            alert('Error renaming cycle: ' + error.message);
+        }
+    };
+
+    const clearCurrentCycleData = async () => {
+        if (!cycle) return;
+        setLoading(true);
+        try {
+            await Promise.all([
+                supabase.from('efectivo_uber_records').delete().eq('cycle_id', cycle.id),
+                supabase.from('efectivo_vgd_records').delete().eq('cycle_id', cycle.id),
+                supabase.from('efectivo_entrega_records').delete().eq('cycle_id', cycle.id),
+                supabase.from('efectivo_expense_records').delete().eq('cycle_id', cycle.id),
+                supabase.from('efectivo_upload_history').delete().eq('cycle_id', cycle.id),
+                supabase.from('efectivo_initial_balances').delete().eq('cycle_id', cycle.id)
+            ]);
+            await loadReconciliations(cycle.id);
         } finally {
             setLoading(false);
         }
@@ -69,6 +127,18 @@ export function useEfectivo() {
         setLoading(true);
         try {
             const aliasesData = await fetchAliases();
+
+            const { data: historyData } = await supabase.from('efectivo_upload_history').select('*').eq('cycle_id', cycleId).order('created_at', { ascending: false });
+            if (historyData) {
+                const history = { uber: 'Ninguno', entregas: 'Ninguno', vgd: 'Ninguno' };
+                const uberFile = historyData.find(d => d.file_type === 'uber');
+                const entregasFile = historyData.find(d => d.file_type === 'entregas');
+                const vgdFile = historyData.find(d => d.file_type === 'vgd');
+                if (uberFile) history.uber = uberFile.file_name;
+                if (entregasFile) history.entregas = entregasFile.file_name;
+                if (vgdFile) history.vgd = vgdFile.file_name;
+                setUploadHistory(history);
+            }
 
             const [
                 { data: ibData },
@@ -359,15 +429,20 @@ export function useEfectivo() {
 
     return {
         cycle,
+        allCycles,
         loading,
         reconciliations,
         aliases,
         fetchActiveCycle,
+        loadSpecificCycle,
+        renameCycle,
+        clearCurrentCycleData,
         processUberFile,
         processEntregasFile,
         processVGDFile,
         addExpense,
         addEntregaManual,
-        closeCycle
+        closeCycle,
+        uploadHistory
     };
 }

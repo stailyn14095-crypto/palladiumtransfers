@@ -244,7 +244,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
                                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{field.label}</label>
 
                                         {/* Field Rendering Logic */}
-                                        {field.type === 'searchable-select' ? (
+                                        {String(field.type) === 'searchable-select' ? (
                                             <SearchableSelect
                                                 field={field}
                                                 value={formData[field.name] || ''}
