@@ -280,17 +280,7 @@ export function suggestDriver(booking: any, drivers: any[], allBookings: any[], 
     // 3. Vehicle compatibility
     // 4. Availability gap & Load balancing
 
-    const isBookingToday = (typeof booking.pickup_date === 'string' ? booking.pickup_date.split('T')[0] : new Date(booking.pickup_date).toISOString().split('T')[0]) === new Date().toISOString().split('T')[0];
-    
     const availableDrivers = drivers
-        .filter(d => {
-            // Priority: If booking is for TODAY, driver must be active (Working/Paused)
-            // If booking is for FUTURE, we rely solely on Shift schedule existence
-            if (isBookingToday) {
-                return d.current_status === 'Working' || d.current_status === 'Paused';
-            }
-            return true; // Ignore real-time status for future planning
-        })
         .filter(d => {
             // Find the specific vehicle assigned to this driver FOR THIS BOOKING'S SHIFT
             const vehicle = getAssignedVehicleForBooking({ ...booking, driver_id: d.id }, allShifts, allVehicles);
