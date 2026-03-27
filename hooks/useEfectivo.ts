@@ -50,14 +50,37 @@ export function useEfectivo() {
     const fetchActiveCycle = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            // 1. Try to fetch the current active cycle
+            const { data: active, error: fetchError } = await supabase
                 .from('efectivo_cycles')
                 .select('*')
                 .eq('is_active', true)
-                .single();
+                .maybeSingle(); // maybeSingle() avoids 406 error if zero rows found
                 
-            if (error || !data) {
-                console.log("No active cycle found. Creating 'Ciclo 1'...");
+            if (active) {
+                setCycle(active);
+                await loadReconciliations(active.id);
+                await fetchAllCycles();
+                return;
+            }
+
+            // 2. If no active cycle, see if any cycle exists to reactivate
+            const { data: anyCycle } = await supabase
+                .from('efectivo_cycles')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (anyCycle) {
+                // Activate the most recent one
+                await supabase.from('efectivo_cycles').update({ is_active: true }).eq('id', anyCycle.id);
+                const updated = { ...anyCycle, is_active: true };
+                setCycle(updated);
+                await loadReconciliations(updated.id);
+            } else {
+                // 3. If zero cycles exist in DB, create 'Ciclo 1'
+                console.log("No cycles exist in DB. Creating 'Ciclo 1'...");
                 const { data: newCycle, error: insertError } = await supabase
                     .from('efectivo_cycles')
                     .insert({ name: 'Ciclo 1', is_active: true })
@@ -68,11 +91,10 @@ export function useEfectivo() {
                     setCycle(newCycle);
                     await loadReconciliations(newCycle.id);
                 } else if (insertError) {
+                    // If 'Ciclo 1' already existed but was not identified as 'latest' for some reason, 
+                    // try one more time to fetch it by name or use a unique name
                     console.error("Failed to auto-create cycle:", insertError);
                 }
-            } else {
-                setCycle(data);
-                await loadReconciliations(data.id);
             }
             await fetchAllCycles();
         } finally {
@@ -714,7 +736,6 @@ export function useEfectivo() {
         fetchActiveCycle,
         loadSpecificCycle,
         renameCycle,
-        clearCurrentCycleData,
         processUberFile,
         processEntregasFile,
         processVGDFile,

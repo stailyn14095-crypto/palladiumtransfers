@@ -21,7 +21,6 @@ export const CashReconciliationView: React.FC = () => {
         allCycles,
         loadSpecificCycle,
         renameCycle,
-        clearCurrentCycleData,
         aliases,
         getDriverReport,
         deleteCycle
@@ -48,11 +47,6 @@ export const CashReconciliationView: React.FC = () => {
         }
     };
 
-    const handleClearDatabase = async () => {
-        if (confirm('¡CUIDADO! Estás a punto de borrar todos los registros de los archivos del ciclo actual. Esta acción NO se puede deshacer. ¿Estás seguro?')) {
-            await clearCurrentCycleData();
-        }
-    };
     const [isEntregaModalOpen, setIsEntregaModalOpen] = useState(false);
 
     const driverNames = Array.from(new Set([
@@ -240,9 +234,6 @@ export const CashReconciliationView: React.FC = () => {
                             </button>
                             <button onClick={handleCloseCycle} disabled={loading || !cycle} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-purple-900/50 hover:bg-purple-800 text-purple-200 rounded-md transition duration-200 shrink-0 border border-purple-800/50">
                                 <span className="material-icons-round text-sm mr-2">check_circle</span> Cerrar Ciclo
-                            </button>
-                            <button onClick={handleClearDatabase} disabled={loading || !cycle} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 rounded-md transition duration-200 shrink-0 border border-red-800/50" title="Borrar Registros">
-                                <span className="material-icons-round text-sm mr-2">delete_sweep</span> Borrar Todo
                             </button>
                             <button onClick={() => { if(cycle) loadSpecificCycle(cycle.id); else fetchActiveCycle(); }} disabled={loading} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-white/5 hover:bg-white/10 rounded-md transition duration-200 shrink-0 border border-white/10 text-brand-platinum">
                                 <span className="material-icons-round text-sm mr-2">refresh</span> Actualizar
