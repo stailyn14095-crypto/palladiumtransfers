@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useEfectivo } from '../hooks/useEfectivo';
 import { DataEntryModal } from '../components/DataEntryModal';
+import { DriverReportModal } from '../components/DriverReportModal';
 
 export const CashReconciliationView: React.FC = () => {
     const {
@@ -19,10 +20,13 @@ export const CashReconciliationView: React.FC = () => {
         loadSpecificCycle,
         renameCycle,
         clearCurrentCycleData,
-        aliases
+        aliases,
+        getDriverReport
     } = useEfectivo();
 
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [selectedReport, setSelectedReport] = useState<any>(null);
 
     const totalRecaudado = reconciliations.reduce((acc, curr) => acc + (curr.total_cash_collected || 0), 0);
     const totalEntregado = reconciliations.reduce((acc, curr) => acc + (curr.cash_delivered || 0), 0);
@@ -231,7 +235,7 @@ export const CashReconciliationView: React.FC = () => {
                     <table className="w-full text-left border-collapse">
                         <thead className="sticky top-0 bg-brand-charcoal z-10 before:content-[''] before:absolute before:inset-0 before:border-b before:border-white/5">
                             <tr>
-                                {['CONDUCTOR', 'INICIAL', 'UBER', 'VGD', 'TOTAL', 'ENTREGADO', 'GASTOS', 'RESUMEN'].map((header) => (
+                                {['CONDUCTOR', 'INICIAL', 'UBER', 'VGD', 'TOTAL', 'ENTREGADO', 'GASTOS', 'RESUMEN', 'ACCIONES'].map((header) => (
                                     <th key={header} className="p-4 text-[10px] font-black tracking-[0.2em] text-brand-platinum/50 uppercase border-b border-white/5 whitespace-nowrap">
                                         {header}
                                     </th>
@@ -241,7 +245,7 @@ export const CashReconciliationView: React.FC = () => {
                         <tbody className="divide-y divide-white/5">
                             {reconciliations.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="p-8 text-center text-brand-platinum/50 text-xs tracking-widest font-bold uppercase">
+                                    <td colSpan={9} className="p-8 text-center text-brand-platinum/50 text-xs tracking-widest font-bold uppercase">
                                         No hay datos en este ciclo
                                     </td>
                                 </tr>
@@ -260,6 +264,19 @@ export const CashReconciliationView: React.FC = () => {
                                                 €{(r.difference || 0).toFixed(2)}
                                             </span>
                                         </td>
+                                        <td className="p-4">
+                                            <button 
+                                                onClick={async () => {
+                                                    const detailObj = await getDriverReport(r.driver_name, cycle.id);
+                                                    setSelectedReport(detailObj);
+                                                    setIsReportModalOpen(true);
+                                                }}
+                                                className="text-brand-gold hover:text-white transition-colors flex items-center gap-1 uppercase font-bold text-[10px] tracking-widest"
+                                            >
+                                                <span className="material-icons-round text-sm">analytics</span>
+                                                Detalle
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}
@@ -269,6 +286,11 @@ export const CashReconciliationView: React.FC = () => {
             </div>
 
             {/* Modals */}
+             <DriverReportModal 
+                 isOpen={isReportModalOpen} 
+                 onClose={() => setIsReportModalOpen(false)} 
+                 report={selectedReport} 
+             />
              <DataEntryModal 
                  isOpen={isExpenseModalOpen}
                  onClose={() => setIsExpenseModalOpen(false)}

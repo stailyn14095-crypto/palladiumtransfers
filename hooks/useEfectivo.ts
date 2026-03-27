@@ -128,7 +128,7 @@ export function useEfectivo() {
         try {
             const aliasesData = await fetchAliases();
 
-            const { data: historyData } = await supabase.from('efectivo_upload_history').select('*').eq('cycle_id', cycleId).order('created_at', { ascending: false });
+            const { data: historyData } = await supabase.from('efectivo_upload_history').select('*').eq('cycle_id', cycleId).order('upload_time', { ascending: false });
             if (historyData) {
                 const history = { uber: 'Ninguno', entregas: 'Ninguno', vgd: 'Ninguno' };
                 const uberFile = historyData.find(d => d.file_type === 'uber');
@@ -204,6 +204,35 @@ export function useEfectivo() {
         }
     };
 
+    const formatDateTime = (date: any) => {
+        if (!date) return "Unknown Date";
+        try {
+            // Handle various formats (mixed, strings with CET/CEST, etc)
+            const d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            if (isNaN(d.getTime())) return String(date);
+            
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            
+            return `${day}-${month}-${year} ${hours}:${minutes}`;
+        } catch (e) {
+            return String(date);
+        }
+    };
+
+    const getMonthStr = (date: any) => {
+        try {
+            const d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            if (isNaN(d.getTime())) return "1970-01";
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        } catch (e) {
+            return "1970-01";
+        }
+    };
+
     const processUberFile = async (file: File) => {
         if (!cycle) return;
         return new Promise((resolve, reject) => {
@@ -217,26 +246,36 @@ export function useEfectivo() {
 
                     const match = file.name.match(/(\d{8})-\d{8}/);
                     const periodOrDate = match ? match[0] : "UNKNOWN_PERIOD";
-                    const uberMonth = match ? `${match[1].substring(0,4)}-${match[1].substring(4,6)}` : "1970-01";
+                    const uberMonthDefault = match ? `${match[1].substring(0,4)}-${match[1].substring(4,6)}` : "1970-01";
 
                     if (!jsonData.length) return resolve({ inserted: 0 });
 
-                    const cols = Object.keys(jsonData[0]).map(c => c.toLowerCase());
-                    const firstNameCol = Object.keys(jsonData[0]).find(c => {
+                    const cols = Object.keys(jsonData[0]);
+                    const firstNameCol = cols.find(c => {
                         const cl = c.toLowerCase(); return cl.includes('nombre') || cl.includes('first') || cl.includes('conductor');
                     });
-                    const lastNameCol = Object.keys(jsonData[0]).find(c => {
+                    const lastNameCol = cols.find(c => {
                         const cl = c.toLowerCase(); return cl.includes('apellido') || cl.includes('last');
                     });
-                    const cashCol = Object.keys(jsonData[0]).find(c => {
+                    const cashCol = cols.find(c => {
                         const cl = c.toLowerCase(); return cl.includes('efectivo') || cl.includes('cash') || cl.includes('cobrado');
+                    });
+                    
+                    // New Format detection
+                    const uuidTransCol = cols.find(c => c.toLowerCase().includes('uuid de la trans'));
+                    const uuidViajeCol = cols.find(c => c.toLowerCase().includes('uuid del viaje'));
+                    const dateCol = cols.find(c => {
+                        const cl = c.toLowerCase(); 
+                        return cl.includes('fecha') || cl.includes('date') || cl.includes('en comparación con') || cl.includes('completed');
                     });
 
                     if (!firstNameCol || !cashCol) {
                         return reject(new Error("Columnas no encontradas en el CSV de Uber."));
                     }
 
-                    const driverTotals: Record<string, number> = {};
+                    const isNewFormat = !!(uuidTransCol || uuidViajeCol);
+                    const records: any[] = [];
+
                     jsonData.forEach(row => {
                         const first = row[firstNameCol] || '';
                         const last = lastNameCol ? (row[lastNameCol] || '') : '';
@@ -245,24 +284,57 @@ export function useEfectivo() {
 
                         let cash = parseFloat(String(row[cashCol]).replace(',', '.'));
                         if (isNaN(cash)) cash = 0;
+                        if (cash === 0) return;
 
-                        driverTotals[fullName] = (driverTotals[fullName] || 0) + cash;
+                        // In the new granular format, Uber deducts cash from payouts, 
+                        // so negative values mean cash collected by driver. We invert it.
+                        if (isNewFormat) {
+                            cash = -1 * cash;
+                        }
+
+                        if (isNewFormat) {
+                            const txId = String(row[uuidViajeCol || uuidTransCol!]);
+                            const dateStr = dateCol ? formatDateTime(row[dateCol]) : "Unknown Date";
+                            const monthStr = dateCol ? getMonthStr(row[dateCol]) : uberMonthDefault;
+
+                            records.push({
+                                cycle_id: cycle.id,
+                                driver_name: fullName,
+                                transaction_id: txId,
+                                period: txId,
+                                month: monthStr,
+                                cash_collected: cash,
+                                fecha_hora: dateStr
+                            });
+                        } else {
+                            // Aggregated old format (we'll group by driver)
+                            const existing = records.find(r => r.driver_name === fullName);
+                            if (existing) {
+                                existing.cash_collected += cash;
+                            } else {
+                                records.push({
+                                    cycle_id: cycle.id,
+                                    driver_name: fullName,
+                                    period: periodOrDate,
+                                    month: uberMonthDefault,
+                                    cash_collected: cash,
+                                    transaction_id: `${fullName}_${periodOrDate}` // fallback
+                                });
+                            }
+                        }
                     });
 
-                    const upserts = Object.keys(driverTotals).map(driver => ({
-                        cycle_id: cycle.id,
-                        driver_name: driver,
-                        period: periodOrDate,
-                        month: uberMonth,
-                        cash_collected: driverTotals[driver]
-                    }));
+                    if (records.length === 0) return resolve({ inserted: 0 });
 
-                    const { error } = await supabase.from('efectivo_uber_records').upsert(upserts, { onConflict: 'driver_name, period, cycle_id', ignoreDuplicates: true });
+                    const { error } = await supabase.from('efectivo_uber_records').upsert(records, { 
+                        onConflict: 'transaction_id, cycle_id', 
+                        ignoreDuplicates: true 
+                    });
                     if (error) throw error;
                     
                     await supabase.from('efectivo_upload_history').insert({ cycle_id: cycle.id, file_type: 'uber', file_name: file.name });
                     await loadReconciliations(cycle.id);
-                    resolve({ inserted: upserts.length });
+                    resolve({ inserted: records.length });
                 } catch (err) {
                     reject(err);
                 }
@@ -288,10 +360,15 @@ export function useEfectivo() {
                     const nameCol = cols.find(c => c.toLowerCase().includes('nombre') || c.toLowerCase().includes('conductor')) || cols[0];
                     const timeCol = cols.find(c => c.toLowerCase().includes('marca') || c.toLowerCase().includes('timestamp') || c.toLowerCase().includes('fecha')) || cols[0];
                     const amountCol = cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('entregado') || c.toLowerCase().includes('efectivo')) || cols[0];
+                    
+                    const dateDeliveryCol = cols.find(c => c.toLowerCase().includes('fecha de entrega') || c.toLowerCase().includes('date')) || timeCol;
 
-                    const upserts = jsonData.map(row => {
+                    const records = jsonData.map(row => {
                         const driverName = normalizeName(row[nameCol]);
-                        const timestampStr = String(row[timeCol]);
+                        if (!driverName) return null;
+
+                        const timestampStr = formatDateTime(row[timeCol]);
+                        const monthStr = getMonthStr(row[dateDeliveryCol]);
                         let cash = parseFloat(String(row[amountCol]).replace(',', '.'));
                         if (isNaN(cash)) cash = 0;
 
@@ -299,17 +376,17 @@ export function useEfectivo() {
                             cycle_id: cycle.id,
                             driver_name: driverName,
                             timestamp: timestampStr,
-                            month: "2026-03", // simplified
+                            month: monthStr,
                             amount: cash
                         };
-                    }).filter(u => u.driver_name && u.timestamp);
+                    }).filter(u => u !== null);
 
-                    const { error } = await supabase.from('efectivo_entrega_records').upsert(upserts, { onConflict: 'driver_name, timestamp, cycle_id', ignoreDuplicates: true });
+                    const { error } = await supabase.from('efectivo_entrega_records').upsert(records, { onConflict: 'driver_name, timestamp, cycle_id', ignoreDuplicates: true });
                     if (error) throw error;
 
                     await supabase.from('efectivo_upload_history').insert({ cycle_id: cycle.id, file_type: 'entregas', file_name: file.name });
                     await loadReconciliations(cycle.id);
-                    resolve({ inserted: upserts.length });
+                    resolve({ inserted: records.length });
                 } catch (err) {
                     reject(err);
                 }
@@ -331,39 +408,45 @@ export function useEfectivo() {
 
                     if (!jsonData.length) return resolve({ inserted: 0 });
 
-                    const cols = Object.keys(jsonData[0]).map(c => c.toLowerCase());
-                    const driverCol = Object.keys(jsonData[0]).find(c => c.toLowerCase().includes('conductor') || c.toLowerCase().includes('nombre'));
-                    const amountCol = Object.keys(jsonData[0]).find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('efectivo'));
-                    const dateCol = Object.keys(jsonData[0]).find(c => c.toLowerCase().includes('fecha') || c.toLowerCase().includes('date'));
-                    const idCol = Object.keys(jsonData[0]).find(c => c.toLowerCase().includes('id') && c.length <= 4);
+                    const cols = Object.keys(jsonData[0]);
+                    const driverCol = cols.find(c => c.toLowerCase().includes('conductor') || c.toLowerCase().includes('nombre'));
+                    const amountCol = cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('efectivo'));
+                    const dateCol = cols.find(c => c.toLowerCase().includes('fecha') || c.toLowerCase().includes('date'));
+                    const idCol = cols.find(c => c.toLowerCase().includes('id') && c.length <= 4);
 
                     if (!driverCol || !amountCol || !dateCol) {
                         return reject(new Error("Faltan columnas esenciales en el Excel V-GD."));
                     }
 
-                    const inserts = jsonData.map(row => {
+                    const records = jsonData.map(row => {
                         const driverName = normalizeName(row[driverCol]);
                         if (!driverName) return null;
 
                         let cash = parseFloat(String(row[amountCol]).replace(',', '.'));
                         if (isNaN(cash)) cash = 0;
 
+                        const dateStr = formatDateTime(row[dateCol]);
+                        const monthStr = getMonthStr(row[dateCol]);
+
                         return {
                             cycle_id: cycle.id,
                             vgd_id: idCol ? parseInt(row[idCol]) : null,
                             driver_name: driverName,
-                            month: "2026-03",
-                            fecha_hora: String(row[dateCol]),
+                            month: monthStr,
+                            fecha_hora: dateStr,
                             cash_collected: cash
                         };
                     }).filter(i => i !== null);
 
-                    const { error } = await supabase.from('efectivo_vgd_records').insert(inserts);
+                    const { error } = await supabase.from('efectivo_vgd_records').upsert(records, {
+                        onConflict: 'vgd_id, cycle_id',
+                        ignoreDuplicates: true
+                    });
                     if (error) throw error;
 
                     await supabase.from('efectivo_upload_history').insert({ cycle_id: cycle.id, file_type: 'vgd', file_name: file.name });
                     await loadReconciliations(cycle.id);
-                    resolve({ inserted: inserts.length });
+                    resolve({ inserted: records.length });
                 } catch (err) {
                     reject(err);
                 }
@@ -427,6 +510,77 @@ export function useEfectivo() {
         }
     };
 
+    const getDriverReport = useCallback(async (driverName: string, cycleId: number) => {
+        setLoading(true);
+        try {
+            const aliasesData = await fetchAliases();
+            const targetDriver = resolveName(driverName, aliasesData);
+
+            const [
+                { data: ibData },
+                { data: uberData },
+                { data: vgdData },
+                { data: entregaData },
+                { data: expenseData }
+            ] = await Promise.all([
+                supabase.from('efectivo_initial_balances').select('*').eq('cycle_id', cycleId),
+                supabase.from('efectivo_uber_records').select('*').eq('cycle_id', cycleId),
+                supabase.from('efectivo_vgd_records').select('*').eq('cycle_id', cycleId),
+                supabase.from('efectivo_entrega_records').select('*').eq('cycle_id', cycleId),
+                supabase.from('efectivo_expense_records').select('*').eq('cycle_id', cycleId),
+            ]);
+
+            const filterAndResolve = (data: any[]) => 
+                (data || []).filter(item => resolveName(item.driver_name, aliasesData) === targetDriver);
+
+            const uberDetails = filterAndResolve(uberData || []).map(r => ({
+                period: r.fecha_hora || r.period,
+                cash_collected: Number(r.cash_collected)
+            }));
+
+            const vgdDetails = filterAndResolve(vgdData || []).map(r => ({
+                month: r.fecha_hora || r.month,
+                cash_collected: Number(r.cash_collected)
+            }));
+
+            const entregaDetails = filterAndResolve(entregaData || []).map(r => ({
+                id: r.id,
+                timestamp: r.timestamp,
+                amount: Number(r.amount)
+            }));
+
+            const gastosDetails = filterAndResolve(expenseData || []).map(r => ({
+                id: r.id,
+                description: r.description,
+                amount: Number(r.amount),
+                timestamp: r.timestamp
+            }));
+
+            const saldoInicial = filterAndResolve(ibData || []).reduce((acc, curr) => acc + Number(curr.balance), 0);
+            
+            const totalUber = uberDetails.reduce((acc, curr) => acc + curr.cash_collected, 0);
+            const totalVgd = vgdDetails.reduce((acc, curr) => acc + curr.cash_collected, 0);
+            const totalEntregas = entregaDetails.reduce((acc, curr) => acc + curr.amount, 0);
+            const totalGastos = gastosDetails.reduce((acc, curr) => acc + curr.amount, 0);
+
+            return {
+                driver_name: targetDriver,
+                saldo_inicial: saldoInicial,
+                uber_details: uberDetails,
+                vgd_details: vgdDetails,
+                entrega_details: entregaDetails,
+                gastos_details: gastosDetails,
+                total_uber: totalUber,
+                total_vgd: totalVgd,
+                total_entregas: totalEntregas,
+                total_gastos: totalGastos,
+                difference: saldoInicial + totalUber + totalVgd - totalEntregas - totalGastos
+            };
+        } finally {
+            setLoading(false);
+        }
+    }, [aliases]);
+
     return {
         cycle,
         allCycles,
@@ -443,6 +597,7 @@ export function useEfectivo() {
         addExpense,
         addEntregaManual,
         closeCycle,
-        uploadHistory
+        uploadHistory,
+        getDriverReport
     };
 }
