@@ -178,7 +178,11 @@ export function useEfectivo() {
 
             const results: EfectivoReconciliation[] = Array.from(drivers).sort().map(d => {
                 const ib = initialBalances[d] || 0;
-                const uCash = uberTotals[d] || 0;
+                // Uber cash is stored as negative (deduction) in the file.
+                // We sum it as-is, and then flip the final sum to positive.
+                const uCashRaw = uberTotals[d] || 0;
+                const uCash = uCashRaw < 0 ? -1 * uCashRaw : uCashRaw;
+
                 const vCash = vgdTotals[d] || 0;
                 const eCash = entregaTotals[d] || 0;
                 const gCash = expenseTotals[d] || 0;
@@ -292,7 +296,15 @@ export function useEfectivo() {
                         return (cl.includes('apellido') || cl.includes('last')) && !cl.includes('uuid');
                     });
                     const cashCol = cols.find(c => {
-                        const cl = c.toLowerCase(); return cl.includes('efectivo') || cl.includes('cash') || cl.includes('cobrado');
+                        const cl = c.toLowerCase();
+                        return (cl.includes('efectivo') && cl.includes('cobrado')) || 
+                               (cl.includes('cash') && cl.includes('collected')) ||
+                               (cl.includes('pago') && cl.includes('efectivo')) ||
+                               (cl.includes('saldo del viaje')) ||
+                               (cl === 'efectivo') || (cl === 'cash') || (cl === 'pagos');
+                    }) || cols.find(c => {
+                        const cl = c.toLowerCase();
+                        return cl.includes('neto') || cl.includes('net payout') || cl.includes('pagado');
                     });
                     
                     // New Format detection
@@ -303,31 +315,70 @@ export function useEfectivo() {
                         return cl.includes('fecha') || cl.includes('date') || cl.includes('en comparación con') || cl.includes('completed');
                     });
 
+                    const activityTypeCol = cols.find(c => {
+                        const cl = c.toLowerCase();
+                        return cl.includes('tipo') || cl.includes('actividad') || cl.includes('type') || cl.includes('categoria') || cl.includes('descripción') || cl.includes('descripcion');
+                    });
+
+                    console.log('--- UPLOAD DEBUG ---');
+                    console.log('File:', file.name);
+                    console.log('Columns found:', cols);
+                    console.log('Detected Cash Column:', cashCol);
+                    console.log('Detected Activity Column:', activityTypeCol);
+
                     if (!firstNameCol || !cashCol) {
-                        return reject(new Error("Columnas no encontradas en el CSV de Uber."));
+                        return reject(new Error("Columnas esenciales no encontradas en el archivo de Uber."));
                     }
 
                     const isNewFormat = !!(uuidTransCol || uuidViajeCol);
                     const records: any[] = [];
 
                     jsonData.forEach(row => {
+                        // Skip non-trip activities
+                        if (activityTypeCol) {
+                            const type = String(row[activityTypeCol]).toLowerCase();
+                            const isExcluded = type.includes('comisión') || 
+                                            type.includes('fee') || 
+                                            type.includes('impuesto') || 
+                                            type.includes('tax') || 
+                                            type.includes('tasa') || 
+                                            type.includes('pago') || 
+                                            type.includes('reembolso');
+                            
+                            // If it's a generic payout or fee row, skip it.
+                            // But keep it if it mentions "viaje" or "trip".
+                            if (isExcluded && !type.includes('viaje') && !type.includes('trip')) return;
+                        }
+
                         const first = row[firstNameCol] || '';
                         const last = lastNameCol ? (row[lastNameCol] || '') : '';
                         const fullName = normalizeName(`${first} ${last}`);
                         if (!fullName) return;
 
+                        // --- DIAGNOSTIC LOG FOR ALVARO ---
+                        if (fullName.includes('ALVARO') || fullName.includes('OBLANCA')) {
+                            console.log('Row for Alvaro:', {
+                                descripcion: activityTypeCol ? row[activityTypeCol] : 'N/A',
+                                importe_bruto: row[cashCol],
+                                row_raw: row
+                            });
+                        }
+                        // ---------------------------------
+
                         let cash = parseFloat(String(row[cashCol]).replace(',', '.'));
                         if (isNaN(cash)) cash = 0;
                         if (cash === 0) return;
 
-                        // In the new granular format, Uber deducts cash from payouts, 
-                        // so negative values mean cash collected by driver. We invert it.
+                        // We no longer invert the sign per-row or filter by sign.
+                        // We preserve the CSV's sign (+ for adjustments, - for cash collected)
+                        // so they correctly cancel each other out during summation.
+                        
                         if (isNewFormat) {
-                            cash = -1 * cash;
-                        }
-
-                        if (isNewFormat) {
-                            const txId = String(row[uuidViajeCol || uuidTransCol!]);
+                            const rawId = String(row[uuidViajeCol || uuidTransCol!]);
+                            // We append the row index to ensure uniqueness for all rows in the file, 
+                            // as Uber often has separate rows for the trip and its adjustments 
+                            // that might share the same transaction/trip ID.
+                            const txId = `${rawId}_row${records.length + 1}`;
                             const dateStr = dateCol ? formatDateTime(row[dateCol]) : "Unknown Date";
                             const monthStr = dateCol ? getMonthStr(row[dateCol]) : uberMonthDefault;
 
@@ -335,7 +386,7 @@ export function useEfectivo() {
                                 cycle_id: cycle.id,
                                 driver_name: fullName,
                                 transaction_id: txId,
-                                period: txId,
+                                period: rawId, // store original ID here
                                 month: monthStr,
                                 cash_collected: cash,
                                 fecha_hora: dateStr
@@ -450,9 +501,19 @@ export function useEfectivo() {
                         const cl = c.toLowerCase();
                         return (cl.includes('conductor') || cl.includes('nombre')) && !cl.includes('uuid');
                     });
-                    const amountCol = cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('efectivo'));
+                    // Smart amount column detection for V-GD
+                    // We prioritize 'importe' AND 'efectivo' in the same name to avoid taking 'Importe Total'
+                    const amountCol = cols.find(c => {
+                        const cl = c.toLowerCase();
+                        return cl.includes('importe') && (cl.includes('efectivo') || cl.includes('cobrado'));
+                    }) || cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('efectivo'));
+
                     const dateCol = cols.find(c => c.toLowerCase().includes('fecha') || c.toLowerCase().includes('date'));
                     const idCol = cols.find(c => c.toLowerCase().includes('id') && c.length <= 4);
+
+                    console.log(`--- VGD UPLOAD DEBUG ---`);
+                    console.log(`Columns found:`, cols);
+                    console.log(`Detected Amount Column:`, amountCol);
 
                     if (!driverCol || !amountCol || !dateCol) {
                         return reject(new Error("Faltan columnas esenciales en el Excel V-GD."));
@@ -467,6 +528,10 @@ export function useEfectivo() {
 
                         const dateStr = formatDateTime(row[dateCol]);
                         const monthStr = getMonthStr(row[dateCol]);
+
+                        if (driverName.includes('BRUNO') || driverName.includes('MORON')) {
+                            console.log(`Row for Bruno: {id: ${row[idCol!]}, raw_val: ${row[amountCol!]}, cash: ${cash}}`);
+                        }
 
                         return {
                             cycle_id: cycle.id,

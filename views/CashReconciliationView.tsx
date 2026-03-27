@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useEfectivo } from '../hooks/useEfectivo';
 import { DataEntryModal } from '../components/DataEntryModal';
 import { DriverReportModal } from '../components/DriverReportModal';
+import { useSupabaseData } from '../hooks/useSupabaseData';
+import { Driver } from '../types';
 
 export const CashReconciliationView: React.FC = () => {
     const {
@@ -27,6 +29,10 @@ export const CashReconciliationView: React.FC = () => {
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
     const [selectedReport, setSelectedReport] = useState<any>(null);
+    const [showOnlyActive, setShowOnlyActive] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const { data: staff } = useSupabaseData<Driver>('drivers');
 
     const totalRecaudado = reconciliations.reduce((acc, curr) => acc + (curr.total_cash_collected || 0), 0);
     const totalEntregado = reconciliations.reduce((acc, curr) => acc + (curr.cash_delivered || 0), 0);
@@ -183,7 +189,28 @@ export const CashReconciliationView: React.FC = () => {
                 {/* Resultados Almacenados */}
                 <div className="bg-brand-charcoal rounded-xl p-6 shadow-xl border border-white/5 w-full mb-8 shrink-0">
                     <div className="flex flex-col sm:flex-row justify-between items-center border-b border-white/10 pb-4 gap-4 mb-6">
-                        <h2 className="text-xl font-semibold text-white tracking-widest uppercase text-sm">Resultados Almacenados</h2>
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-semibold text-white tracking-widest uppercase text-sm">Resultados Almacenados</h2>
+                            <div className="flex items-center gap-4 mt-2">
+                                <label className="flex items-center gap-2 cursor-pointer group" onClick={() => setShowOnlyActive(!showOnlyActive)}>
+                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${showOnlyActive ? 'bg-brand-gold' : 'bg-white/10'}`}>
+                                        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all`} style={{ left: showOnlyActive ? '1.125rem' : '0.125rem' }} />
+                                    </div>
+                                    <span className="text-[10px] uppercase font-bold tracking-widest text-brand-platinum/50 group-hover:text-brand-platinum transition-colors">Solo Activos/Con Saldo</span>
+                                </label>
+                                <div className="h-4 w-px bg-white/10 ml-2" />
+                                <div className="flex items-center bg-white/5 rounded-lg px-3 py-1 border border-white/5">
+                                    <span className="material-icons-round text-xs text-brand-platinum/30 mr-2">search</span>
+                                    <input 
+                                        type="text" 
+                                        placeholder="BUSCAR..." 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="bg-transparent border-none text-[10px] uppercase font-bold tracking-widest text-brand-platinum focus:outline-none w-24 md:w-32 placeholder:text-brand-platinum/20"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                             <select 
                                 value={cycle?.id || ''} 
@@ -244,14 +271,31 @@ export const CashReconciliationView: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {reconciliations.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={9} className="p-8 text-center text-brand-platinum/50 text-xs tracking-widest font-bold uppercase">
-                                            No hay datos en este ciclo
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    reconciliations.map((r, i) => (
+                                {(() => {
+                                    const filteredRecs = reconciliations.filter(r => {
+                                        // Case insensitive search
+                                        if (searchQuery && !r.driver_name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                                        
+                                        // Filter by active status
+                                        if (showOnlyActive) {
+                                            const hasActivity = (r.total_cash_collected || 0) !== 0 || (r.cash_delivered || 0) !== 0 || (r.gastos || 0) !== 0 || (r.saldo_inicial || 0) !== 0;
+                                            const isCurrentStaff = staff?.find(s => s.name === r.driver_name && (s.status === 'Active' || s.status === 'En Route' || s.status === 'AVL'));
+                                            return hasActivity || !!isCurrentStaff;
+                                        }
+                                        return true;
+                                    });
+
+                                    if (filteredRecs.length === 0) {
+                                        return (
+                                            <tr>
+                                                <td colSpan={9} className="p-8 text-center text-brand-platinum/50 text-xs tracking-widest font-bold uppercase transition-all">
+                                                    No hay conductores {showOnlyActive ? 'activos' : ''} en este ciclo
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    return filteredRecs.map((r, i) => (
                                         <tr key={i} className="hover:bg-white/[0.02] transition-colors group h-16 border-b border-white/5 last:border-0">
                                             <td className="p-4 text-sm font-bold text-white whitespace-nowrap">{r.driver_name || 'Desconocido'}</td>
                                             <td className="p-4 text-sm font-mono text-slate-300">€{(r.saldo_inicial || 0).toFixed(2)}</td>
@@ -261,7 +305,7 @@ export const CashReconciliationView: React.FC = () => {
                                             <td className="p-4 text-sm font-mono text-red-400">€{(r.cash_delivered || 0).toFixed(2)}</td>
                                             <td className="p-4 text-sm font-mono text-red-400">€{(r.gastos || 0).toFixed(2)}</td>
                                             <td className="p-4 text-sm font-mono font-bold">
-                                                <span className={`px-3 py-1.5 rounded-lg bg-opacity-20 ${(r.difference || 0) > 0 ? 'text-green-400 bg-green-500' : (r.difference || 0) < 0 ? 'text-red-400 bg-red-500' : 'text-slate-400 bg-slate-500'}`}>
+                                                <span className={`px-4 py-2 rounded-xl border text-xs font-mono font-bold tracking-tighter transition-all ${(r.difference || 0) > 0 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : (r.difference || 0) < 0 ? 'text-rose-400 bg-rose-500/10 border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]' : 'text-slate-500 bg-white/5 border-white/5 opacity-50'}`}>
                                                     €{(r.difference || 0).toFixed(2)}
                                                 </span>
                                             </td>
@@ -279,8 +323,8 @@ export const CashReconciliationView: React.FC = () => {
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))
-                                )}
+                                    ));
+                                })()}
                             </tbody>
                         </table>
                     </div>

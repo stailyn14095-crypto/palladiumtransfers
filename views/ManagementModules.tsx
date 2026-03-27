@@ -76,6 +76,7 @@ export const ConductoresView = () => {
    const { data: users } = useSupabaseData('profiles');
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editingItem, setEditingItem] = useState<any>(null);
+   const [showOnlyActive, setShowOnlyActive] = useState(true);
 
    const userOptions = users?.map((u: any) => u.id) || [];
    const userLabels = users?.map((u: any) => `${u.full_name || u.email} (${u.role})`) || [];
@@ -113,9 +114,22 @@ export const ConductoresView = () => {
             title="Gestión de Conductores"
             subtitle="Fleet Personnel Directory"
             columns={['ID', 'Nombre', 'Contacto', 'Licencia', 'Vencimiento', 'Puntos', 'Estado', 'Acciones']}
-            data={drivers}
+            data={drivers?.filter((d: any) => !showOnlyActive || d.status === 'Active')}
             loading={loading}
-            actions={<AddButton label="Nuevo Conductor" onClick={() => { setEditingItem(null); setIsModalOpen(true); }} />}
+            actions={
+               <div className="flex items-center gap-3">
+                  <button
+                     onClick={() => setShowOnlyActive(!showOnlyActive)}
+                     className={`px-4 py-2 rounded-lg text-[10px] uppercase tracking-widest font-black transition-all border ${!showOnlyActive ? 'bg-brand-gold text-brand-black border-brand-gold shadow-[0_0_15px_rgba(212,175,55,0.2)]' : 'bg-white/5 text-brand-platinum/50 border-white/10 hover:border-brand-gold hover:text-brand-gold'}`}
+                  >
+                     <span className="flex items-center gap-2">
+                        <span className="material-icons-round text-sm">{!showOnlyActive ? 'visibility' : 'visibility_off'}</span>
+                        {!showOnlyActive ? 'Ver Solo Activos' : 'Ver Todos'}
+                     </span>
+                  </button>
+                  <AddButton label="Nuevo Conductor" onClick={() => { setEditingItem(null); setIsModalOpen(true); }} />
+               </div>
+            }
             renderRow={(d: any, i: number) => (
                <tr key={d.id || i} className="hover:bg-slate-800/30">
                   <td className="px-6 py-4 font-mono text-blue-400 text-xs text-nowrap">#{d.display_id || (d.id && d.id.slice(0, 4)) || i + 1}</td>
@@ -315,6 +329,7 @@ export const VehiculosView = () => {
    const { data: cars, loading, addItem, updateItem, deleteItem } = useSupabaseData('vehicles');
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editingItem, setEditingItem] = useState<any>(null);
+   const [showAll, setShowAll] = useState(false);
 
    const fields = [
       { name: 'plate', label: 'Matrícula', type: 'text', required: true, section: 'Datos Básicos' },
@@ -357,9 +372,22 @@ export const VehiculosView = () => {
             title="Flota de Vehículos"
             subtitle="CONTROL DE KILOMETRAJE E ITV"
             columns={['ID', 'Matrícula', 'Modelo / Año', 'Tipo', 'Pax', 'KM Actuales', 'Mantenimiento / Seguro', 'Estado', 'Acciones']}
-            data={cars}
+            data={cars?.filter((c: any) => showAll || c.status === 'Operativo')}
             loading={loading}
-            onAdd={() => { setEditingItem(null); setIsModalOpen(true); }}
+            actions={
+               <div className="flex items-center gap-4">
+                  <button
+                     onClick={() => setShowAll(!showAll)}
+                     className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border ${showAll ? 'bg-brand-gold text-brand-black border-brand-gold shadow-[0_0_15px_rgba(212,175,55,0.2)]' : 'bg-white/5 text-brand-platinum/50 border-white/10 hover:border-brand-gold hover:text-brand-gold'}`}
+                  >
+                     <span className="flex items-center gap-2">
+                        <span className="material-icons-round text-xs">{showAll ? 'visibility' : 'visibility_off'}</span>
+                        {showAll ? 'Ver Solo Operativos' : 'Ver Toda la Flota'}
+                     </span>
+                  </button>
+                  <AddButton label="Nuevo Vehículo" onClick={() => { setEditingItem(null); setIsModalOpen(true); }} />
+               </div>
+            }
             renderRow={(c: any, displayId: string) => {
                const interval = c.maintenance_interval || 15000;
                const nextMaintenance = (c.last_maintenance_km || 0) + interval;

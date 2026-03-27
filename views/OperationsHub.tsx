@@ -437,7 +437,7 @@ export const OperationsHub: React.FC = () => {
             <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 flex flex-col gap-4">
               {/* Vehicle Warnings Section */}
               <div className="space-y-3 flex-shrink-0">
-                {vehicles?.map((v: any) => {
+                {vehicles?.filter((v: any) => v.status === 'Operativo').map((v: any) => {
                   const alerts = [];
                   // ITV
                   if (v.itv) {
