@@ -228,10 +228,11 @@ export const CashReconciliationView: React.FC = () => {
                             </button>
                             <button 
                                 onClick={() => {
-                                    if (window.confirm(`¿Estás SEGURO de eliminar el ciclo "${cycle?.name}"? Esta acción borrará todos los registros asociados de forma permanente.`)) {
+                                    if (cycle && window.confirm(`¿Estás SEGURO de eliminar el ciclo "${cycle.name}"? Esta acción borrará todos los registros asociados de forma permanente.`)) {
                                         deleteCycle(cycle.id);
                                     }
                                 }} 
+                                disabled={loading || !cycle}
                                 className="flex items-center justify-center text-sm px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-md transition duration-200 shrink-0 border border-rose-500/20" 
                                 title="Eliminar Ciclo"
                             >
@@ -240,8 +241,8 @@ export const CashReconciliationView: React.FC = () => {
                             <button onClick={handleCloseCycle} disabled={loading || !cycle} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-purple-900/50 hover:bg-purple-800 text-purple-200 rounded-md transition duration-200 shrink-0 border border-purple-800/50">
                                 <span className="material-icons-round text-sm mr-2">check_circle</span> Cerrar Ciclo
                             </button>
-                            <button onClick={handleClearDatabase} disabled={loading || !cycle} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 rounded-md transition duration-200 shrink-0 border border-red-800/50">
-                                <span className="material-icons-round text-sm mr-2">delete</span> Borrar Todo
+                            <button onClick={handleClearDatabase} disabled={loading || !cycle} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 rounded-md transition duration-200 shrink-0 border border-red-800/50" title="Borrar Registros">
+                                <span className="material-icons-round text-sm mr-2">delete_sweep</span> Borrar Todo
                             </button>
                             <button onClick={() => { if(cycle) loadSpecificCycle(cycle.id); else fetchActiveCycle(); }} disabled={loading} className="flex items-center justify-center text-[10px] font-bold tracking-widest uppercase px-4 py-2 bg-white/5 hover:bg-white/10 rounded-md transition duration-200 shrink-0 border border-white/10 text-brand-platinum">
                                 <span className="material-icons-round text-sm mr-2">refresh</span> Actualizar

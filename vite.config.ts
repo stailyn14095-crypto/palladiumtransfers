@@ -28,13 +28,8 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
-          manualChunks: (id) => {
-            if (id.includes('node_modules')) {
-              if (id.includes('react')) return 'vendor';
-              if (id.includes('supabase')) return 'supabase';
-              return 'deps';
-            }
-          }
+          // Simplified chunking to avoid circular dependencies
+          manualChunks: undefined
         }
       }
     }
