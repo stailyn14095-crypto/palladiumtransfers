@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+import { createPortal } from 'react-dom';
 
 interface DriverReportModalProps {
     isOpen: boolean;
@@ -61,7 +61,7 @@ export const DriverReportModal: React.FC<DriverReportModalProps> = ({ isOpen, on
     };
 
     // This is the print content - rendered via portal directly into body
-    const printContent = ReactDOM.createPortal(
+    const printContent = createPortal(
         <div
             id="palladium-print-report"
             style={{

@@ -16,8 +16,8 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [tailwindcss(), react()],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY || ''),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || '')
     },
     resolve: {
       alias: {
@@ -28,10 +28,12 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom'],
-            supabase: ['@supabase/supabase-js'],
-            pdf: ['jspdf', 'html2canvas']
+          manualChunks: (id) => {
+            if (id.includes('node_modules')) {
+              if (id.includes('react')) return 'vendor';
+              if (id.includes('supabase')) return 'supabase';
+              return 'deps';
+            }
           }
         }
       }
