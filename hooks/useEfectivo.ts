@@ -105,6 +105,27 @@ export function useEfectivo() {
         }
     };
 
+    const deleteCycle = async (cycleId: number) => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.from('efectivo_cycles').delete().eq('id', cycleId);
+            if (error) throw error;
+            
+            // Refresh the full list for the dropdown
+            await fetchAllCycles();
+            
+            // If we deleted the current one, find an active one or the most recent
+            if (cycle?.id === cycleId) {
+                await fetchActiveCycle();
+            }
+        } catch (err) {
+            console.error("Error deleting cycle:", err);
+            alert("Error deleting cycle: " + (err as any).message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const clearCurrentCycleData = async () => {
         if (!cycle) return;
         setLoading(true);
@@ -178,10 +199,8 @@ export function useEfectivo() {
 
             const results: EfectivoReconciliation[] = Array.from(drivers).sort().map(d => {
                 const ib = initialBalances[d] || 0;
-                // Uber cash is stored as negative (deduction) in the file.
-                // We sum it as-is, and then flip the final sum to positive.
                 const uCashRaw = uberTotals[d] || 0;
-                const uCash = uCashRaw < 0 ? -1 * uCashRaw : uCashRaw;
+                const uCash = -1 * uCashRaw; // Uber cash is a deduction in the file (-), so we flip it to (+) for collection.
 
                 const vCash = vgdTotals[d] || 0;
                 const eCash = entregaTotals[d] || 0;
@@ -640,7 +659,7 @@ export function useEfectivo() {
 
             const uberDetails = filterAndResolve(uberData || []).map(r => ({
                 period: r.fecha_hora ? formatDateTime(r.fecha_hora) : formatUberPeriod(r.period),
-                cash_collected: Number(r.cash_collected)
+                cash_collected: -1 * (Number(r.cash_collected) || 0) // Flip sign: deduction in file (-) = cash in hand (+)
             }));
 
             const vgdDetails = filterAndResolve(vgdData || []).map(r => ({
@@ -703,6 +722,7 @@ export function useEfectivo() {
         addEntregaManual,
         closeCycle,
         uploadHistory,
-        getDriverReport
+        getDriverReport,
+        deleteCycle
     };
 }
