@@ -223,7 +223,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-900 text-white font-sans overflow-hidden">
+    <div className="flex h-screen bg-slate-900 text-white font-sans overflow-hidden print:h-auto print:overflow-visible print:block">
       {/* Navigation */}
       <Sidebar
         currentView={currentView}
@@ -236,9 +236,9 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 relative flex flex-col overflow-hidden bg-brand-black">
+      <main className="flex-1 relative flex flex-col overflow-hidden bg-brand-black print:overflow-visible print:h-auto print:block print:static">
         {/* Mobile Header */}
-        <div className="md:hidden h-16 border-b border-white/5 bg-brand-charcoal px-4 flex items-center justify-between shrink-0 z-30 shadow-md">
+        <div className="md:hidden h-16 border-b border-white/5 bg-brand-charcoal px-4 flex items-center justify-between shrink-0 z-30 shadow-md print:hidden">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full border border-brand-gold/50 flex items-center justify-center">
               <span className="text-brand-gold font-bold text-xs">P T</span>
@@ -325,7 +325,9 @@ export default function App() {
       {/* Gemini AI Assistant Widget */}
       {userRole !== 'client' && (
         <Suspense fallback={null}>
-          <AiAssistant />
+          <div className="print:hidden">
+            <AiAssistant />
+          </div>
         </Suspense>
       )}
     </div>

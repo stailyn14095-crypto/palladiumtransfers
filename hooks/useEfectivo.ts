@@ -207,8 +207,19 @@ export function useEfectivo() {
     const formatDateTime = (date: any) => {
         if (!date) return "Unknown Date";
         try {
-            // Handle various formats (mixed, strings with CET/CEST, etc)
-            const d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            let d: Date;
+            
+            // Handle Excel serial numbers (e.g., 46101.75)
+            const numDate = Number(date);
+            if (!isNaN(numDate) && numDate > 30000 && numDate < 60000) {
+                // Excel dates start from Dec 30, 1899. 
+                // We convert to JS date. 25569 is the difference in days between 1900 and 1970.
+                d = new Date((numDate - 25569) * 86400 * 1000);
+            } else {
+                // Handle various formats (mixed, strings with CET/CEST, etc)
+                d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            }
+
             if (isNaN(d.getTime())) return String(date);
             
             const day = String(d.getDate()).padStart(2, '0');
@@ -223,9 +234,27 @@ export function useEfectivo() {
         }
     };
 
+    const formatUberPeriod = (period: string) => {
+        if (!period || period === "UNKNOWN_PERIOD") return period;
+        const match = period.match(/(\d{8})-(\d{8})/);
+        if (match) {
+            const start = match[1];
+            const end = match[2];
+            return `${start.substring(6,8)}/${start.substring(4,6)} - ${end.substring(6,8)}/${end.substring(4,6)}/${end.substring(0,4)}`;
+        }
+        return period;
+    };
+
     const getMonthStr = (date: any) => {
         try {
-            const d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            let d: Date;
+            const numDate = Number(date);
+            if (!isNaN(numDate) && numDate > 30000 && numDate < 60000) {
+                d = new Date((numDate - 25569) * 86400 * 1000);
+            } else {
+                d = new Date(String(date).replace(/\s[A-Z]{3,4}$/, ''));
+            }
+            
             if (isNaN(d.getTime())) return "1970-01";
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         } catch (e) {
@@ -244,18 +273,23 @@ export function useEfectivo() {
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-                    const match = file.name.match(/(\d{8})-\d{8}/);
-                    const periodOrDate = match ? match[0] : "UNKNOWN_PERIOD";
+                    const match = file.name.match(/(\d{8})-(\d{8})/);
+                    let periodOrDate = "UNKNOWN_PERIOD";
+                    if (match) {
+                        periodOrDate = formatUberPeriod(match[0]);
+                    }
                     const uberMonthDefault = match ? `${match[1].substring(0,4)}-${match[1].substring(4,6)}` : "1970-01";
 
                     if (!jsonData.length) return resolve({ inserted: 0 });
 
                     const cols = Object.keys(jsonData[0]);
                     const firstNameCol = cols.find(c => {
-                        const cl = c.toLowerCase(); return cl.includes('nombre') || cl.includes('first') || cl.includes('conductor');
+                        const cl = c.toLowerCase(); 
+                        return (cl.includes('nombre') || cl.includes('first') || cl.includes('conductor')) && !cl.includes('uuid');
                     });
                     const lastNameCol = cols.find(c => {
-                        const cl = c.toLowerCase(); return cl.includes('apellido') || cl.includes('last');
+                        const cl = c.toLowerCase(); 
+                        return (cl.includes('apellido') || cl.includes('last')) && !cl.includes('uuid');
                     });
                     const cashCol = cols.find(c => {
                         const cl = c.toLowerCase(); return cl.includes('efectivo') || cl.includes('cash') || cl.includes('cobrado');
@@ -357,7 +391,10 @@ export function useEfectivo() {
                     if (!jsonData.length) return resolve({ inserted: 0 });
 
                     const cols = Object.keys(jsonData[0]);
-                    const nameCol = cols.find(c => c.toLowerCase().includes('nombre') || c.toLowerCase().includes('conductor')) || cols[0];
+                    const nameCol = cols.find(c => {
+                        const cl = c.toLowerCase();
+                        return (cl.includes('nombre') || cl.includes('conductor')) && !cl.includes('uuid');
+                    }) || cols[0];
                     const timeCol = cols.find(c => c.toLowerCase().includes('marca') || c.toLowerCase().includes('timestamp') || c.toLowerCase().includes('fecha')) || cols[0];
                     const amountCol = cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('entregado') || c.toLowerCase().includes('efectivo')) || cols[0];
                     
@@ -409,7 +446,10 @@ export function useEfectivo() {
                     if (!jsonData.length) return resolve({ inserted: 0 });
 
                     const cols = Object.keys(jsonData[0]);
-                    const driverCol = cols.find(c => c.toLowerCase().includes('conductor') || c.toLowerCase().includes('nombre'));
+                    const driverCol = cols.find(c => {
+                        const cl = c.toLowerCase();
+                        return (cl.includes('conductor') || cl.includes('nombre')) && !cl.includes('uuid');
+                    });
                     const amountCol = cols.find(c => c.toLowerCase().includes('importe') || c.toLowerCase().includes('efectivo'));
                     const dateCol = cols.find(c => c.toLowerCase().includes('fecha') || c.toLowerCase().includes('date'));
                     const idCol = cols.find(c => c.toLowerCase().includes('id') && c.length <= 4);
@@ -534,18 +574,18 @@ export function useEfectivo() {
                 (data || []).filter(item => resolveName(item.driver_name, aliasesData) === targetDriver);
 
             const uberDetails = filterAndResolve(uberData || []).map(r => ({
-                period: r.fecha_hora || r.period,
+                period: r.fecha_hora ? formatDateTime(r.fecha_hora) : formatUberPeriod(r.period),
                 cash_collected: Number(r.cash_collected)
             }));
 
             const vgdDetails = filterAndResolve(vgdData || []).map(r => ({
-                month: r.fecha_hora || r.month,
+                month: r.fecha_hora ? formatDateTime(r.fecha_hora) : getMonthStr(r.month),
                 cash_collected: Number(r.cash_collected)
             }));
 
             const entregaDetails = filterAndResolve(entregaData || []).map(r => ({
                 id: r.id,
-                timestamp: r.timestamp,
+                timestamp: formatDateTime(r.timestamp),
                 amount: Number(r.amount)
             }));
 
@@ -553,7 +593,7 @@ export function useEfectivo() {
                 id: r.id,
                 description: r.description,
                 amount: Number(r.amount),
-                timestamp: r.timestamp
+                timestamp: formatDateTime(r.timestamp)
             }));
 
             const saldoInicial = filterAndResolve(ibData || []).reduce((acc, curr) => acc + Number(curr.balance), 0);

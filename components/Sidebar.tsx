@@ -96,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-[100] w-72 h-full bg-brand-black/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 selection:bg-brand-platinum/30 transform transition-transform duration-300 md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[100] w-72 h-full bg-brand-black/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 selection:bg-brand-platinum/30 transform transition-transform duration-300 md:relative md:translate-x-0 print:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Brand */}
         <div className="h-32 flex items-center justify-center border-b border-white/5 shrink-0 px-6 bg-brand-black/20">
           <div className="flex items-center gap-4 group cursor-pointer transition-all duration-700">
