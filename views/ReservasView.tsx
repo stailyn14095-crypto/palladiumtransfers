@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
-import { suggestDriver, detectScheduleConflicts, getAssignedVehicleForBooking } from '../services/autoAssignment';
+import { suggestDriver, detectScheduleConflicts, getAssignedVehicleForBooking, calculateAvailableAt } from '../services/autoAssignment';
 import { supabase } from '../services/supabase';
 import { sendCancellationEmail } from '../services/emailService';
 
@@ -677,23 +677,56 @@ export const ReservasView: React.FC = () => {
    };
 
    // Logic: Availability
-   const today = new Date().toISOString().split('T')[0];
-   const bookingsToday = bookings ? bookings.filter((b: any) => b.pickup_date && b.pickup_date.startsWith(today)) : [];
-   const getSlotStatus = (hour: number) => {
-      const timeString = `${hour < 10 ? '0' : ''}${hour}:00`;
-      const activeBookings = bookingsToday.filter((b: any) => {
-         try {
-            if (!b.pickup_time) return false;
-            return parseInt(b.pickup_time.split(':')[0]) === hour;
-         } catch (e) { return false; }
-      }).length;
-      const available = TOTAL_FLEET - activeBookings;
-      let status: 'OPEN' | 'LIMITED' | 'CLOSED' = 'OPEN';
-      if (available <= 0) status = 'CLOSED';
-      else if (available <= 3) status = 'LIMITED';
-      return { time: timeString, active: activeBookings, available: Math.max(0, available), status };
-   };
-   const slots = Array.from({ length: 13 }, (_, i) => i + 8).map(h => getSlotStatus(h));
+   const availabilityConfig = useMemo(() => {
+      const selectedDate = startDate;
+      const bookingsForDate = bookings ? bookings.filter((b: any) => b.pickup_date && b.pickup_date.startsWith(selectedDate) && b.status !== 'Cancelled') : [];
+      
+      // Calculate dynamic fleet capacity for the day
+      let dayCapacity = vehicles?.filter((v: any) => v.status === 'Operativo').length || 12;
+      
+      if (shifts) {
+          const shiftsThisDay = shifts.filter((s: any) => s.date === selectedDate && s.type !== 'Libre' && s.type !== 'OFF');
+          if (shiftsThisDay.length > 0) {
+              const uniqueVehicles = new Set(shiftsThisDay.map((s: any) => s.vehicle_id).filter(Boolean));
+              const uniqueDrivers = new Set(shiftsThisDay.map((s: any) => s.driver_id).filter(Boolean));
+              // Ensure capacity meets at least the hardware allocated or personnel assigned
+              dayCapacity = Math.max(uniqueVehicles.size, uniqueDrivers.size, 1);
+          }
+      }
+
+      const getSlotStatus = (hour: number) => {
+         const timeString = `${hour < 10 ? '0' : ''}${hour}:00`;
+         const slotStartTs = new Date(`${selectedDate}T${timeString}`).getTime();
+         const slotEndTs = slotStartTs + 3600000; // +1 hour
+
+         const activeBookings = bookingsForDate.filter((b: any) => {
+            try {
+               if (!b.pickup_time) return false;
+               const bStart = new Date(`${b.pickup_date.split('T')[0]}T${b.pickup_time}`).getTime();
+               let bEnd = bStart + 3600000; // default 1 hour block
+               if (b.origin && b.destination) {
+                  // Real calculation combining wait times and travel distances from AI Engine
+                  const endDate = calculateAvailableAt(b);
+                  if (endDate) bEnd = endDate.getTime();
+               }
+               // Check Overlap: Starts before the slot ends, and ends after the slot starts
+               return bStart < slotEndTs && bEnd > slotStartTs;
+            } catch (e) { return false; }
+         }).length;
+         
+         const available = dayCapacity - activeBookings;
+         let status: 'OPEN' | 'LIMITED' | 'CLOSED' = 'OPEN';
+         if (available <= 0) status = 'CLOSED';
+         else if (available <= Math.ceil(dayCapacity * 0.2)) status = 'LIMITED'; // Only 20% left
+         
+         return { time: timeString, active: activeBookings, available: Math.max(0, available), status, capacity: dayCapacity };
+      };
+      
+      const slots = Array.from({ length: 24 }, (_, i) => i).map(h => getSlotStatus(h));
+      return { slots, capacity: dayCapacity };
+   }, [bookings, startDate, shifts, vehicles]);
+
+   const { slots, capacity: dynamicCapacity } = availabilityConfig;
 
    const fields = useMemo(() => {
       const clientOptions = clients?.map((c: any) => c.id) || [];
@@ -1029,7 +1062,7 @@ export const ReservasView: React.FC = () => {
                                                       <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-md border border-white/5 w-fit">
                                                          <span className="material-icons-round text-[10px] text-brand-gold">directions_car</span>
                                                          {(() => {
-                                                            const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
+                                                            const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || [], drivers || []);
                                                             return svcVehicle ? (
                                                                <span className="text-[10px] font-bold text-brand-gold/70">{svcVehicle.plate} <span className="text-brand-platinum/30 font-medium whitespace-nowrap">({svcVehicle.model})</span></span>
                                                             ) : (
@@ -1149,7 +1182,7 @@ export const ReservasView: React.FC = () => {
                                                                <div className="bg-brand-black p-3 rounded-lg border border-white/5 mb-3">
                                                                   <span className="text-brand-platinum/30 text-[10px] uppercase tracking-widest font-bold block mb-1">Vehículo Asignado (Día del Servicio)</span>
                                                                   {(() => {
-                                                                     const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
+                                                                     const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || [], drivers || []);
                                                                      return svcVehicle ? (
                                                                         <span className="text-sm font-bold text-brand-gold flex items-center gap-2">
                                                                            <span className="material-icons-round text-sm">directions_car</span>
@@ -1287,38 +1320,66 @@ export const ReservasView: React.FC = () => {
                   </div>
                </>
             ) : (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
-                  {slots.map(slot => (
-                     <div key={slot.time} className={`bg-brand-charcoal border rounded-2xl p-6 transition-all ${slot.status === 'CLOSED' ? 'border-red-500/20 ring-1 ring-red-500/10' :
-                        slot.status === 'LIMITED' ? 'border-amber-500/20 ring-1 ring-amber-500/10' :
-                           'border-white/5'
-                        }`}>
-                        <div className="flex justify-between items-start mb-4">
-                           <span className="text-xl font-black text-white">{slot.time}</span>
-                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${slot.status === 'CLOSED' ? 'bg-red-500/10 text-red-500' :
-                              slot.status === 'LIMITED' ? 'bg-amber-500/10 text-amber-500' :
-                                 'bg-emerald-500/10 text-emerald-500'
-                              }`}>{slot.status}</span>
-                        </div>
-                        <div className="space-y-3">
-                           <div className="flex justify-between text-xs">
-                              <span className="text-brand-platinum/30">Ocupación</span>
-                              <span className="text-white font-bold">{slot.active} Serv.</span>
-                           </div>
-                           <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                              <div className={`h-full transition-all duration-1000 ${slot.status === 'CLOSED' ? 'bg-red-500' :
-                                 slot.status === 'LIMITED' ? 'bg-amber-500' :
-                                    'bg-emerald-500'
-                                 }`} style={{ width: `${(slot.active / TOTAL_FLEET) * 100}%` }}></div>
-                           </div>
-                           <div className="flex justify-between text-[10px] font-black uppercase">
-                              <span className="text-brand-platinum/30">Disponibles</span>
-                              <span className="text-brand-gold">{slot.available} / {TOTAL_FLEET}</span>
-                           </div>
-                        </div>
+               <>
+                  <div className="flex flex-wrap items-end gap-4 mb-6 bg-brand-charcoal p-4 md:p-6 rounded-2xl border border-white/5 shadow-xl">
+                     <div className="w-full sm:w-1/3 md:w-48">
+                        <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5 flex items-center gap-1.5">
+                           <span className="material-icons-round text-[10px]">calendar_today</span>
+                           Fecha a Consultar
+                        </label>
+                        <input
+                           type="date"
+                           value={startDate}
+                           onChange={(e) => {
+                              setStartDate(e.target.value);
+                              setEndDate(e.target.value); // Sincroniza ambos para evitar inconsistencias
+                           }}
+                           className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-2.5 text-sm font-bold text-brand-gold focus:border-brand-gold outline-none transition-all cursor-pointer"
+                        />
                      </div>
-                  ))}
-               </div>
+                     <div className="flex-1 min-w-[300px] flex items-center bg-blue-500/10 p-3 rounded-xl border border-blue-500/20">
+                        <span className="material-icons-round text-blue-400 mr-3">info</span>
+                        <p className="text-xs text-brand-platinum font-medium">
+                           Calculando disponibilidad dinámica para el <strong className="text-white">{new Date(startDate).toLocaleDateString('es-ES')}</strong>.
+                           <br />
+                           Capacidad Total Operativa Estimada: <strong className="text-brand-gold text-lg ml-1">{dynamicCapacity}</strong> Vehículos / Conductores.
+                        </p>
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-20">
+                     {slots.map(slot => (
+                        <div key={slot.time} className={`bg-brand-charcoal border rounded-2xl p-6 transition-all shadow-lg ${slot.status === 'CLOSED' ? 'border-red-500/20 ring-1 ring-red-500/10' :
+                           slot.status === 'LIMITED' ? 'border-amber-500/20 ring-1 ring-amber-500/10' :
+                              'border-emerald-500/10'
+                           }`}>
+                           <div className="flex justify-between items-start mb-4">
+                              <span className="text-xl font-black text-white">{slot.time}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest shadow-sm ${slot.status === 'CLOSED' ? 'bg-red-500/10 text-red-400' :
+                                 slot.status === 'LIMITED' ? 'bg-amber-500/10 text-amber-400' :
+                                    'bg-emerald-500/10 text-emerald-400'
+                                 }`}>{slot.status}</span>
+                           </div>
+                           <div className="space-y-3">
+                              <div className="flex justify-between text-xs">
+                                 <span className="text-brand-platinum/50 font-medium">Ocupación Requerida</span>
+                                 <span className="text-white font-bold">{slot.active} Serv. en curso</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                 <div className={`h-full transition-all duration-1000 ${slot.status === 'CLOSED' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' :
+                                    slot.status === 'LIMITED' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
+                                       'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                                    }`} style={{ width: `${Math.min((slot.active / Math.max(dynamicCapacity, 1)) * 100, 100)}%` }}></div>
+                              </div>
+                              <div className="flex justify-between text-[10px] font-black uppercase">
+                                 <span className="text-brand-platinum/50">Disponibles</span>
+                                 <span className={`text-sm ${slot.status === 'CLOSED' ? 'text-red-400' : 'text-brand-gold'}`}>{slot.available} / {dynamicCapacity}</span>
+                              </div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </>
             )
             }
          </div >

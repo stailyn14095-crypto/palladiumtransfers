@@ -95,6 +95,9 @@ export const ConductoresView = () => {
 
    const handleSave = async (data: any) => {
       try {
+         // Fix UUID empty string casting issue
+         if (data.user_id === '') data.user_id = null;
+
          if (editingItem) {
             await updateItem(editingItem.id, data);
             addToast({ title: 'Conductor Actualizado', description: 'Los datos se han guardado correctamente.', type: 'success' });

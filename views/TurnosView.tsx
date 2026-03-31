@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase';
 export const TurnosView: React.FC = () => {
    const [activeTab, setActiveTab] = useState<'daily' | 'monthly' | 'config'>('monthly');
    const [currentDate, setCurrentDate] = useState(new Date());
-   const { data: drivers, loading: loadingDrivers } = useSupabaseData('drivers');
+   const { data: drivers, loading: loadingDrivers, updateItem: updateDriver } = useSupabaseData('drivers');
    const { data: vehicles } = useSupabaseData('vehicles');
    const { data: shifts, loading: loadingShifts, addItem: addShift, deleteItem: deleteShift, refresh: refreshShifts } = useSupabaseData('shifts');
    const { data: shiftTypes, loading: loadingTypes, addItem: addType, deleteItem: deleteType } = useSupabaseData('shift_types');
@@ -15,6 +15,7 @@ export const TurnosView: React.FC = () => {
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [selectedDay, setSelectedDay] = useState<number | null>(null);
    const [selectedDriver, setSelectedDriver] = useState<any>(null);
+   const [plateQuery, setPlateQuery] = useState('');
 
    const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
    const monthName = currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
@@ -152,9 +153,12 @@ export const TurnosView: React.FC = () => {
    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
    const [bulkData, setBulkData] = useState({
       driverIds: [] as string[],
-      type: '',
+      rotationConfig: 'MAÑANA_SIEMPRE',
+      patternConfig: 'Siempre 2',
+      baseDayOff: 1, // 1 = Monday
+      dayShift: '',
+      nightShift: '',
       vehicle_id: '',
-      daysOff: [] as number[], // 0=Sunday, 1=Monday...
       hours: ''
    });
 
@@ -167,18 +171,9 @@ export const TurnosView: React.FC = () => {
       }));
    };
 
-   const toggleBulkDayOff = (dayIndex: number) => {
-      setBulkData(prev => ({
-         ...prev,
-         daysOff: prev.daysOff.includes(dayIndex)
-            ? prev.daysOff.filter(d => d !== dayIndex)
-            : [...prev.daysOff, dayIndex]
-      }));
-   };
-
    const handleBulkAssign = async () => {
-      if (bulkData.driverIds.length === 0 || !bulkData.type) {
-         alert('Por favor selecciona al menos un conductor y un turno.');
+      if (bulkData.driverIds.length === 0 || !bulkData.dayShift) {
+         alert('Por favor selecciona al menos un conductor y un Turno de Día.');
          return;
       }
 
@@ -194,12 +189,6 @@ export const TurnosView: React.FC = () => {
 
       const selectedVehicle = vehicles?.find((v: any) => v.id === bulkData.vehicle_id);
 
-      const selectedType = shiftTypes?.find((t: any) => t.name === bulkData.type);
-      let hours = bulkData.hours;
-      if (selectedType && (!hours || hours === selectedType.start_time + '-' + selectedType.end_time)) {
-         hours = `${selectedType.start_time}-${selectedType.end_time}`;
-      }
-
       // Track newly assigned vehicles in this batch to prevent self-collisions [date_vehicleId]
       const newAssignments = new Set<string>();
 
@@ -207,19 +196,67 @@ export const TurnosView: React.FC = () => {
       for (const driverId of bulkData.driverIds) {
          const driverName = drivers?.find((d: any) => d.id === driverId)?.name || 'Conductor';
 
+         let contadorSemanas = 1;
+         let diaInicioLibre = parseInt(bulkData.baseDayOff as any);
+
+         let turnoActual = "MAÑANA";
+         if (bulkData.rotationConfig.includes("NOCHE_SIEMPRE") || bulkData.rotationConfig.includes("NOCHE_PRIMERO")) {
+            turnoActual = "NOCHE";
+         }
+         let alarmaRotacionActivada = false;
+         let listoParaRotar = false; 
+         let bloquesCompletados = 0;
+
          for (let day = 1; day <= numDays; day++) {
             const dateObj = new Date(targetYear, targetMonth, day);
-            const dayOfWeek = dateObj.getDay(); // 0=Sun, 1=Mon...
+            const diaSemana = dateObj.getDay(); // 0=Sun, 1=Mon...
             const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-            const isDayOff = bulkData.daysOff.includes(dayOfWeek);
+            if (day > 1 && diaSemana === diaInicioLibre) contadorSemanas++;
 
-            let typeToAssign = isDayOff ? 'Libre' : bulkData.type;
-            let vehicleToAssign = isDayOff ? null : bulkData.vehicle_id;
-            let hoursToAssign = isDayOff ? null : hours;
+            let esLibre = false;
+            if (diaSemana === diaInicioLibre) {
+               esLibre = true; // El día base siempre es libre
+            } else if (diaSemana === (diaInicioLibre + 1) % 7) {
+               // Evaluar el patrón para el segundo día consecutivo
+               if (bulkData.patternConfig.includes("Siempre 2")) esLibre = true;
+               else if (bulkData.patternConfig === "1-2" && contadorSemanas % 2 === 0) esLibre = true;
+               else if (bulkData.patternConfig === "2-1" && contadorSemanas % 2 !== 0) esLibre = true;
+            }
+
+            // Cada bloque de 14 días activa la alarma de rotación
+            const currentBlock = Math.floor((day - 1) / 14);
+            if (currentBlock > bloquesCompletados && bulkData.rotationConfig.includes("PRIMERO") && bulkData.nightShift) {
+               alarmaRotacionActivada = true;
+               bloquesCompletados = currentBlock;
+            }
+
+            if (esLibre) {
+               // Si descansa mientras la alarma suena, está listo para rotar al volver
+               if (alarmaRotacionActivada) {
+                  listoParaRotar = true;
+               }
+            } else {
+               // Si vuelve a trabajar y estaba listo para rotar, cambiamos el turno
+               if (listoParaRotar) {
+                  turnoActual = (turnoActual === "MAÑANA") ? "NOCHE" : "MAÑANA";
+                  alarmaRotacionActivada = false;
+                  listoParaRotar = false;
+               }
+            }
+
+            let typeToAssign = esLibre ? 'Libre' : (turnoActual === "MAÑANA" ? bulkData.dayShift : (bulkData.nightShift || bulkData.dayShift));
+            let vehicleToAssign = esLibre ? null : bulkData.vehicle_id;
+            let hoursToAssign = esLibre ? null : bulkData.hours;
+
+            // Resolve hours dynamically from the selected type
+            if (!hoursToAssign && typeToAssign !== 'Libre') {
+               const tType = shiftTypes?.find((t: any) => t.name === typeToAssign);
+               if (tType) hoursToAssign = `${tType.start_time}-${tType.end_time}`;
+            }
 
             // Checks for Working Days with Vehicle
-            if (!isDayOff && vehicleToAssign) {
+            if (!esLibre && vehicleToAssign) {
                // 1. Maintenance Check
                let isMaintenance = false;
                if (selectedVehicle) {
@@ -246,11 +283,10 @@ export const TurnosView: React.FC = () => {
                if (isMaintenance) {
                   skippedCount++;
                   skippedDetails.push(`${dateStr}: ${driverName} (Taller)`);
-                  continue; // Skip creating this shift -> Or create without vehicle? User implied "skip/warn". Let's skip to be safe.
+                  continue; // Skip creating this shift
                }
 
                // 2. Conflict Check (Vehicle already assigned in the SAME SHIFT?)
-               // Check against DB shifts (excluding current driver's existing shift which we will overwrite)
                const isOccupiedInDB = shifts?.some((s: any) =>
                   s.date === dateStr &&
                   s.vehicle_id === vehicleToAssign &&
@@ -258,7 +294,6 @@ export const TurnosView: React.FC = () => {
                   s.type === typeToAssign // Must be same shift to be a true conflict
                );
 
-               // Check against batch assignments we just made
                const isOccupiedInBatch = newAssignments.has(`${dateStr}_${vehicleToAssign}_${typeToAssign}`);
 
                if (isOccupiedInDB || isOccupiedInBatch) {
@@ -300,6 +335,91 @@ export const TurnosView: React.FC = () => {
       alert(msg);
    };
 
+   const handleGenerateAll = async (activeDrivers: any[]) => {
+      const targetMonth = currentDate.getMonth();
+      const targetYear = currentDate.getFullYear();
+      const numDays = daysInMonth(targetMonth, targetYear);
+
+      let createdCount = 0;
+
+      // Find best match for Day/Night shifts from DB
+      const dayShiftStr = shiftTypes?.find((t: any) => t.name.toLowerCase().includes('mañana') || t.name.toLowerCase().includes('día') || t.name.toLowerCase().includes('dia'))?.name || 'Mañana';
+      const nightShiftStr = shiftTypes?.find((t: any) => t.name.toLowerCase().includes('noche'))?.name || 'Noche';
+
+      for (const driver of activeDrivers) {
+         let diaInicioLibre = parseInt(driver.rest_day); 
+         if (isNaN(diaInicioLibre)) diaInicioLibre = 1; // Default Lunes si no existe
+         let patternConfig = driver.pattern || 'Siempre 2';
+         let rotationConfig = driver.rotation || 'MAÑANA_SIEMPRE';
+
+         const blockOffset = (diaInicioLibre + 6) % 7; // Map 0=Sun..6=Sat such that Mon=0, Tue=1... Sun=6
+         const rotationFrequency = parseInt(driver.rotation_freq) || 2; 
+
+         // Epoch Monday Jan 1 2024 UTC
+         const utcEpoch = Date.UTC(2024, 0, 1);
+
+         for (let day = 1; day <= numDays; day++) {
+            const dateObj = new Date(targetYear, targetMonth, day);
+            const diaSemana = dateObj.getDay(); 
+            const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+            // Calculate absolute day ensuring no TimeZone DST bugs
+            const utcCurrent = Date.UTC(targetYear, targetMonth, day);
+            const absoluteDay = Math.floor((utcCurrent - utcEpoch) / (1000 * 3600 * 24));
+            
+            const adjustedDay = absoluteDay - blockOffset;
+            const currentWeek = Math.floor(adjustedDay / 7);
+            const currentBlock = Math.floor(adjustedDay / (rotationFrequency * 7));
+
+            let esLibre = false;
+            let diaSiguienteInicio = (diaInicioLibre + 1) % 7;
+
+            if (diaSemana === diaInicioLibre) {
+               esLibre = true;
+            } else if (diaSemana === diaSiguienteInicio) {
+               // El patrón de libranza define si el segundo día también libras
+               if (patternConfig.includes("Siempre 2")) esLibre = true;
+               else if (patternConfig === "1-2" && (Math.abs(currentWeek) % 2) === 1) esLibre = true; // Impar -> 2 días
+               else if (patternConfig === "2-1" && (Math.abs(currentWeek) % 2) === 0) esLibre = true; // Par -> 2 días
+            }
+
+            let typeToAssign = 'Libre';
+            if (!esLibre) {
+               if (rotationConfig === "MAÑANA_SIEMPRE") typeToAssign = dayShiftStr;
+               else if (rotationConfig === "NOCHE_SIEMPRE") typeToAssign = nightShiftStr;
+               else {
+                  // ROTATIVO
+                  const isNoche = (rotationConfig === "MAÑANA_PRIMERO") 
+                                    ? ((Math.abs(currentBlock) % 2) !== 0) 
+                                    : ((Math.abs(currentBlock) % 2) === 0);
+                  typeToAssign = isNoche ? nightShiftStr : dayShiftStr;
+               }
+            }
+
+            let hoursToAssign = null;
+            if (typeToAssign !== 'Libre') {
+               const tType = shiftTypes?.find((t: any) => t.name === typeToAssign);
+               if (tType) hoursToAssign = `${tType.start_time}-${tType.end_time}`;
+            }
+
+            const existing = getShiftForDriverAndDay(driver.id, day);
+            if (existing) await deleteShift(existing.id);
+
+            await addShift({
+               driver_id: driver.id,
+               date: dateStr,
+               type: typeToAssign,
+               hours: hoursToAssign,
+               vehicle_id: null // No vehicle preassigned in global auto-gen
+            });
+            createdCount++;
+         }
+      }
+      
+      refreshShifts();
+      alert(`🚀 Planificación completada.\nSe han generado/reemplazado ${createdCount} turnos para toda la flota en ${currentDate.toLocaleString('es-ES', { month: 'long' })}.`);
+   };
+
    return (
       <div className="flex-1 flex flex-col h-full bg-[#101822] overflow-hidden">
          <header className="min-h-[5rem] border-b border-slate-800 bg-[#1a2533] px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
@@ -310,7 +430,7 @@ export const TurnosView: React.FC = () => {
             <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
                <button
                   onClick={() => {
-                     setBulkData({ driverIds: [], type: '', vehicle_id: '', daysOff: [0, 6], hours: '' }); // Default Sat/Sun off
+                     setBulkData({ driverIds: [], rotationConfig: 'MAÑANA_SIEMPRE', patternConfig: 'Siempre 2', baseDayOff: 1, dayShift: '', nightShift: '', vehicle_id: '', hours: '' });
                      setIsBulkModalOpen(true);
                   }}
                   className="flex justify-center items-center gap-2 px-4 py-2 md:py-0 h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-900/20 transition-all w-full md:w-auto"
@@ -319,9 +439,9 @@ export const TurnosView: React.FC = () => {
                   Planificar Mes
                </button>
                <div className="flex bg-[#101822] p-1 rounded-lg border border-slate-700 overflow-x-auto custom-scrollbar w-full md:w-auto">
-                  <button onClick={() => setActiveTab('daily')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'daily' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Registro Diario</button>
+                  <button onClick={() => setActiveTab('daily')} className={`px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'daily' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}><span className="material-icons-round text-sm">settings_suggest</span> Config. Flota</button>
                   <button onClick={() => setActiveTab('monthly')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Planificador Mensual</button>
-                  <button onClick={() => setActiveTab('config')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'config' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Configuración</button>
+                  <button onClick={() => setActiveTab('config')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'config' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>Parámetros Base</button>
                </div>
             </div>
          </header>
@@ -339,6 +459,16 @@ export const TurnosView: React.FC = () => {
                            <span className="material-icons-round">chevron_right</span>
                         </button>
                      </div>
+                     <div className="flex items-center gap-2">
+                        <span className="material-icons-round text-slate-400">search</span>
+                        <input
+                           type="text"
+                           placeholder="Buscar por matrícula..."
+                           value={plateQuery}
+                           onChange={e => setPlateQuery(e.target.value)}
+                           className="bg-[#101822] border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 w-48"
+                        />
+                     </div>
                   </div>
 
                   <div className="flex-1 overflow-auto custom-scrollbar bg-[#101822] p-6">
@@ -346,8 +476,8 @@ export const TurnosView: React.FC = () => {
                         <div className="text-center text-slate-400 mt-10">Cargando datos...</div>
                      ) : (
                         <div className="min-w-max">
-                           <div className="grid grid-cols-[180px_repeat(31,minmax(40px,1fr))] mb-2 bg-[#141e2b] p-2 rounded-t-lg border-b border-slate-700">
-                              <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center">Conductor</div>
+                           <div className="grid grid-cols-[220px_repeat(31,minmax(35px,1fr))] mb-2 bg-[#141e2b] p-2 rounded-t-lg border-b border-slate-700">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center pl-2">Conductor</div>
                               {DAYS_ARRAY.map(d => {
                                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
                                  const isSunday = date.getDay() === 0;
@@ -360,15 +490,35 @@ export const TurnosView: React.FC = () => {
                            </div>
 
                            <div className="space-y-1">
-                              {drivers?.filter((d: any) => d.status !== 'Inactive').map((driver: any) => (
-                                 <div key={driver.id} className="grid grid-cols-[180px_repeat(31,minmax(40px,1fr))] bg-[#1a2533] border border-slate-800 rounded group hover:border-blue-500/30 transition-all">
-                                    <div className="p-3 border-r border-slate-800 bg-[#141e2b] flex items-center gap-2">
-                                       <div className="w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-[10px] font-bold">{(driver.name || '?')[0]}</div>
-                                       <span className="font-bold text-xs text-white truncate">{(driver.name || 'Sin Nombre').split(' ')[0]}</span>
+                              {drivers?.filter((d: any) => {
+                                 if (d.status === 'Inactive') return false;
+                                 if (plateQuery) {
+                                    const v = vehicles?.find((veh: any) => veh.id === d.default_vehicle_id);
+                                    if (!v || !v.plate.toLowerCase().includes(plateQuery.toLowerCase())) {
+                                       return false;
+                                    }
+                                 }
+                                 return true;
+                              }).map((driver: any) => (
+                                 <div key={driver.id} className="grid grid-cols-[220px_repeat(31,minmax(35px,1fr))] bg-[#1a2533] border border-slate-800 rounded group hover:border-blue-500/30 transition-all">
+                                    <div className="p-2 border-r border-slate-800 bg-[#141e2b] flex items-center justify-between gap-2 overflow-hidden">
+                                       <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                          <div className="w-6 h-6 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0">{(driver.name || '?')[0]}</div>
+                                          <span className="font-bold text-[11px] text-white truncate w-full" title={driver.name || 'Sin Nombre'}>{driver.name || 'Sin Nombre'}</span>
+                                       </div>
+                                       {(() => {
+                                          const v = vehicles?.find((v: any) => v.id === driver.default_vehicle_id);
+                                          return v ? (
+                                             <div className="shrink-0 flex items-center pr-1">
+                                                <span className="text-[9px] font-black text-white/90 bg-white/10 px-1 py-0.5 rounded shadow-sm border border-white/5">{v.plate}</span>
+                                             </div>
+                                          ) : null;
+                                       })()}
                                     </div>
                                     {DAYS_ARRAY.map(d => {
                                        const shift = getShiftForDriverAndDay(driver.id, d);
                                        const isOff = shift?.type === 'Libre' || shift?.type === 'OFF';
+                                       const isNight = shift?.type?.toLowerCase().includes('noche') || shift?.type === 'N';
 
                                        // Tooltip Info
                                        let tooltip = '';
@@ -380,6 +530,10 @@ export const TurnosView: React.FC = () => {
                                        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
                                        const isSunday = date.getDay() === 0;
 
+                                       let bgColor = 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20';
+                                       if (isOff) bgColor = 'bg-slate-700 text-slate-400';
+                                       else if (isNight) bgColor = 'bg-orange-600/20 text-orange-400 border border-orange-500/20';
+
                                        return (
                                           <div
                                              key={d}
@@ -389,8 +543,8 @@ export const TurnosView: React.FC = () => {
                                           >
                                              {shift ? (
                                                 <div className={`w-full h-full flex items-center justify-center p-0.5`}>
-                                                   <div className={`w-full h-full rounded text-[8px] flex items-center justify-center font-bold ${isOff ? 'bg-slate-700 text-slate-400' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20'}`}>
-                                                      {isOff ? 'X' : (shift.type || '?')[0]}
+                                                   <div className={`w-full h-full rounded text-[8px] flex items-center justify-center font-bold ${bgColor}`}>
+                                                      {isOff ? 'X' : (shift.type || '?')[0].toUpperCase()}
                                                    </div>
                                                 </div>
                                              ) : <span className="text-[9px] text-slate-800 opacity-0 group-hover:opacity-100">+</span>}
@@ -407,10 +561,127 @@ export const TurnosView: React.FC = () => {
             )}
 
             {activeTab === 'daily' && (
-               <div className="p-8">
-                  <div className="bg-[#1a2533] border border-slate-700 rounded-xl p-8 text-center">
-                     <span className="material-icons-round text-4xl text-slate-600 mb-2">timer</span>
-                     <p className="text-slate-400">Vista de registro diario disponible próximamente.</p>
+               <div className="p-8 overflow-auto custom-scrollbar">
+                  <div className="max-w-6xl mx-auto space-y-6">
+                     <div className="flex items-center justify-between mb-2">
+                        <div>
+                           <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                              <span className="material-icons-round text-orange-400">tune</span>
+                              Configuración Maestra de Rotación
+                           </h2>
+                           <p className="text-sm text-slate-400">Ajusta cómo rotarán los conductores automáticamente.</p>
+                        </div>
+                        <button
+                           className="flex items-center gap-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white px-5 py-2.5 rounded-lg font-black uppercase text-sm tracking-wide shadow-[0_0_20px_rgba(234,88,12,0.3)] transition-all"
+                           onClick={() => {
+                              // We will trigger a macro function here that reads all drivers and handles all at once
+                              // This will be added below.
+                              if (confirm('¿Estás seguro de que deseas EJECUTAR EL MES COMPLETO para todos los conductores listados? Esto sobreescribirá la planificación actual de las fechas generadas.')) {
+                                 const activeDrivers = drivers?.filter((d: any) => d.status === 'Active') || [];
+                                 handleGenerateAll(activeDrivers);
+                              }
+                           }}
+                        >
+                           <span className="material-icons-round">rocket_launch</span>
+                           EJECUTAR MES COMPLETO
+                        </button>
+                     </div>
+
+                     <div className="bg-[#1a2533] border border-slate-700 rounded-xl overflow-visible shadow-2xl mt-6">
+                        <div className="overflow-x-auto w-full pb-4">
+                           <table className="w-full text-left text-sm text-slate-300 min-w-[1100px]">
+                              <thead className="bg-[#141e2b] border-b border-slate-700">
+                                 <tr>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Conductor</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Vehículo Habitual</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Turno / Rotación</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest text-center">Frecuencia</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest text-center">Día Base</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Patrón de Libranza</th>
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/50">
+                                 {drivers?.filter((d: any) => d.status === 'Active').map((driver: any) => (
+                                    <tr key={driver.id} className="hover:bg-slate-800/80 transition-colors">
+                                       <td className="px-5 py-4 font-bold text-indigo-300 flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-[#101822] border border-slate-700 flex items-center justify-center font-bold text-slate-400">
+                                             {driver.name.charAt(0)}
+                                          </div>
+                                          {driver.name}
+                                       </td>
+                                       <td className="px-5 py-4">
+                                          <select 
+                                             value={driver.default_vehicle_id || ''} 
+                                             onChange={(e) => updateDriver(driver.id, { default_vehicle_id: e.target.value || null })}
+                                             className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none cursor-pointer shadow-inner"
+                                          >
+                                             <option value="">Ninguno</option>
+                                             {vehicles?.map((v: any) => (
+                                                <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>
+                                             ))}
+                                          </select>
+                                       </td>
+                                       <td className="px-5 py-4">
+                                          <select 
+                                             value={driver.rotation || 'MAÑANA_SIEMPRE'} 
+                                             onChange={(e) => updateDriver(driver.id, { rotation: e.target.value })}
+                                             className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none cursor-pointer shadow-inner"
+                                          >
+                                             <option value="MAÑANA_SIEMPRE">DÍA FIJO</option>
+                                             <option value="NOCHE_SIEMPRE">NOCHE FIJA</option>
+                                             <option value="MAÑANA_PRIMERO">ROTATIVO (EMPIEZA DÍA)</option>
+                                             <option value="NOCHE_PRIMERO">ROTATIVO (EMPIEZA NOCHE)</option>
+                                          </select>
+                                       </td>
+                                       <td className="px-5 py-4 text-center">
+                                          <select 
+                                             value={driver.rotation_freq || 2} 
+                                             onChange={(e) => updateDriver(driver.id, { rotation_freq: parseInt(e.target.value) })}
+                                             className="w-[140px] bg-[#101822] border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none text-center cursor-pointer shadow-inner"
+                                             disabled={driver.rotation?.includes("SIEMPRE")}
+                                          >
+                                             <option value="1">1 Semana</option>
+                                             <option value="2">2 Semanas</option>
+                                             <option value="3">3 Semanas</option>
+                                             <option value="4">4 Semanas</option>
+                                          </select>
+                                       </td>
+                                       <td className="px-5 py-4 text-center">
+                                          <select 
+                                             value={driver.rest_day || '1'} 
+                                             onChange={(e) => updateDriver(driver.id, { rest_day: e.target.value })}
+                                             className="w-[140px] bg-[#101822] border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none text-center cursor-pointer shadow-inner"
+                                          >
+                                             <option value="1">Lunes</option>
+                                             <option value="2">Martes</option>
+                                             <option value="3">Miércoles</option>
+                                             <option value="4">Jueves</option>
+                                             <option value="5">Viernes</option>
+                                             <option value="6">Sábado</option>
+                                             <option value="0">Domingo</option>
+                                          </select>
+                                       </td>
+                                       <td className="px-5 py-4">
+                                          <select 
+                                             value={driver.pattern || 'Siempre 2'} 
+                                             onChange={(e) => updateDriver(driver.id, { pattern: e.target.value })}
+                                             className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none cursor-pointer shadow-inner"
+                                          >
+                                             <option value="Siempre 1">Siempre 1 Día Libre</option>
+                                             <option value="Siempre 2">Siempre 2 Días Seguidos</option>
+                                             <option value="1-2">Alterna: 1 Día (Sem 1) / 2 Días (Sem 2)</option>
+                                             <option value="2-1">Alterna: 2 Días (Sem 1) / 1 Día (Sem 2)</option>
+                                          </select>
+                                       </td>
+                                    </tr>
+                                 ))}
+                                 {(!drivers || drivers.length === 0) && (
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-500">Cargando conductores...</td></tr>
+                                 )}
+                              </tbody>
+                           </table>
+                        </div>
+                     </div>
                   </div>
                </div>
             )}
@@ -536,56 +807,101 @@ export const TurnosView: React.FC = () => {
                         </div>
                      </div>
 
-                     {/* DAYS OFF PATTERN */}
-                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">2. Días Libres (Se asignará 'Libre' automáticamente)</label>
-                        <div className="flex flex-wrap gap-2">
-                           {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((dayName, idx) => {
-                              // JS Date.getDay(): 0=Sun, 1=Mon...6=Sat
-                              const isSelected = bulkData.daysOff.includes(idx);
-                              return (
-                                 <button
-                                    key={idx}
-                                    onClick={() => toggleBulkDayOff(idx)}
-                                    className={`flex-1 min-w-[60px] py-2 rounded-lg text-sm font-bold border transition-all ${isSelected ? 'bg-rose-600 border-rose-500 text-white' : 'bg-[#101822] border-slate-700 text-slate-400 hover:border-slate-500'}`}
-                                 >
-                                    {dayName}
-                                 </button>
-                              )
-                           })}
+                     {/* ROTATION AND PATTERNS */}
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* ROTATION CONFIG */}
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">2. Tipo de Rotación</label>
+                           <select
+                              value={bulkData.rotationConfig}
+                              onChange={(e) => setBulkData({ ...bulkData, rotationConfig: e.target.value })}
+                              className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
+                           >
+                              <option value="MAÑANA_SIEMPRE">Siempre Día</option>
+                              <option value="NOCHE_SIEMPRE">Siempre Noche</option>
+                              <option value="MAÑANA_PRIMERO">Rotativo (Empieza Día)</option>
+                              <option value="NOCHE_PRIMERO">Rotativo (Empieza Noche)</option>
+                           </select>
+                        </div>
+                        {/* PATTERN CONFIG */}
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">3. Patrón de Libranza</label>
+                           <select
+                              value={bulkData.patternConfig}
+                              onChange={(e) => setBulkData({ ...bulkData, patternConfig: e.target.value })}
+                              className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
+                           >
+                              <option value="Siempre 1">Siempre 1 día libre</option>
+                              <option value="Siempre 2">Siempre 2 días libres</option>
+                              <option value="1-2">Alterna 1 día libre / 2 días libres</option>
+                              <option value="2-1">Alterna 2 días libres / 1 día libre</option>
+                           </select>
                         </div>
                      </div>
 
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* SHIFT TYPE */}
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* BASE DAY OFF */}
                         <div>
-                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">3. Turno de Trabajo</label>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">4. Día Base Libranza</label>
                            <select
-                              value={bulkData.type}
-                              onChange={(e) => setBulkData({ ...bulkData, type: e.target.value })}
+                              value={bulkData.baseDayOff}
+                              onChange={(e) => setBulkData({ ...bulkData, baseDayOff: parseInt(e.target.value) })}
                               className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
                            >
-                              <option value="">Seleccionar Turno...</option>
+                              <option value={1}>Lunes</option>
+                              <option value={2}>Martes</option>
+                              <option value={3}>Miércoles</option>
+                              <option value={4}>Jueves</option>
+                              <option value={5}>Viernes</option>
+                              <option value={6}>Sábado</option>
+                              <option value={0}>Domingo</option>
+                           </select>
+                        </div>
+
+                        {/* SHIFT TYPE MAÑANA */}
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">5. Turno de Día</label>
+                           <select
+                              value={bulkData.dayShift}
+                              onChange={(e) => setBulkData({ ...bulkData, dayShift: e.target.value })}
+                              className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
+                           >
+                              <option value="">-- Seleccionar --</option>
                               {typeOptions.map((opt: string) => (
                                  <option key={opt} value={opt}>{opt}</option>
                               ))}
                            </select>
                         </div>
 
-                        {/* VEHICLE */}
+                        {/* SHIFT TYPE NOCHE */}
                         <div>
-                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">4. Vehículo Asignado (Opcional)</label>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">6. Turno Noche (Rotativo)</label>
                            <select
-                              value={bulkData.vehicle_id}
-                              onChange={(e) => setBulkData({ ...bulkData, vehicle_id: e.target.value })}
-                              className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
+                              value={bulkData.nightShift}
+                              onChange={(e) => setBulkData({ ...bulkData, nightShift: e.target.value })}
+                              disabled={bulkData.rotationConfig.includes('SIEMPRE')}
+                              className={`w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none ${bulkData.rotationConfig.includes('SIEMPRE') ? 'opacity-50 cursor-not-allowed' : ''}`}
                            >
-                              <option value="">-- Sin Vehículo --</option>
-                              {vehicleOptions.map((opt: any) => (
-                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              <option value="">-- Seleccionar --</option>
+                              {typeOptions.map((opt: string) => (
+                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
                            </select>
                         </div>
+                     </div>
+
+                     <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">7. Asignar Vehículo Fijo (Opcional)</label>
+                        <select
+                           value={bulkData.vehicle_id}
+                           onChange={(e) => setBulkData({ ...bulkData, vehicle_id: e.target.value })}
+                           className="w-full bg-[#101822] border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none appearance-none"
+                        >
+                           <option value="">-- Sin Vehículo Fijo --</option>
+                           {vehicleOptions.map((opt: any) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                           ))}
+                        </select>
                      </div>
                   </div>
 

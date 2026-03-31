@@ -183,6 +183,13 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
         setError(null);
         try {
             const submittedData = { ...formData };
+            // Ensure empty strings become null for non-text fields to prevent Supabase 400 errors (e.g. invalid uuid)
+            fields.forEach(f => {
+                if (submittedData[f.name] === '' && f.type !== 'text' && f.type !== 'textarea') {
+                    submittedData[f.name] = null;
+                }
+            });
+
             // Ensure datetime-local fields are sent as UTC ISO strings
             fields.forEach(f => {
                 if (f.type === 'datetime-local' && submittedData[f.name]) {
@@ -192,6 +199,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
                     }
                 }
             });
+
 
             if (submittedData.pickup_date && submittedData.pickup_time && !submittedData.time) {
                 submittedData.time = new Date(`${submittedData.pickup_date}T${submittedData.pickup_time}`).toISOString();

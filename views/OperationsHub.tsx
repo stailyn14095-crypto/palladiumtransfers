@@ -13,6 +13,7 @@ export const OperationsHub: React.FC = () => {
   const { data: bookings, updateItem: updateBooking } = useSupabaseData('bookings');
   const { data: vehicles } = useSupabaseData('vehicles');
   const { data: maintenance } = useSupabaseData('vehicle_maintenance');
+  const { data: shifts } = useSupabaseData('shifts');
 
   const { showToast } = useToast();
   const [dispatchQuery, setDispatchQuery] = React.useState('');
@@ -89,9 +90,8 @@ export const OperationsHub: React.FC = () => {
     });
   }, [bookings, timeWindow]);
 
-  const activeDrivers = drivers ? drivers.filter((d: any) => d.current_status === 'Working' || d.current_status === 'Paused') : [];
-  const totalVehicles = vehicles?.length || 12;
-
+  const activeDrivers = drivers ? drivers.filter((d: any) => (d.current_status === 'Working' || d.current_status === 'Paused') && d.status === 'Active') : [];
+  const totalVehicles = vehicles ? Math.max(vehicles.filter((v: any) => v.status === 'Operativo').length, 1) : 12;
   const filteredDrivers = activeDrivers.filter((d: any) =>
     !dispatchQuery ||
     d.name.toLowerCase().includes(dispatchQuery.toLowerCase()) ||
@@ -152,7 +152,7 @@ export const OperationsHub: React.FC = () => {
   };
 
   const handleAutoAssign = (booking: any) => {
-    const suggestion = suggestDriver(booking, drivers || [], bookings || [], vehicles || []);
+    const suggestion = suggestDriver(booking, drivers || [], bookings || [], vehicles || [], shifts || []);
     if (suggestion) {
       openConfirmation(
         'Sugerencia de Asignación',

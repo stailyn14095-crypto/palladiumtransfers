@@ -267,7 +267,7 @@ export const DispatchConsole: React.FC = () => {
                                  <div className="flex justify-between items-center gap-2">
                                     <p className="text-xs font-black text-white truncate leading-none">{b.passenger}</p>
                                     {(() => {
-                                        const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || []);
+                                        const svcVehicle = getAssignedVehicleForBooking(b, shifts || [], vehicles || [], drivers || []);
                                         return svcVehicle ? (
                                            <span className="text-[8px] font-black bg-white/20 px-1 rounded text-white whitespace-nowrap">{svcVehicle.plate}</span>
                                         ) : null;

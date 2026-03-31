@@ -171,11 +171,25 @@ export function getDriverShiftForTime(driverId: string, pickupDate: string | Dat
     });
 }
 
-export function getAssignedVehicleForBooking(booking: any, allShifts: any[], allVehicles: any[]): any {
+export function getAssignedVehicleForBooking(booking: any, allShifts: any[], allVehicles: any[], driversList: any[] = []): any {
     if (!booking || !booking.driver_id || !allShifts || !allVehicles) return null;
     const shift = getDriverShiftForTime(booking.driver_id, booking.pickup_date, booking.pickup_time || '00:00', allShifts);
-    if (!shift || !shift.vehicle_id) return null;
-    return allVehicles.find(v => v.id === shift.vehicle_id) || null;
+    
+    let targetVehicleId = null;
+
+    if (shift && shift.vehicle_id) {
+        // Priority 1: Specific vehicle manually assigned for this shift
+        targetVehicleId = shift.vehicle_id; 
+    } else {
+        // Priority 2: Habitual default vehicle on the driver's profile
+        const driverProfile = driversList.find(d => d.id === booking.driver_id);
+        if (driverProfile && driverProfile.default_vehicle_id) {
+            targetVehicleId = driverProfile.default_vehicle_id;
+        }
+    }
+
+    if (!targetVehicleId) return null;
+    return allVehicles.find(v => v.id === targetVehicleId) || null;
 }
 
 const CITY_DELAY_TOLERANCE = 15; // minutes
@@ -198,11 +212,15 @@ export function isDriverAvailable(driver: any, vehicle: any, newBooking: any, al
     if (shift.type === 'Libre' || shift.type === 'OFF') return false;
 
     // 1. Compatibility Check
+    // STRICT RULE: If the driver does NOT have a known vehicle physically mapped (shift or habitual profile),
+    // they cannot be auto-assigned since we cannot verify pax capacity safely.
+    if (!vehicle) return false; 
+
     const reqPax = newBooking.pax_count || 1;
     const reqClass = newBooking.vehicle_class || 'Standard';
 
-    if (vehicle && vehicle.capacity < reqPax) return false;
-    if (reqClass !== 'Standard' && vehicle && vehicle.category !== reqClass) return false;
+    if (vehicle.capacity < reqPax) return false;
+    if (reqClass !== 'Standard' && vehicle.category !== reqClass) return false;
 
     // 2. Schedule Check
     const driverBookings = allBookings.filter(b =>
@@ -283,7 +301,7 @@ export function suggestDriver(booking: any, drivers: any[], allBookings: any[], 
     const availableDrivers = drivers
         .filter(d => {
             // Find the specific vehicle assigned to this driver FOR THIS BOOKING'S SHIFT
-            const vehicle = getAssignedVehicleForBooking({ ...booking, driver_id: d.id }, allShifts, allVehicles);
+            const vehicle = getAssignedVehicleForBooking({ ...booking, driver_id: d.id }, allShifts, allVehicles, drivers);
             return isDriverAvailable(d, vehicle, booking, allBookings, allShifts);
         });
 

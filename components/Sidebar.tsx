@@ -14,6 +14,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, language, setLanguage, userRole = 'client', isOpen, onClose }) => {
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   // Simple translation dictionary for the sidebar
   const t = (key: string) => {
@@ -53,23 +54,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
     const isActive = currentView === view;
     return (
       <button
+        title={isCollapsed ? t(labelKey) : undefined}
         onClick={() => { onChangeView(view); onClose(); }}
-        className={`w-full flex items-center gap-4 px-6 py-4 border-l-2 transition-all duration-300 group ${isActive
+        className={`w-full flex items-center gap-4 py-4 border-l-2 transition-all duration-300 group ${isCollapsed ? 'md:justify-center md:px-0' : 'px-6'} ${isActive
           ? 'bg-white/5 text-white border-white gold-glow'
           : 'border-transparent text-slate-500 hover:text-slate-200 hover:bg-white/[0.03]'
           }`}
       >
-        <span className={`material-icons-round text-xl transition-all ${isActive ? 'scale-110 text-brand-gold' : 'group-hover:scale-110'}`}>{icon}</span>
-        <span className={`block font-bold text-[10px] uppercase tracking-[0.2em] transition-all ${isActive ? 'text-white' : ''}`}>{t(labelKey)}</span>
+        <span className={`material-icons-round text-xl transition-all shrink-0 ${isActive ? 'scale-110 text-brand-gold' : 'group-hover:scale-110'}`}>{icon}</span>
+        <span className={`font-bold text-[10px] uppercase tracking-[0.2em] transition-all whitespace-nowrap overflow-hidden ${isActive ? 'text-white' : ''} ${isCollapsed ? 'md:hidden' : 'block'}`}>{t(labelKey)}</span>
       </button>
     );
   };
 
   const SectionLabel = ({ labelKey }: { labelKey: string }) => (
-    <div className="px-8 py-4 mt-6 mb-2 block">
-      <div className="flex items-center gap-3">
-        <div className="w-4 h-px bg-brand-platinum opacity-20"></div>
-        <p className="text-[9px] uppercase tracking-[0.4em] font-black text-slate-700">{t(labelKey)}</p>
+    <div className={`px-8 py-4 mt-6 mb-2 block ${isCollapsed ? 'md:px-2 md:py-2 md:mt-4 md:mb-1' : ''}`}>
+      <div className={`flex items-center gap-3 ${isCollapsed ? 'md:justify-center' : ''}`}>
+        <div className={`h-px bg-brand-platinum opacity-20 ${isCollapsed ? 'md:w-8' : 'w-4'}`}></div>
+        {!isCollapsed && <p className="text-[9px] uppercase tracking-[0.4em] font-black text-slate-700 whitespace-nowrap md:block">{t(labelKey)}</p>}
       </div>
     </div>
   );
@@ -96,17 +98,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
         />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-[100] w-72 h-full bg-brand-black/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 selection:bg-brand-platinum/30 transform transition-transform duration-300 md:relative md:translate-x-0 print:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[100] h-full bg-brand-black/95 backdrop-blur-xl border-r border-white/5 flex flex-col shrink-0 selection:bg-brand-platinum/30 transform transition-all duration-300 md:relative md:translate-x-0 print:hidden ${isOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} ${isCollapsed ? 'md:w-20' : 'md:w-72'}`}>
         {/* Brand */}
-        <div className="h-32 flex items-center justify-center border-b border-white/5 shrink-0 px-6 bg-brand-black/20">
-          <div className="flex items-center gap-4 group cursor-pointer transition-all duration-700">
-            <Logo variant="icon" className="w-12 h-12 brightness-200 group-hover:scale-105 transition-all duration-500" color="white" />
-            <div className="flex flex-col items-start min-w-[180px]">
+        <div className="h-32 relative flex items-center justify-center border-b border-white/5 shrink-0 px-6 bg-brand-black/20 overflow-visible">
+          <div className={`flex items-center gap-4 group cursor-pointer transition-all duration-700 ${isCollapsed ? 'md:gap-0' : ''}`}>
+            <Logo variant="icon" className="w-12 h-12 brightness-200 group-hover:scale-105 transition-all duration-500 shrink-0" color="white" />
+            <div className={`flex flex-col items-start min-w-[180px] overflow-hidden transition-all duration-300 ${isCollapsed ? 'md:w-0 md:opacity-0 md:hidden' : 'opacity-100'}`}>
               <span className="font-light text-xl tracking-[0.3em] block leading-none text-white whitespace-nowrap">PALLADIUM</span>
               <span className="font-light text-xl tracking-[0.3em] block leading-none text-white whitespace-nowrap">TRANSFERS</span>
               <span className="text-[7px] text-brand-platinum font-bold uppercase tracking-[0.5em] mt-1.5 italic opacity-40">Excellence in Motion</span>
             </div>
           </div>
+
+          <button 
+             onClick={() => setIsCollapsed(!isCollapsed)}
+             className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-[#1a2533] border border-slate-700 rounded-full items-center justify-center hover:bg-slate-700 z-[110] transition-colors shadow-lg"
+          >
+             <span className="material-icons-round text-[14px] text-slate-300">
+               {isCollapsed ? 'chevron_right' : 'chevron_left'}
+             </span>
+          </button>
         </div>
 
         {/* Navigation (Scrollable) */}
@@ -168,10 +179,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
         </nav>
 
         {/* Language & User Profile */}
-        <div className="shrink-0 bg-brand-black border-t border-white/5">
+        <div className="shrink-0 bg-brand-black border-t border-white/5 pb-2">
           {/* Language Toggle */}
-          <div className="flex justify-center md:justify-between items-center px-6 py-4 border-b border-white/5">
-            <div className="flex bg-white/5 rounded-full p-1 border border-white/5 shadow-inner">
+          <div className={`flex items-center border-b border-white/5 w-full ${isCollapsed ? 'md:justify-center md:py-3' : 'justify-center md:justify-between px-6 py-4'}`}>
+            <div className={`flex bg-white/5 rounded-full p-1 border border-white/5 shadow-inner ${isCollapsed ? 'md:flex-col md:gap-1' : ''}`}>
               <button
                 onClick={() => { setLanguage('es'); }}
                 className={`px-3 py-1 rounded-full text-[9px] font-bold transition-all ${language === 'es' ? 'bg-white text-black shadow-lg' : 'text-slate-500 hover:text-white'}`}
@@ -187,19 +198,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
             </div>
           </div>
 
-          <div className="p-4 flex items-center gap-3 px-2 justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-brand-charcoal border border-white/5 flex items-center justify-center font-bold text-brand-platinum">
+          <div className={`p-4 flex items-center gap-3 justify-between w-full ${isCollapsed ? 'md:justify-center md:px-2 md:flex-col' : 'px-2'}`}>
+            <div className={`flex items-center gap-3 ${isCollapsed ? 'md:justify-center md:mb-1' : ''}`}>
+              <div className="w-10 h-10 rounded-xl bg-brand-charcoal border border-white/5 flex items-center justify-center font-bold text-brand-platinum shrink-0">
                 {(userRole?.[0] || '?').toUpperCase()}
               </div>
-              <div className="hidden md:block">
+              <div className={`hidden md:block ${isCollapsed ? 'md:hidden' : ''}`}>
                 <p className="text-xs font-bold text-white uppercase tracking-widest">{userRole}</p>
                 <p className="text-[9px] text-brand-platinum/50 uppercase font-bold tracking-tighter">Active Session</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5"
+              className={`text-slate-400 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 ${isCollapsed ? 'md:p-1' : ''}`}
               title="Cerrar Sesión"
             >
               <span className="material-icons-round">logout</span>
