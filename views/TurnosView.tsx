@@ -368,8 +368,8 @@ export const TurnosView: React.FC = () => {
             const absoluteDay = Math.floor((utcCurrent - utcEpoch) / (1000 * 3600 * 24));
             
             const adjustedDay = absoluteDay - blockOffset;
-            const currentWeek = Math.floor(adjustedDay / 7);
-            const currentBlock = Math.floor(adjustedDay / (rotationFrequency * 7));
+            const currentWeek = Math.floor(adjustedDay / 7) + (driver.rotation_offset || 0);
+            const currentBlock = Math.floor(currentWeek / rotationFrequency);
 
             let esLibre = false;
             let diaSiguienteInicio = (diaInicioLibre + 1) % 7;
@@ -520,11 +520,32 @@ export const TurnosView: React.FC = () => {
                                        const isOff = shift?.type === 'Libre' || shift?.type === 'OFF';
                                        const isNight = shift?.type?.toLowerCase().includes('noche') || shift?.type === 'N';
 
+                                       // Conflict Detection Logic
+                                       const currentVehicleId = shift?.vehicle_id || driver.default_vehicle_id;
+                                       let conflictDriverName = '';
+                                       const isConflict = !isOff && currentVehicleId && drivers?.some(otherDriver => {
+                                          if (otherDriver.id === driver.id || otherDriver.status !== 'Active') return false;
+                                          const otherShift = getShiftForDriverAndDay(otherDriver.id, d);
+                                          if (!otherShift || otherShift.type === 'Libre' || otherShift.type === 'OFF') return false;
+                                          
+                                          const otherVehicleId = otherShift.vehicle_id || otherDriver.default_vehicle_id;
+                                          const otherIsNight = otherShift.type?.toLowerCase().includes('noche') || otherShift.type === 'N';
+                                          
+                                          if (otherVehicleId === currentVehicleId && isNight === otherIsNight) {
+                                             conflictDriverName = otherDriver.name;
+                                             return true;
+                                          }
+                                          return false;
+                                       });
+
                                        // Tooltip Info
                                        let tooltip = '';
                                        if (shift) {
-                                          const v = vehicles?.find((v: any) => v.id === shift.vehicle_id);
+                                          const v = vehicles?.find((v: any) => v.id === currentVehicleId);
                                           tooltip = `Turno: ${shift.type}\nHorario: ${shift.hours || 'N/A'}\nVehículo: ${v ? `${v.plate} (${v.model})` : 'Ninguno'}`;
+                                          if (isConflict) {
+                                             tooltip += `\n⚠️ CONFLICTO: Solapamiento con ${conflictDriverName}`;
+                                          }
                                        }
 
                                        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
@@ -533,6 +554,10 @@ export const TurnosView: React.FC = () => {
                                        let bgColor = 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20';
                                        if (isOff) bgColor = 'bg-slate-700 text-slate-400';
                                        else if (isNight) bgColor = 'bg-orange-600/20 text-orange-400 border border-orange-500/20';
+                                       
+                                       if (isConflict) {
+                                          bgColor = 'ring-2 ring-red-500 ring-inset animate-pulse bg-red-600/40 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]';
+                                       }
 
                                        return (
                                           <div
@@ -596,6 +621,7 @@ export const TurnosView: React.FC = () => {
                                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Vehículo Habitual</th>
                                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Turno / Rotación</th>
                                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest text-center">Frecuencia</th>
+                                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest text-center">Fase / Inicio</th>
                                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest text-center">Día Base</th>
                                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-widest">Patrón de Libranza</th>
                                  </tr>
@@ -645,6 +671,34 @@ export const TurnosView: React.FC = () => {
                                              <option value="3">3 Semanas</option>
                                              <option value="4">4 Semanas</option>
                                           </select>
+                                       </td>
+                                       <td className="px-5 py-4 text-center">
+                                          <div className="flex flex-col items-center gap-1">
+                                             <select 
+                                                value={driver.rotation_offset || 0} 
+                                                onChange={(e) => updateDriver(driver.id, { rotation_offset: parseInt(e.target.value) })}
+                                                className={`w-[130px] bg-[#101822] border rounded-lg px-2 py-2.5 text-[11px] font-bold outline-none text-center cursor-pointer shadow-inner transition-all ${
+                                                   (() => {
+                                                      const conflict = drivers?.some(d => d.id !== driver.id && d.status === 'Active' && d.default_vehicle_id === driver.default_vehicle_id && d.rotation_offset === driver.rotation_offset && d.rotation === driver.rotation);
+                                                      return conflict && driver.default_vehicle_id ? 'border-orange-500/50 text-orange-400' : 'border-slate-700 text-slate-300 focus:border-blue-500'
+                                                   })()
+                                                }`}
+                                                disabled={driver.rotation?.includes("SIEMPRE")}
+                                             >
+                                                <option value="0">Semana 1 (Normal)</option>
+                                                <option value="1">Semana 2 (Desfase)</option>
+                                                <option value="2">Semana 3 (+2)</option>
+                                                <option value="3">Semana 4 (+3)</option>
+                                             </select>
+                                             {(() => {
+                                                const conflict = drivers?.some(d => d.id !== driver.id && d.status === 'Active' && d.default_vehicle_id === driver.default_vehicle_id && d.rotation_offset === driver.rotation_offset && d.rotation === driver.rotation);
+                                                return conflict && driver.default_vehicle_id ? (
+                                                   <span className="text-[8px] text-orange-500/80 font-black uppercase tracking-tighter flex items-center gap-1 animate-pulse">
+                                                      <span className="material-icons-round text-[8px]">warning</span> Conflicto
+                                                   </span>
+                                                ) : null;
+                                             })()}
+                                          </div>
                                        </td>
                                        <td className="px-5 py-4 text-center">
                                           <select 
