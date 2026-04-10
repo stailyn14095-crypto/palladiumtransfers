@@ -15,6 +15,30 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, language, setLanguage, userRole = 'client', isOpen, onClose }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const navRef = React.useRef<HTMLElement>(null);
+
+  // Restore scroll position on mount
+  React.useEffect(() => {
+    const savedScrollPos = sessionStorage.getItem('sidebar-scroll');
+    if (savedScrollPos && navRef.current) {
+      navRef.current.scrollTop = parseInt(savedScrollPos, 10);
+    }
+  }, []);
+
+  // Save scroll position on scroll
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    sessionStorage.setItem('sidebar-scroll', e.currentTarget.scrollTop.toString());
+  };
+
+  // Scroll active item into view when currentView changes
+  React.useEffect(() => {
+    if (navRef.current) {
+      const activeItem = navRef.current.querySelector('.gold-glow');
+      if (activeItem) {
+        activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [currentView]);
 
   // Simple translation dictionary for the sidebar
   const t = (key: string) => {
@@ -121,7 +145,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
         </div>
 
         {/* Navigation (Scrollable) */}
-        <nav className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
+        <nav 
+          ref={navRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar"
+        >
           {userRole === 'client' && (
             <>
               <SectionLabel labelKey="clientPortal" />

@@ -26,6 +26,7 @@ export const ReservasView: React.FC = () => {
    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
    const [driverFilter, setDriverFilter] = useState('Todos');
+   const [clientFilter, setClientFilter] = useState('Todos');
    const [vehicleIdFilter, setVehicleIdFilter] = useState('Todos'); // Filter by specific vehicle (plate)
    const [showInactive, setShowInactive] = useState(false); // Toggle for old bookings (> 1 day)
 
@@ -215,6 +216,7 @@ export const ReservasView: React.FC = () => {
          }
 
          const matchesDriver = driverFilter === 'Todos' || b.driver_id === driverFilter;
+         const matchesClient = clientFilter === 'Todos' || (clientFilter === 'Directo' ? !b.client_id : b.client_id === clientFilter);
 
          let matchesVehicle = true;
          if (vehicleIdFilter !== 'Todos' && vehicles) {
@@ -228,7 +230,7 @@ export const ReservasView: React.FC = () => {
             }
          }
 
-         return matchesSearch && matchesStatus && matchesStartDate && matchesEndDate && matchesDriver && matchesVehicle && isActive;
+         return matchesSearch && matchesStatus && matchesStartDate && matchesEndDate && matchesDriver && matchesVehicle && matchesClient && isActive;
       });
 
       // Sort by date and time
@@ -243,7 +245,7 @@ export const ReservasView: React.FC = () => {
          const timeB = b.pickup_time || '';
          return timeA.localeCompare(timeB);
       });
-   }, [bookings, searchQuery, statusFilter, hideCompleted, hideCancelled, showInactive, startDate, endDate, driverFilter, vehicleIdFilter, vehicles]);
+   }, [bookings, searchQuery, statusFilter, hideCompleted, hideCancelled, showInactive, startDate, endDate, driverFilter, clientFilter, vehicleIdFilter, vehicles]);
 
    const handleAssignDriver = async (bookingId: string, driverId: string) => {
       // Handle unassignment
@@ -868,6 +870,20 @@ export const ReservasView: React.FC = () => {
                         </div>
                      </div>
 
+                     <div className="w-full sm:w-auto md:w-32 flex-1 min-w-[120px]">
+                        <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Cliente</label>
+                        <select
+                           value={clientFilter}
+                           onChange={(e) => setClientFilter(e.target.value)}
+                           className="w-full bg-brand-black border border-white/5 rounded-xl px-3 py-2.5 text-sm text-brand-platinum/80 outline-none"
+                        >
+                           <option value="Todos" className="bg-brand-black text-white">Todos</option>
+                           <option value="Directo" className="bg-brand-black text-white">Directo</option>
+                           {clients?.map((c: any) => (
+                              <option key={c.id} value={c.id} className="bg-brand-black text-white">{c.name}</option>
+                           ))}
+                        </select>
+                     </div>
                      <div className="w-full sm:w-auto md:w-40 flex-1 min-w-[140px]">
                         <label className="text-[10px] text-brand-platinum/30 font-black uppercase tracking-widest block mb-1.5">Conductor</label>
                         <select

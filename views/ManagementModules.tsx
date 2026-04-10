@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import * as XLSX from 'xlsx';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
 import { useToast } from '../components/ui/Toast';
+import { useInvoices } from '../hooks/useInvoices';
+import { generateInvoicePDF } from '../utils/generateInvoicePDF';
+import { sendInvoiceEmail } from '../services/emailService';
 
 const GenericListView = ({ title, subtitle, columns, data, renderRow, actions, loading }: any) => {
    return (
@@ -493,12 +496,17 @@ export const VehiculosView = () => {
 
 export const ClientesView = () => {
    const { data: clients, loading, addItem, updateItem, deleteItem } = useSupabaseData('clients');
+   const { data: bookings } = useSupabaseData('bookings');
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editingItem, setEditingItem] = useState<any>(null);
 
    const fields = [
-      { name: 'name', label: 'Nombre Cliente', type: 'text', required: true },
-      { name: 'company', label: 'Empresa', type: 'text' },
+      { name: 'name', label: 'Nombre Comercial', type: 'text', required: true },
+      { name: 'legal_name', label: 'Razón Social (Facturación)', type: 'text' },
+      { name: 'cif', label: 'CIF / NIF', type: 'text' },
+      { name: 'address', label: 'Dirección Fiscal', type: 'text' },
+      { name: 'postal_code', label: 'Código Postal', type: 'text' },
+      { name: 'city', label: 'Ciudad / Municipio', type: 'text' },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'phone', label: 'Teléfono', type: 'text' },
       { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive'], required: true },
@@ -536,7 +544,9 @@ export const ClientesView = () => {
                   <td className="px-6 py-4 font-bold text-white">{c.name}</td>
                   <td className="px-6 py-4 text-slate-300">{c.company || 'N/A'}</td>
                   <td className="px-6 py-4 text-slate-400">{c.email || c.phone || 'N/A'}</td>
-                  <td className="px-6 py-4 text-slate-300">{c.bookings || 0}</td>
+                  <td className="px-6 py-4 text-slate-300">
+                     {bookings ? bookings.filter((b: any) => (b.client_id === c.id || b.client_name === c.name) && b.status !== 'Cancelled').length : (c.bookings || 0)}
+                  </td>
                   <td className="px-6 py-4"><span className="text-emerald-500 text-xs uppercase font-bold">{c.status || 'Active'}</span></td>
                   <td className="px-6 py-4">
                      <EditButton onClick={() => { setEditingItem(c); setIsModalOpen(true); }} />
@@ -1246,34 +1256,277 @@ export const UsuariosView = () => {
 };
 
 export const FacturasView = () => {
-   const { data: invoices, loading } = useSupabaseData('invoices');
+   const { invoices, loading, generateInvoice, updateInvoiceStatus, deleteInvoice } = useInvoices();
+   const { data: clients } = useSupabaseData('clients');
+   const { addToast } = useToast();
+   
+   const [isModalOpen, setIsModalOpen] = useState(false);
+   const [selectedClient, setSelectedClient] = useState('');
+   const [startDate, setStartDate] = useState(() => {
+      const d = new Date();
+      d.setDate(1);
+      return d.toISOString().split('T')[0];
+   });
+   const [endDate, setEndDate] = useState(() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1, 0);
+      return d.toISOString().split('T')[0];
+   });
+   const [isGenerating, setIsGenerating] = useState(false);
+
+   const [searchQuery, setSearchQuery] = useState('');
+   const [statusFilter, setStatusFilter] = useState('Todos');
+
+   const [listStartDate, setListStartDate] = useState(() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      return d.toISOString().split('T')[0];
+   });
+   const [listEndDate, setListEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+   const handleGenerate = async () => {
+      if (!selectedClient) return addToast({ description: 'Selecciona un cliente para generar la factura', type: 'warning' });
+      setIsGenerating(true);
+      await generateInvoice(selectedClient, startDate, endDate);
+      setIsGenerating(false);
+      setIsModalOpen(false);
+   };
+
+   const handleSendEmail = async (f: any) => {
+       try {
+           setIsGenerating(true);
+           const res = await generateInvoicePDF(f, { download: false, returnBase64: true });
+           if (!res.success || !res.base64) {
+               throw new Error("No se pudo generar el PDF de la factura.");
+           }
+           await sendInvoiceEmail(f, f.clients, res.base64);
+           addToast({ title: 'Éxito', description: 'Factura enviada por correo', type: 'success' });
+           if (f.status === 'Draft') {
+               await updateInvoiceStatus(f.id, 'Pending');
+           }
+       } catch (error: any) {
+           addToast({ title: 'Error', description: error.message || 'Error al enviar la factura', type: 'error' });
+       } finally {
+           setIsGenerating(false);
+       }
+   };
+
+   const filteredInvoices = useMemo(() => {
+      return invoices.filter((f: any) => {
+         const invoiceDate = f.date_issued;
+         const matchesSearch = !searchQuery || 
+            f.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            f.clients?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+         const matchesStatus = statusFilter === 'Todos' || f.status === statusFilter;
+         const matchesDate = (!listStartDate || invoiceDate >= listStartDate) && (!listEndDate || invoiceDate <= listEndDate);
+         return matchesSearch && matchesStatus && matchesDate;
+      });
+   }, [invoices, searchQuery, statusFilter, listStartDate, listEndDate]);
+
+   const stats = useMemo(() => {
+      return {
+         total: filteredInvoices.reduce((acc, curr) => acc + parseFloat(curr.total_amount || 0), 0),
+         paid: filteredInvoices.filter((f: any) => f.status === 'Paid').reduce((acc, curr) => acc + parseFloat(curr.total_amount || 0), 0),
+         pending: filteredInvoices.filter((f: any) => f.status === 'Pending' || f.status === 'Draft').reduce((acc, curr) => acc + parseFloat(curr.total_amount || 0), 0),
+      };
+   }, [filteredInvoices]);
 
    return (
-      <GenericListView
-         title="Facturación"
-         subtitle="Facturas y Cobros"
-         columns={['Nº Factura', 'Cliente', 'Fecha Emisión', 'Importe', 'Estado', 'Descargar']}
-         data={invoices}
-         loading={loading}
-         actions={<button className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-800">Generar Remesa</button>}
-         renderRow={(f: any, i: number) => (
-            <tr key={f.id || i} className="hover:bg-slate-800/30">
-               <td className="px-6 py-4 font-mono text-blue-400">{f.id ? `F-${f.id.split('-')[0]}` : i + 1}</td>
-               <td className="px-6 py-4 text-white">{f.client_id || 'Cliente'}</td>
-               <td className="px-6 py-4 text-slate-400">{f.date_issued}</td>
-               <td className="px-6 py-4 font-bold text-white text-right">{f.amount}€</td>
-               <td className="px-6 py-4 text-center">
-                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${f.status === 'Paid' ? 'text-emerald-500 bg-emerald-500/10' :
-                     f.status === 'Pending' ? 'text-amber-500 bg-amber-500/10' :
-                        'text-slate-500 bg-slate-700/50'
-                     }`}>{f.status}</span>
-               </td>
-               <td className="px-6 py-4 text-center text-slate-400 hover:text-white cursor-pointer"><span className="material-icons-round text-sm">download</span></td>
-            </tr>
+      <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
+         <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-4 lg:gap-0">
+            <div className="shrink-0">
+               <h1 className="text-xl font-bold text-white tracking-tight">Facturación</h1>
+               <p className="text-[10px] text-brand-platinum/50 uppercase font-bold tracking-widest">Invoicing & Revenue</p>
+            </div>
+            
+            <div className="flex items-center gap-2 bg-brand-black/40 p-1.5 rounded-xl border border-white/5 mx-auto lg:mx-4">
+               <div className="flex items-center gap-2 px-2">
+                  <span className="material-icons-round text-slate-500 text-xs">calendar_today</span>
+                  <input type="date" value={listStartDate} onChange={(e)=>setListStartDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-white outline-none w-28 uppercase" style={{ colorScheme: 'dark' }} />
+               </div>
+               <div className="w-[1px] h-4 bg-white/10"></div>
+               <div className="flex items-center gap-2 px-2">
+                  <input type="date" value={listEndDate} onChange={(e)=>setListEndDate(e.target.value)} className="bg-transparent border-none text-[10px] font-bold text-white outline-none w-28 uppercase" style={{ colorScheme: 'dark' }} />
+               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 w-full md:w-auto flex-1 md:justify-end">
+               <div className="flex items-center bg-brand-black border border-white/5 rounded-lg px-3 flex-1 md:max-w-[180px]">
+                  <span className="material-icons-round text-slate-500 text-sm mr-2">search</span>
+                  <input
+                     type="text"
+                     placeholder="Nº..."
+                     className="bg-transparent border-none outline-none text-white text-xs py-2 w-full placeholder-slate-600"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+               </div>
+               <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-brand-black border border-white/5 rounded-lg px-3 py-2 text-xs text-white outline-none"
+               >
+                  <option value="Todos">Status</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Paid">Paid</option>
+               </select>
+               <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-brand-gold text-black font-black uppercase text-[10px] tracking-widest rounded-lg hover:shadow-[0_0_20px_rgba(179,147,47,0.3)] transition-all flex items-center gap-2">
+                  <span className="material-icons-round text-sm">add</span> Crear Factura
+               </button>
+            </div>
+         </header>
+
+         <div className="p-4 md:px-8 md:py-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div className="bg-brand-charcoal/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+                  <div>
+                     <p className="text-[10px] text-brand-platinum/50 uppercase font-black tracking-widest mb-1">Total Facturado</p>
+                     <h4 className="text-xl font-black text-white">{stats.total.toFixed(2)}€</h4>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-brand-gold/10 flex items-center justify-center text-brand-gold">
+                     <span className="material-icons-round">receipt</span>
+                  </div>
+               </div>
+               <div className="bg-brand-charcoal/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+                  <div>
+                     <p className="text-[10px] text-brand-platinum/50 uppercase font-black tracking-widest mb-1">Pendiente</p>
+                     <h4 className="text-xl font-black text-amber-500">{stats.pending.toFixed(2)}€</h4>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                     <span className="material-icons-round">pending_actions</span>
+                  </div>
+               </div>
+               <div className="bg-brand-charcoal/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+                  <div>
+                     <p className="text-[10px] text-brand-platinum/50 uppercase font-black tracking-widest mb-1">Cobrado</p>
+                     <h4 className="text-xl font-black text-emerald-500">{stats.paid.toFixed(2)}€</h4>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                     <span className="material-icons-round">check_circle</span>
+                  </div>
+               </div>
+            </div>
+
+            <div className="bg-brand-charcoal border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
+               {loading ? (
+                  <div className="p-20 text-center">
+                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto mb-4"></div>
+                     <p className="text-brand-platinum/50 uppercase tracking-widest text-[10px] font-bold">Cargando...</p>
+                  </div>
+               ) : (
+                  <table className="w-full text-left text-sm text-brand-platinum/50 border-collapse">
+                     <thead className="bg-brand-black/50 text-[10px] uppercase font-black tracking-widest border-b border-white/5">
+                        <tr>
+                           <th className="px-6 py-4">Nº Factura</th>
+                           <th className="px-6 py-4">Cliente</th>
+                           <th className="px-6 py-4">Fecha Emisión</th>
+                           <th className="px-6 py-4 text-right">Importe</th>
+                           <th className="px-6 py-4 text-center">Estado</th>
+                           <th className="px-6 py-4 text-center">Acciones</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-white/5">
+                        {filteredInvoices.length === 0 ? (
+                           <tr><td colSpan={6} className="text-center py-8">No se encontraron facturas.</td></tr>
+                        ) : (
+                           filteredInvoices.map((f: any) => (
+                              <tr key={f.id} className="hover:bg-slate-800/30 text-white font-medium">
+                                 <td className="px-6 py-4 font-mono text-blue-400">{f.invoice_number}</td>
+                                 <td className="px-6 py-4 font-bold">{f.clients?.name || 'Desconocido'}</td>
+                                 <td className="px-6 py-4 text-slate-400">{new Date(f.date_issued).toLocaleDateString()}</td>
+                                 <td className="px-6 py-4 font-bold text-right">{parseFloat(f.total_amount).toFixed(2)}€</td>
+                                 <td className="px-6 py-4 text-center">
+                                    <select
+                                       value={f.status}
+                                       onChange={(e) => updateInvoiceStatus(f.id, e.target.value)}
+                                       className={`px-2 py-1 rounded-md text-[10px] uppercase font-bold outline-none cursor-pointer border border-transparent hover:border-slate-600 transition-colors ${
+                                          f.status === 'Paid' ? 'text-emerald-500 bg-emerald-500/10' :
+                                          f.status === 'Pending' ? 'text-amber-500 bg-amber-500/10' : 'text-slate-300 bg-slate-700'
+                                       }`}
+                                    >
+                                       <option value="Draft" className="bg-zinc-900 text-white">Borrador</option>
+                                       <option value="Pending" className="bg-zinc-900 text-white">Pendiente</option>
+                                       <option value="Paid" className="bg-zinc-900 text-white">Pagada</option>
+                                       <option value="Cancelled" className="bg-zinc-900 text-white">Cancelada</option>
+                                    </select>
+                                 </td>
+                                 <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
+                                    <button onClick={() => generateInvoicePDF(f)} title="Descargar PDF" className="text-slate-400 hover:text-white transition-colors bg-slate-800/50 p-2 rounded hover:bg-brand-gold hover:text-black">
+                                       <span className="material-icons-round text-lg">download</span>
+                                    </button>
+                                    <button onClick={() => handleSendEmail(f)} title="Enviar al Cliente" className="text-slate-400 hover:text-white transition-colors bg-slate-800/50 p-2 rounded hover:bg-blue-400 hover:text-black">
+                                       <span className="material-icons-round text-lg">send</span>
+                                    </button>
+                                    <button onClick={() => { if(confirm('¿Seguro que quieres eliminar esta factura? Las reservas volverán a estar pendientes de facturar.')) { deleteInvoice(f.id); } }} title="Eliminar Factura" className="text-slate-500 hover:text-red-400 transition-colors bg-slate-800/50 p-2 rounded hover:bg-slate-700">
+                                       <span className="material-icons-round text-lg">delete</span>
+                                    </button>
+                                 </td>
+                              </tr>
+                           ))
+                        )}
+                     </tbody>
+                  </table>
+               )}
+            </div>
+         </div>
+
+         {/* Modal for Generation */}
+         {isModalOpen && (
+            <div className="fixed inset-0 bg-brand-black/80 backdrop-blur-sm z-50 flex py-10 items-center justify-center p-4">
+               <div className="bg-brand-charcoal border border-white/5 rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all">
+                  <div className="flex items-center justify-between mb-6">
+                     <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <span className="material-icons-round text-brand-gold">receipt_long</span> Generar Factura
+                     </h3>
+                     <button onClick={() => setIsModalOpen(false)} className="text-slate-500 hover:text-white transition-colors"><span className="material-icons-round">close</span></button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Selecciona Cliente</label>
+                        <select
+                           value={selectedClient}
+                           onChange={(e) => setSelectedClient(e.target.value)}
+                           className="w-full bg-brand-black border border-white/5 rounded-lg px-4 py-3 text-sm text-white focus:border-brand-gold outline-none"
+                        >
+                           <option value="">-- Cliente --</option>
+                           {clients?.map((c: any) => (
+                              <option key={c.id} value={c.id} className="bg-zinc-900">{c.name}</option>
+                           ))}
+                        </select>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                           <label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Reservas Desde</label>
+                           <input type="date" style={{ colorScheme: 'dark' }} value={startDate} onChange={(e)=>setStartDate(e.target.value)} className="w-full bg-brand-black border border-white/5 rounded-lg px-4 py-2.5 text-sm text-white focus:border-brand-gold outline-none" />
+                        </div>
+                        <div>
+                           <label className="text-[10px] uppercase font-bold text-slate-400 mb-2 block">Reservas Hasta</label>
+                           <input type="date" style={{ colorScheme: 'dark' }} value={endDate} onChange={(e)=>setEndDate(e.target.value)} className="w-full bg-brand-black border border-white/5 rounded-lg px-4 py-2.5 text-sm text-white focus:border-brand-gold outline-none" />
+                        </div>
+                     </div>
+                     <div className="bg-brand-black/50 border border-brand-gold/20 p-4 rounded-xl mt-4">
+                        <p className="text-xs text-brand-platinum/50 flex items-start gap-2">
+                           <span className="material-icons-round text-brand-gold text-sm relative top-[2px]">info</span>
+                           Se agruparán todas las reservas de este cliente que estén dentro del rango de fechas, que NO estén canceladas, y que no hayan sido facturadas previamente.
+                        </p>
+                     </div>
+                  </div>
+                  <div className="mt-8 flex justify-end gap-3 border-t border-white/5 pt-4">
+                     <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">Cancelar</button>
+                     <button onClick={handleGenerate} disabled={isGenerating || !selectedClient} className="px-5 py-2.5 bg-brand-gold hover:bg-[#B3932F] text-black font-black rounded-lg text-sm shadow-[0_0_15px_rgba(179,147,47,0.3)] transition-all disabled:opacity-50 disabled:shadow-none min-w-[140px]">
+                        {isGenerating ? 'Generando...' : 'Crear Factura'}
+                     </button>
+                  </div>
+               </div>
+            </div>
          )}
-      />
+      </div>
    );
 };
+
+
 
 export const ExtrasView = () => {
    const { data: extras, loading, addItem, updateItem, deleteItem } = useSupabaseData('service_extras');
