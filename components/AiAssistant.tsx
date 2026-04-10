@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getGeminiResponse } from '../services/geminiService';
+import { getGeminiResponse, parseBookingDetails } from '../services/geminiService';
 import { ChatMessage } from '../types';
 import { Logo } from './ui/Logo';
 
@@ -32,7 +32,6 @@ export const AiAssistant: React.FC = () => {
       const lowerInput = userMsg.text.toLowerCase();
       if (lowerInput.includes('reserva') || lowerInput.includes('booking') || lowerInput.includes('taxi') || lowerInput.includes('traslado')) {
         // Attempt to parse booking
-        const { parseBookingDetails } = await import('../services/geminiService');
         const bookingData = await parseBookingDetails(userMsg.text);
 
         if (bookingData && (bookingData.origin || bookingData.destination || bookingData.passenger)) {
