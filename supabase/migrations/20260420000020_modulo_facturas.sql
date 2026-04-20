@@ -1,4 +1,6 @@
--- Migration to create Invoicing module and link to bookings
+-- Migration: Invoicing Module
+-- Date: 2026-04-20
+-- Source: create_invoices_module.sql
 
 -- 1. Create invoices table
 CREATE TABLE IF NOT EXISTS public.invoices (
@@ -15,9 +17,6 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Note: We assume the uuid-ossp extension is enabled, which is standard on Supabase.
--- If not, execute: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 2. Alter bookings table to link invoices
 ALTER TABLE public.bookings
 ADD COLUMN IF NOT EXISTS invoice_id UUID REFERENCES public.invoices(id) ON DELETE SET NULL;
@@ -27,7 +26,3 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow full access to authenticated users for invoices"
 ON public.invoices FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
--- 4. Create sequence for invoice numbers (e.g. 2026-0001)
--- To securely auto-increment if needed, but since we will generate from the client side based on counting, this might not be strictly necessary right now.
--- We left invoice_number as TEXT to allow standard JS formatting (e.g., F-2023-001).
