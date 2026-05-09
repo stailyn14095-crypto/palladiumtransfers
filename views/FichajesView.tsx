@@ -1,9 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
+import { supabase } from '../services/supabase';
 
 export const FichajesView: React.FC = () => {
     const { data: logs, loading } = useSupabaseData('driver_logs', { orderBy: 'clock_in', ascending: false });
     const { data: drivers } = useSupabaseData('drivers');
+    const { data: requests, refresh: refreshRequests } = useSupabaseData('time_correction_requests', { orderBy: 'created_at', ascending: false });
     const [monthFilter, setMonthFilter] = useState(new Date().getMonth() + 1);
     const [yearFilter, setYearFilter] = useState(new Date().getFullYear());
 
@@ -65,6 +67,8 @@ export const FichajesView: React.FC = () => {
             const workHours = (totalWorkMs / (1000 * 60 * 60)).toFixed(2);
             const pauseHours = (totalPauseMs / (1000 * 60 * 60)).toFixed(2);
 
+            const hasLocation = firstLog.clock_in_location || (lastLog && lastLog.clock_out_location);
+
             return {
                 id: key,
                 driverId,
@@ -76,6 +80,7 @@ export const FichajesView: React.FC = () => {
                 isCurrentlyActive,
                 workHours,
                 pauseHours,
+                hasLocation,
                 rawLogs: dayLogs
             };
         });
@@ -115,6 +120,103 @@ export const FichajesView: React.FC = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [selectedData, setSelectedData] = useState<any>(null);
+    const [auditLogs, setAuditLogs] = useState<any[]>([]);
+    const [loadingAudit, setLoadingAudit] = useState(false);
+
+    const openDetails = async (data: any) => {
+        setSelectedData(data);
+        setDetailsModalOpen(true);
+        setLoadingAudit(true);
+        
+        try {
+            const logIds = data.rawLogs.map((l: any) => l.id);
+            if (logIds.length > 0) {
+                const { data: auditData } = await supabase
+                    .from('driver_logs_audit')
+                    .select('*')
+                    .in('log_id', logIds)
+                    .order('modified_at', { ascending: false });
+                setAuditLogs(auditData || []);
+            } else {
+                setAuditLogs([]);
+            }
+        } catch (error) {
+            console.error("Error loading audit logs", error);
+        } finally {
+            setLoadingAudit(false);
+        }
+    };
+
+    // --- CORRECTION REQUESTS LOGIC ---
+    const [proposeModalOpen, setProposeModalOpen] = useState(false);
+    const [selectedLogToPropose, setSelectedLogToPropose] = useState<any>(null);
+    const [proposeForm, setProposeForm] = useState({ inTime: '', outTime: '', reason: '' });
+    const [submittingProposal, setSubmittingProposal] = useState(false);
+
+    const openProposeModal = (log: any) => {
+        setSelectedLogToPropose(log);
+        setProposeForm({
+            inTime: new Date(log.clock_in).toISOString().slice(0, 16),
+            outTime: log.clock_out ? new Date(log.clock_out).toISOString().slice(0, 16) : '',
+            reason: ''
+        });
+        setProposeModalOpen(true);
+    };
+
+    const submitProposal = async () => {
+        if (!proposeForm.reason.trim()) return alert("Debe especificar un motivo.");
+        setSubmittingProposal(true);
+        try {
+            await supabase.from('time_correction_requests').insert([{
+                log_id: selectedLogToPropose.id,
+                driver_id: selectedLogToPropose.driver_id,
+                requested_by: 'ADMIN',
+                proposed_clock_in: new Date(proposeForm.inTime).toISOString(),
+                proposed_clock_out: proposeForm.outTime ? new Date(proposeForm.outTime).toISOString() : null,
+                proposed_type: selectedLogToPropose.type,
+                reason: proposeForm.reason,
+                status: 'PENDING'
+            }]);
+            alert("Propuesta enviada al conductor para su aprobación.");
+            setProposeModalOpen(false);
+            refreshRequests();
+        } catch (e) {
+            console.error(e);
+            alert("Error al enviar propuesta");
+        } finally {
+            setSubmittingProposal(false);
+        }
+    };
+
+    const resolveRequest = async (reqId: string, resolution: 'APPROVED_BY_ADMIN' | 'REJECTED') => {
+        try {
+            const req = requests?.find((r: any) => r.id === reqId);
+            if (!req) return;
+
+            if (resolution === 'REJECTED') {
+                await supabase.from('time_correction_requests').update({ status: 'REJECTED', resolved_at: new Date().toISOString(), resolved_by: 'ADMIN' }).eq('id', reqId);
+                alert("Petición rechazada.");
+            } else if (resolution === 'APPROVED_BY_ADMIN') {
+                // If it was requested by driver and approved by admin, it becomes APPLIED
+                await supabase.from('time_correction_requests').update({ status: 'APPLIED', resolved_at: new Date().toISOString(), resolved_by: 'ADMIN' }).eq('id', reqId);
+                
+                // Set the audit reason in postgres context (best effort workaround via direct rpc if we had it, but standard update will fall back to default)
+                await supabase.from('driver_logs').update({
+                    clock_in: req.proposed_clock_in,
+                    clock_out: req.proposed_clock_out
+                }).eq('id', req.log_id);
+                
+                alert("Corrección aplicada y guardada en el Audit Trail.");
+            }
+            refreshRequests();
+        } catch (e) {
+            console.error(e);
+            alert("Error resolviendo petición");
+        }
     };
 
     return (
@@ -167,6 +269,7 @@ export const FichajesView: React.FC = () => {
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Inicio y Fin Jornada</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Pausas</th>
                                             <th className="px-6 py-4 text-[10px] font-black text-brand-gold uppercase tracking-widest">Horas Efectivas</th>
+                                            <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -210,6 +313,24 @@ export const FichajesView: React.FC = () => {
                                                 <td className="px-6 py-5 text-lg font-black text-white">
                                                     {data.workHours} <span className="text-brand-gold text-xs font-bold">h</span>
                                                 </td>
+                                                <td className="px-6 py-5 text-right">
+                                                    <div className="flex justify-end items-center gap-3">
+                                                        {data.hasLocation && (
+                                                            <div className="text-emerald-500 bg-emerald-500/10 p-1.5 rounded-lg flex items-center justify-center tooltip-trigger group/tt relative">
+                                                                <span className="material-icons-round text-sm">location_on</span>
+                                                                <div className="absolute bottom-full mb-2 bg-brand-charcoal text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tt:opacity-100 transition-opacity pointer-events-none">
+                                                                    Fichaje Geolocalizado
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => openDetails(data)}
+                                                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-brand-platinum rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1 border border-white/10"
+                                                        >
+                                                            <span className="material-icons-round text-sm">manage_search</span> Detalles
+                                                        </button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         )) : (
                                             <tr>
@@ -226,6 +347,166 @@ export const FichajesView: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal de Detalles y Auditoría */}
+            {detailsModalOpen && selectedData && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-brand-charcoal border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-brand-black/50">
+                            <div>
+                                <h2 className="text-lg font-black text-white">Detalle de Fichajes</h2>
+                                <p className="text-xs text-brand-platinum uppercase tracking-widest mt-1">
+                                    {selectedData.driverName} - {selectedData.dateObj.toLocaleDateString()}
+                                </p>
+                            </div>
+                            <button onClick={() => setDetailsModalOpen(false)} className="text-white/50 hover:text-white p-2">
+                                <span className="material-icons-round">close</span>
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
+                            {/* Raw Logs */}
+                            <div>
+                                <h3 className="text-xs font-bold text-brand-gold uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <span className="material-icons-round text-sm">list_alt</span> Registros Brutos
+                                </h3>
+                                <div className="space-y-2">
+                                    {selectedData.rawLogs.map((log: any) => (
+                                        <div key={log.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${log.type === 'WORK' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/20 text-amber-500'}`}>
+                                                    <span className="material-icons-round text-sm">{log.type === 'WORK' ? 'directions_car' : 'coffee'}</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-white uppercase tracking-wider">{log.type === 'WORK' ? 'Trabajo' : 'Pausa'}</p>
+                                                    <div className="text-[10px] text-brand-platinum mt-1 flex items-center gap-2">
+                                                        <span>In: {new Date(log.clock_in).toLocaleTimeString()}</span>
+                                                        <span>Out: {log.clock_out ? new Date(log.clock_out).toLocaleTimeString() : 'En curso'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-end">
+                                                <div className="flex flex-col gap-1 text-[9px] text-slate-500 text-right">
+                                                    {log.clock_in_location && <span><span className="text-brand-platinum">GPS IN:</span> {log.clock_in_location}</span>}
+                                                    {log.clock_out_location && <span><span className="text-brand-platinum">GPS OUT:</span> {log.clock_out_location}</span>}
+                                                </div>
+                                                
+                                                {/* Peticiones relacionadas a este log */}
+                                                {(() => {
+                                                    const pendingReqs = requests?.filter((r: any) => r.log_id === log.id && r.status === 'PENDING');
+                                                    if (pendingReqs && pendingReqs.length > 0) {
+                                                        const req = pendingReqs[0];
+                                                        return (
+                                                            <div className="bg-brand-gold/10 border border-brand-gold/30 rounded p-2 text-right">
+                                                                <p className="text-[9px] text-brand-gold uppercase font-bold mb-1">
+                                                                    {req.requested_by === 'DRIVER' ? 'Conductor solicita corrección' : 'Esperando aprobación del conductor'}
+                                                                </p>
+                                                                <p className="text-[9px] text-brand-platinum mb-2">Motivo: {req.reason}</p>
+                                                                {req.requested_by === 'DRIVER' && (
+                                                                    <div className="flex gap-2 justify-end">
+                                                                        <button onClick={() => resolveRequest(req.id, 'APPROVED_BY_ADMIN')} className="text-[9px] bg-emerald-500 text-white px-2 py-1 rounded font-bold uppercase">Aprobar</button>
+                                                                        <button onClick={() => resolveRequest(req.id, 'REJECTED')} className="text-[9px] bg-red-500 text-white px-2 py-1 rounded font-bold uppercase">Rechazar</button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <button onClick={() => openProposeModal(log)} className="text-[9px] bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
+                                                            <span className="material-icons-round text-[10px]">edit</span> Proponer Cambio
+                                                        </button>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Audit Trail */}
+                            <div>
+                                <h3 className="text-xs font-bold text-brand-platinum uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <span className="material-icons-round text-sm">policy</span> Trazabilidad Legal (Audit Trail)
+                                </h3>
+                                {loadingAudit ? (
+                                    <div className="text-center py-4 text-brand-platinum text-xs">Cargando auditoría...</div>
+                                ) : auditLogs.length === 0 ? (
+                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 text-center">
+                                        <p className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest">Registros originales, sin modificaciones.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {auditLogs.map((audit: any) => (
+                                            <div key={audit.id} className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-red-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 bg-red-500/10 rounded">{audit.operation}</span>
+                                                    <span className="text-brand-platinum text-[9px]">{new Date(audit.modified_at).toLocaleString()}</span>
+                                                </div>
+                                                <p className="text-white text-xs mb-1">Motivo: <span className="font-bold text-brand-gold">{audit.reason}</span></p>
+                                                <p className="text-slate-400 text-[9px]">Modificado por: {audit.modified_by || 'Administrador'}</p>
+                                                
+                                                {audit.operation === 'UPDATE' && (
+                                                    <div className="mt-3 grid grid-cols-2 gap-4 text-[9px]">
+                                                        <div className="bg-white/5 p-2 rounded">
+                                                            <p className="text-slate-500 uppercase tracking-widest mb-1">Valor Anterior</p>
+                                                            <p className="text-white">In: {new Date(audit.old_clock_in).toLocaleTimeString()}</p>
+                                                            <p className="text-white">Out: {audit.old_clock_out ? new Date(audit.old_clock_out).toLocaleTimeString() : 'N/A'}</p>
+                                                        </div>
+                                                        <div className="bg-emerald-500/10 p-2 rounded">
+                                                            <p className="text-emerald-500 uppercase tracking-widest mb-1">Nuevo Valor</p>
+                                                            <p className="text-white">In: {new Date(audit.new_clock_in).toLocaleTimeString()}</p>
+                                                            <p className="text-white">Out: {audit.new_clock_out ? new Date(audit.new_clock_out).toLocaleTimeString() : 'N/A'}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Proponer Corrección */}
+            {proposeModalOpen && (
+                <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-brand-charcoal border border-brand-gold/30 rounded-3xl w-full max-w-md p-6">
+                        <h2 className="text-lg font-black text-brand-gold mb-2">Proponer Corrección</h2>
+                        <p className="text-xs text-brand-platinum mb-6">
+                            Según la normativa, el cambio debe ser aceptado por el conductor en su app antes de aplicarse en el registro oficial.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Hora Inicio Correcta</label>
+                                <input type="datetime-local" value={proposeForm.inTime} onChange={e => setProposeForm({...proposeForm, inTime: e.target.value})} className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Hora Fin Correcta</label>
+                                <input type="datetime-local" value={proposeForm.outTime} onChange={e => setProposeForm({...proposeForm, outTime: e.target.value})} className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Motivo Justificado (Obligatorio)</label>
+                                <textarea 
+                                    value={proposeForm.reason} 
+                                    onChange={e => setProposeForm({...proposeForm, reason: e.target.value})} 
+                                    placeholder="Ej: Conductor reporta olvido al finalizar el turno..."
+                                    className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none min-h-[80px]" 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button onClick={() => setProposeModalOpen(false)} className="flex-1 bg-white/5 text-white font-bold p-3 rounded-xl hover:bg-white/10 transition">Cancelar</button>
+                            <button onClick={submitProposal} disabled={submittingProposal} className="flex-1 bg-brand-gold text-brand-black font-black uppercase tracking-widest p-3 rounded-xl hover:bg-yellow-500 transition disabled:opacity-50">
+                                {submittingProposal ? 'Enviando...' : 'Enviar Propuesta'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

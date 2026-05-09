@@ -2,6 +2,45 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../services/supabase';
 import * as XLSX from 'xlsx';
 
+const parseMoneyValue = (val: any): number => {
+    if (val === undefined || val === null || val === '') return 0;
+    
+    if (typeof val === 'number') {
+        let n = val;
+        while (Math.abs(n) >= 10000) n = n / 100;
+        return n;
+    }
+
+    let str = String(val).trim();
+    str = str.replace(/[€$a-zA-Z\s]/g, '');
+
+    const commas = (str.match(/,/g) || []).length;
+    const dots = (str.match(/\./g) || []).length;
+
+    if (commas > 0 && dots > 0) {
+        const lastComma = str.lastIndexOf(',');
+        const lastDot = str.lastIndexOf('.');
+        if (lastComma > lastDot) {
+            str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+            str = str.replace(/,/g, '');
+        }
+    } else if (commas === 1 && dots === 0) {
+        str = str.replace(',', '.');
+    } else if (commas > 1 || dots > 1) {
+        str = str.replace(/,/g, '').replace(/\./g, '');
+    }
+
+    let cash = parseFloat(str);
+    if (isNaN(cash)) return 0;
+    
+    while (Math.abs(cash) >= 10000) {
+        cash = cash / 100;
+    }
+
+    return cash;
+};
+
 export interface EfectivoReconciliation {
     driver_name: string;
     saldo_inicial: number;
@@ -406,8 +445,7 @@ export function useEfectivo() {
                         }
                         // ---------------------------------
 
-                        let cash = parseFloat(String(row[cashCol]).replace(',', '.'));
-                        if (isNaN(cash)) cash = 0;
+                        let cash = parseMoneyValue(row[cashCol]);
                         if (cash === 0) return;
 
                         // We no longer invert the sign per-row or filter by sign.
@@ -454,7 +492,7 @@ export function useEfectivo() {
 
                     const { error } = await supabase.from('efectivo_uber_records').upsert(records, { 
                         onConflict: 'transaction_id, cycle_id', 
-                        ignoreDuplicates: true 
+                        ignoreDuplicates: false 
                     });
                     if (error) throw error;
                     
@@ -498,8 +536,7 @@ export function useEfectivo() {
 
                         const timestampStr = formatDateTime(row[timeCol]);
                         const monthStr = getMonthStr(row[dateDeliveryCol]);
-                        let cash = parseFloat(String(row[amountCol]).replace(',', '.'));
-                        if (isNaN(cash)) cash = 0;
+                        let cash = parseMoneyValue(row[amountCol]);
 
                         return {
                             cycle_id: cycle.id,
@@ -510,7 +547,7 @@ export function useEfectivo() {
                         };
                     }).filter(u => u !== null);
 
-                    const { error } = await supabase.from('efectivo_entrega_records').upsert(records, { onConflict: 'driver_name, timestamp, cycle_id', ignoreDuplicates: true });
+                    const { error } = await supabase.from('efectivo_entrega_records').upsert(records, { onConflict: 'driver_name, timestamp, cycle_id', ignoreDuplicates: false });
                     if (error) throw error;
 
                     await supabase.from('efectivo_upload_history').insert({ cycle_id: cycle.id, file_type: 'entregas', file_name: file.name });
@@ -564,8 +601,7 @@ export function useEfectivo() {
                         const driverName = normalizeName(row[driverCol]);
                         if (!driverName) return null;
 
-                        let cash = parseFloat(String(row[amountCol]).replace(',', '.'));
-                        if (isNaN(cash)) cash = 0;
+                        let cash = parseMoneyValue(row[amountCol]);
 
                         const dateStr = formatDateTime(row[dateCol]);
                         const monthStr = getMonthStr(row[dateCol]);
@@ -586,7 +622,7 @@ export function useEfectivo() {
 
                     const { error } = await supabase.from('efectivo_vgd_records').upsert(records, {
                         onConflict: 'vgd_id, cycle_id',
-                        ignoreDuplicates: true
+                        ignoreDuplicates: false
                     });
                     if (error) throw error;
 

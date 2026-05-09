@@ -29,6 +29,8 @@ export const DriverAppView: React.FC = () => {
    const { data: allBookings, updateItem: updateBooking } = useSupabaseData('bookings');
    const { data: shifts } = useSupabaseData('shifts');
    const { data: vehicles, updateItem: updateVehicle } = useSupabaseData('vehicles');
+   const { data: correctionRequests, refresh: refreshRequests } = useSupabaseData('time_correction_requests', { orderBy: 'created_at', ascending: false });
+   const { data: myLogs, refresh: refreshLogs } = useSupabaseData('driver_logs', { orderBy: 'clock_in', ascending: false });
 
    useEffect(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -44,7 +46,7 @@ export const DriverAppView: React.FC = () => {
    const [currentLog, setCurrentLog] = useState<any>(null);
    const [weeklyEarnings, setWeeklyEarnings] = useState(0);
    const [alerts, setAlerts] = useState<any[]>([]);
-   const [activeTab, setActiveTab] = useState<'services' | 'history' | 'earnings'>('services');
+   const [activeTab, setActiveTab] = useState<'services' | 'history' | 'earnings' | 'jornada'>('services');
 
    // Payment Modal State
    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -297,14 +299,36 @@ export const DriverAppView: React.FC = () => {
          await updateVehicle(assignedVehicle.id, { km: kmValue });
       }
 
+      let locationStr = null;
+      try {
+         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) return reject('No geolocation');
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+         });
+         locationStr = `${pos.coords.latitude},${pos.coords.longitude}`;
+      } catch (err) {
+         console.warn("No se pudo obtener GPS para el fichaje", err);
+      }
+
+      const deviceInfo = navigator.userAgent;
       const now = new Date().toISOString();
+
       if (pendingAction === 'clockIn') {
-         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK', clock_in: now }]).select().single();
+         const { data } = await supabase.from('driver_logs').insert([{ 
+            driver_id: selectedDriverId, 
+            type: 'WORK', 
+            clock_in: now,
+            clock_in_location: locationStr,
+            device_info: deviceInfo
+         }]).select().single();
          await updateDriver(selectedDriverId!, { current_status: 'Working' });
          setCurrentLog(data);
       } else if (pendingAction === 'clockOut') {
          if (!currentLog) return;
-         await supabase.from('driver_logs').update({ clock_out: now }).eq('id', currentLog.id);
+         await supabase.from('driver_logs').update({ 
+            clock_out: now,
+            clock_out_location: locationStr
+         }).eq('id', currentLog.id);
          await updateDriver(selectedDriverId!, { current_status: 'Off' });
          setCurrentLog(null);
       }
@@ -315,14 +339,46 @@ export const DriverAppView: React.FC = () => {
 
    const handlePauseToggle = async () => {
       if (!currentLog) return;
+      
+      let locationStr = null;
+      try {
+         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) return reject('No geolocation');
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+         });
+         locationStr = `${pos.coords.latitude},${pos.coords.longitude}`;
+      } catch (err) {
+         console.warn("No se pudo obtener GPS para la pausa", err);
+      }
+
+      const deviceInfo = navigator.userAgent;
       const now = new Date().toISOString();
-      await supabase.from('driver_logs').update({ clock_out: now }).eq('id', currentLog.id);
+      
+      // Cerrar log actual
+      await supabase.from('driver_logs').update({ 
+         clock_out: now,
+         clock_out_location: locationStr
+      }).eq('id', currentLog.id);
+
+      // Iniciar nuevo log
       if (activeDriver?.current_status === 'Working') {
-         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'PAUSE', clock_in: now }]).select().single();
+         const { data } = await supabase.from('driver_logs').insert([{ 
+            driver_id: selectedDriverId, 
+            type: 'PAUSE', 
+            clock_in: now,
+            clock_in_location: locationStr,
+            device_info: deviceInfo
+         }]).select().single();
          await updateDriver(selectedDriverId!, { current_status: 'Paused' });
          setCurrentLog(data);
       } else {
-         const { data } = await supabase.from('driver_logs').insert([{ driver_id: selectedDriverId, type: 'WORK', clock_in: now }]).select().single();
+         const { data } = await supabase.from('driver_logs').insert([{ 
+            driver_id: selectedDriverId, 
+            type: 'WORK', 
+            clock_in: now,
+            clock_in_location: locationStr,
+            device_info: deviceInfo
+         }]).select().single();
          await updateDriver(selectedDriverId!, { current_status: 'Working' });
          setCurrentLog(data);
       }
@@ -400,6 +456,73 @@ export const DriverAppView: React.FC = () => {
       setCollectingBooking(null);
       setCashAmount('');
       setTpvAmount('');
+   };
+
+   // --- CORRECTION REQUESTS FOR DRIVER ---
+   const pendingAdminRequests = correctionRequests?.filter((r: any) => r.driver_id === selectedDriverId && r.requested_by === 'ADMIN' && r.status === 'PENDING') || [];
+   
+   const respondToAdminRequest = async (reqId: string, resolution: 'APPROVED_BY_DRIVER' | 'REJECTED') => {
+      try {
+         const req = correctionRequests?.find((r: any) => r.id === reqId);
+         if (!req) return;
+
+         if (resolution === 'REJECTED') {
+            await supabase.from('time_correction_requests').update({ status: 'REJECTED', resolved_at: new Date().toISOString(), resolved_by: 'DRIVER' }).eq('id', reqId);
+            alert("Has rechazado la corrección propuesta.");
+         } else if (resolution === 'APPROVED_BY_DRIVER') {
+            await supabase.from('time_correction_requests').update({ status: 'APPLIED', resolved_at: new Date().toISOString(), resolved_by: 'DRIVER' }).eq('id', reqId);
+            
+            // Apply the actual change
+            await supabase.from('driver_logs').update({
+               clock_in: req.proposed_clock_in,
+               clock_out: req.proposed_clock_out
+            }).eq('id', req.log_id);
+            
+            alert("Has aceptado la corrección. Tu registro horario ha sido actualizado.");
+         }
+         refreshRequests();
+         refreshLogs();
+      } catch (e) {
+         console.error(e);
+         alert("Error al procesar tu respuesta");
+      }
+   };
+
+   // Driver requesting a correction
+   const [driverProposeModal, setDriverProposeModal] = useState(false);
+   const [driverProposeForm, setDriverProposeForm] = useState({ inTime: '', outTime: '', reason: '' });
+   const [driverSelectedLog, setDriverSelectedLog] = useState<any>(null);
+
+   const openDriverProposeModal = (log: any) => {
+      setDriverSelectedLog(log);
+      setDriverProposeForm({
+         inTime: new Date(log.clock_in).toISOString().slice(0, 16),
+         outTime: log.clock_out ? new Date(log.clock_out).toISOString().slice(0, 16) : '',
+         reason: ''
+      });
+      setDriverProposeModal(true);
+   };
+
+   const submitDriverProposal = async () => {
+      if (!driverProposeForm.reason.trim()) return alert("El motivo justificado es obligatorio por ley.");
+      try {
+         await supabase.from('time_correction_requests').insert([{
+            log_id: driverSelectedLog.id,
+            driver_id: selectedDriverId,
+            requested_by: 'DRIVER',
+            proposed_clock_in: new Date(driverProposeForm.inTime).toISOString(),
+            proposed_clock_out: driverProposeForm.outTime ? new Date(driverProposeForm.outTime).toISOString() : null,
+            proposed_type: driverSelectedLog.type,
+            reason: driverProposeForm.reason,
+            status: 'PENDING'
+         }]);
+         alert("Tu solicitud de corrección ha sido enviada a la empresa para su validación.");
+         setDriverProposeModal(false);
+         refreshRequests();
+      } catch (e) {
+         console.error(e);
+         alert("Error al enviar solicitud.");
+      }
    };
 
    // Auto-select if there is exactly one linked driver
@@ -529,6 +652,36 @@ export const DriverAppView: React.FC = () => {
                   </button>
                </div>
             )}
+            
+            {/* Banner de peticiones pendientes */}
+            {pendingAdminRequests.length > 0 && (
+               <div className="mt-6 space-y-3">
+                  {pendingAdminRequests.map((req: any) => (
+                     <div key={req.id} className="bg-brand-gold/10 border border-brand-gold/40 rounded-2xl p-5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-3 opacity-10">
+                           <span className="material-icons-round text-6xl text-brand-gold">warning</span>
+                        </div>
+                        <div className="relative z-10">
+                           <h3 className="text-brand-gold font-black uppercase tracking-widest text-[10px] mb-2 flex items-center gap-2">
+                              <span className="material-icons-round text-sm">edit_calendar</span>
+                              La empresa propone una corrección
+                           </h3>
+                           <p className="text-xs text-brand-platinum mb-3 leading-relaxed">
+                              Se ha propuesto cambiar tu horario del <span className="font-bold text-white">{new Date(req.proposed_clock_in).toLocaleDateString()}</span>.<br/>
+                              <span className="opacity-60">Nuevo Inicio:</span> {new Date(req.proposed_clock_in).toLocaleTimeString()}<br/>
+                              <span className="opacity-60">Nuevo Fin:</span> {req.proposed_clock_out ? new Date(req.proposed_clock_out).toLocaleTimeString() : 'N/A'}<br/>
+                              <span className="font-bold text-brand-gold mt-2 block">Motivo: "{req.reason}"</span>
+                           </p>
+                           <p className="text-[9px] text-white/50 mb-4 italic">Por ley, debes confirmar si estás de acuerdo con esta corrección.</p>
+                           <div className="flex gap-2">
+                              <button onClick={() => respondToAdminRequest(req.id, 'APPROVED_BY_DRIVER')} className="flex-1 bg-emerald-500 text-brand-black text-[10px] font-black uppercase tracking-widest py-3 rounded-xl shadow-lg shadow-emerald-500/20">Aceptar</button>
+                              <button onClick={() => respondToAdminRequest(req.id, 'REJECTED')} className="flex-1 bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-black uppercase tracking-widest py-3 rounded-xl">Rechazar</button>
+                           </div>
+                        </div>
+                     </div>
+                  ))}
+               </div>
+            )}
          </div>
 
          {/* Navigation Tabs */}
@@ -554,6 +707,13 @@ export const DriverAppView: React.FC = () => {
                >
                   <span className="material-icons-round text-sm">payments</span>
                   Ganancias
+               </button>
+               <button
+                  onClick={() => setActiveTab('jornada')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === 'jornada' ? 'bg-blue-500 text-white shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
+               >
+                  <span className="material-icons-round text-sm">timer</span>
+                  Jornada
                </button>
             </div>
          </div>
@@ -688,9 +848,100 @@ export const DriverAppView: React.FC = () => {
             <div className="relative z-10">
                <HistoricoDriverView driverId={selectedDriverId} />
             </div>
-         ) : (
+         ) : activeTab === 'earnings' ? (
             <div className="relative z-10">
                <GananciasDriverView driverId={selectedDriverId} />
+            </div>
+         ) : (
+            /* Jornada Tab */
+            <div className="relative z-10 p-8 space-y-6">
+               <div className="flex items-center gap-4 mb-4">
+                  <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
+                  <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Registro Horario Oficial</h2>
+               </div>
+               
+               {myLogs?.filter((l: any) => l.driver_id === selectedDriverId).length === 0 ? (
+                  <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
+                     No tienes fichajes registrados
+                  </div>
+               ) : (
+                  myLogs?.filter((l: any) => l.driver_id === selectedDriverId).slice(0, 30).map((log: any) => {
+                     const pendingReq = correctionRequests?.find((r: any) => r.log_id === log.id && r.status === 'PENDING');
+                     
+                     return (
+                        <div key={log.id} className="bg-brand-charcoal/40 border border-white/5 rounded-3xl p-6 group">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="flex items-center gap-3">
+                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${log.type === 'WORK' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/20 text-amber-500'}`}>
+                                    <span className="material-icons-round text-lg">{log.type === 'WORK' ? 'directions_car' : 'coffee'}</span>
+                                 </div>
+                                 <div>
+                                    <p className="text-xs font-bold text-white uppercase tracking-wider">{log.type === 'WORK' ? 'Trabajo' : 'Pausa'}</p>
+                                    <p className="text-[10px] text-brand-platinum uppercase tracking-widest">{new Date(log.clock_in).toLocaleDateString()}</p>
+                                 </div>
+                              </div>
+                              {pendingReq ? (
+                                 <span className="px-2 py-1 bg-brand-gold/20 text-brand-gold border border-brand-gold/30 rounded text-[8px] font-black uppercase tracking-widest">En Revisión</span>
+                              ) : (
+                                 <button onClick={() => openDriverProposeModal(log)} className="px-3 py-1.5 bg-white/5 border border-white/10 text-brand-platinum hover:text-white rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all">
+                                    Solicitar Corrección
+                                 </button>
+                              )}
+                           </div>
+                           <div className="flex items-center gap-4 text-sm font-light text-slate-300">
+                              <div className="flex items-center gap-2">
+                                 <span className="material-icons-round text-sm text-emerald-500 opacity-70">login</span>
+                                 {new Date(log.clock_in).toLocaleTimeString()}
+                              </div>
+                              <span className="text-white/20">→</span>
+                              <div className="flex items-center gap-2">
+                                 <span className="material-icons-round text-sm text-red-500 opacity-70">logout</span>
+                                 {log.clock_out ? new Date(log.clock_out).toLocaleTimeString() : <span className="text-emerald-500 font-bold animate-pulse">Activo</span>}
+                              </div>
+                           </div>
+                        </div>
+                     );
+                  })
+               )}
+            </div>
+         )}
+
+         {/* Driver Propose Modal */}
+         {driverProposeModal && (
+            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+               <div className="bg-brand-charcoal border border-brand-gold/30 rounded-3xl w-full max-w-md p-6">
+                  <h2 className="text-lg font-black text-brand-gold mb-2">Solicitar Corrección</h2>
+                  <p className="text-xs text-brand-platinum mb-6">
+                     ¿Te olvidaste de fichar? Indica la hora correcta. La empresa deberá aprobar tu solicitud para que tenga validez legal.
+                  </p>
+
+                  <div className="space-y-4">
+                     <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Mi hora de inicio real fue:</label>
+                        <input type="datetime-local" value={driverProposeForm.inTime} onChange={e => setDriverProposeForm({...driverProposeForm, inTime: e.target.value})} className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none" />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Mi hora de fin real fue:</label>
+                        <input type="datetime-local" value={driverProposeForm.outTime} onChange={e => setDriverProposeForm({...driverProposeForm, outTime: e.target.value})} className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none" />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Motivo / Justificación (Obligatorio)</label>
+                        <textarea 
+                           value={driverProposeForm.reason} 
+                           onChange={e => setDriverProposeForm({...driverProposeForm, reason: e.target.value})} 
+                           placeholder="Ej: Me olvidé el móvil en el coche y no pude fichar la salida a tiempo..."
+                           className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none min-h-[80px]" 
+                        />
+                     </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-8">
+                     <button onClick={() => setDriverProposeModal(false)} className="flex-1 bg-white/5 text-white font-bold p-3 rounded-xl hover:bg-white/10 transition">Cancelar</button>
+                     <button onClick={submitDriverProposal} className="flex-1 bg-brand-gold text-brand-black font-black uppercase tracking-widest p-3 rounded-xl hover:bg-yellow-500 transition">
+                        Enviar Solicitud
+                     </button>
+                  </div>
+               </div>
             </div>
          )}
 
