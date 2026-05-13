@@ -7,6 +7,12 @@ export const ConfiguracionView = () => {
     const [localSettings, setLocalSettings] = useState<any>({});
     const [saving, setSaving] = useState(false);
 
+    // Password Update State
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
     React.useEffect(() => {
         if (settings) {
             const settingsMap: any = {};
@@ -36,6 +42,31 @@ export const ConfiguracionView = () => {
 
     const handleChange = (key: string, value: string) => {
         setLocalSettings({ ...localSettings, [key]: value });
+    };
+
+    const handleUpdatePassword = async () => {
+        setPasswordMessage(null);
+        if (!newPassword || newPassword.length < 6) {
+            setPasswordMessage({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres.' });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordMessage({ type: 'error', text: 'Las contraseñas no coinciden.' });
+            return;
+        }
+
+        setPasswordLoading(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            setPasswordMessage({ type: 'success', text: 'Contraseña actualizada correctamente.' });
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (error: any) {
+            setPasswordMessage({ type: 'error', text: error.message || 'Error al actualizar la contraseña.' });
+        } finally {
+            setPasswordLoading(false);
+        }
     };
 
     return (
@@ -195,6 +226,56 @@ export const ConfiguracionView = () => {
                                     placeholder="Ej: 1.8 (10% Dto), 2.0 (Sin Dto)"
                                 />
                                 <p className="text-[10px] text-brand-platinum/30 mt-2 italic">Multiplicador que se aplicará al precio base de la ida para calcular el total de la reserva de ida y vuelta. Por defecto 1.8 (lo que equivale a un 10% de descuento).</p>
+                            </div>
+                        </div>
+
+                        {/* Account Security Settings */}
+                        <div className="bg-brand-charcoal border border-white/5 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                                <span className="material-icons-round text-brand-gold">lock</span>
+                                Seguridad de la Cuenta
+                            </h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Nueva Contraseña</label>
+                                    <input
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-brand-platinum/50 uppercase mb-2 tracking-widest">Confirmar Contraseña</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className="w-full bg-brand-black border border-white/5 rounded-xl px-4 py-3 text-sm text-brand-platinum/70 focus:outline-none focus:border-brand-gold transition-colors"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+
+                                {passwordMessage && (
+                                    <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${passwordMessage.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                                        <span className="material-icons-round text-sm">{passwordMessage.type === 'error' ? 'error' : 'check_circle'}</span>
+                                        {passwordMessage.text}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleUpdatePassword}
+                                    disabled={passwordLoading || !newPassword || !confirmPassword}
+                                    className="bg-brand-gold hover:bg-[#B3932F] text-brand-black font-bold py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mt-2"
+                                >
+                                    {passwordLoading ? (
+                                        <span className="w-4 h-4 border-2 border-brand-black/30 border-t-brand-black rounded-full animate-spin"></span>
+                                    ) : (
+                                        <span className="material-icons-round text-sm">save</span>
+                                    )}
+                                    Actualizar Contraseña
+                                </button>
                             </div>
                         </div>
 

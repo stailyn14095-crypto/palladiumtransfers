@@ -1,6 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSupabaseData } from '../hooks/useSupabaseData';
+import { supabase } from '../services/supabase';
 
 export const ApiConfigView: React.FC = () => {
+   const { data: settings, loading, updateItem } = useSupabaseData('system_settings');
+   const [fomentoAuto, setFomentoAuto] = useState(false);
+   const [saving, setSaving] = useState(false);
+
+   useEffect(() => {
+      if (settings) {
+         const autoSync = settings.find((s: any) => s.key === 'fomento_auto_sync');
+         if (autoSync && autoSync.value === 'true') {
+            setFomentoAuto(true);
+         }
+      }
+   }, [settings]);
+
+   const toggleFomentoAuto = async () => {
+      const newValue = !fomentoAuto;
+      setFomentoAuto(newValue);
+      setSaving(true);
+      
+      try {
+         const setting = settings?.find((s: any) => s.key === 'fomento_auto_sync');
+         if (setting) {
+            await updateItem(setting.id, { value: newValue ? 'true' : 'false', updated_at: new Date().toISOString() });
+         } else {
+            await supabase.from('system_settings').insert({
+               key: 'fomento_auto_sync',
+               value: newValue ? 'true' : 'false',
+               description: 'Automatizar comunicación RVTC al asignar'
+            });
+         }
+      } catch (e) {
+         console.error('Error guardando config:', e);
+      } finally {
+         setSaving(false);
+      }
+   };
+
    return (
       <div className="flex-1 flex flex-col h-full bg-brand-black overflow-hidden relative">
          <header className="min-h-[5rem] border-b border-white/5 bg-brand-charcoal px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row items-start md:items-center justify-between shrink-0 gap-4 md:gap-0">
@@ -27,8 +65,11 @@ export const ApiConfigView: React.FC = () => {
                         </div>
                      </div>
                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-sm text-emerald-500 font-medium">SOAP Activo (Edge Function)</span>
+                        <span className="text-xs font-bold text-slate-300 mr-2 uppercase tracking-widest">Auto-Comunicar</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                           <input type="checkbox" className="sr-only peer" checked={fomentoAuto} onChange={toggleFomentoAuto} disabled={loading || saving} />
+                           <div className="w-11 h-6 bg-white/5 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
                      </div>
                   </div>
                   <div className="grid grid-cols-1 gap-6">

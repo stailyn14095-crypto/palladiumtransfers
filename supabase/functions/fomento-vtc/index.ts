@@ -29,12 +29,23 @@ function extractPemFromP12(p12Base64: string, password: string) {
     const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
     const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
 
-    if (!certBags[forge.pki.oids.certBag] || !keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]) {
-        throw new Error("P12 Configuration Error: Missing certBag or pkcs8ShroudedKeyBag");
+    const certBag = certBags[forge.pki.oids.certBag];
+    const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
+
+    if (!certBag || certBag.length === 0 || !keyBag || keyBag.length === 0) {
+        // Try fallback to standard keyBag if pkcs8ShroudedKeyBag is missing
+        const fallbackKeyBags = p12.getBags({ bagType: forge.pki.oids.keyBag });
+        const fallbackKeyBag = fallbackKeyBags[forge.pki.oids.keyBag];
+        if (certBag && certBag.length > 0 && fallbackKeyBag && fallbackKeyBag.length > 0) {
+            const cert = forge.pki.certificateToPem(certBag[0].cert);
+            const key = forge.pki.privateKeyToPem(fallbackKeyBag[0].key);
+            return { privateKeyPem: key, certificatePem: cert };
+        }
+        throw new Error("P12 Configuration Error: Missing certificate or private key bags. Check if the P12 file and password are correct.");
     }
 
-    const cert = forge.pki.certificateToPem(certBags[forge.pki.oids.certBag][0].cert);
-    const key = forge.pki.privateKeyToPem(keyBags[forge.pki.oids.pkcs8ShroudedKeyBag][0].key);
+    const cert = forge.pki.certificateToPem(certBag[0].cert);
+    const key = forge.pki.privateKeyToPem(keyBag[0].key);
 
     return { privateKeyPem: key, certificatePem: cert };
 }
@@ -63,11 +74,20 @@ function createSignedAltaSoap(payload: any, privateKeyPem: string, certificatePe
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    const sig = new SignedXml();
-    // Standard WS-Security signature mappings
-    sig.addReference("//*[local-name(.)='Body']", ["http://www.w3.org/2001/10/xml-exc-c14n#"], "http://www.w3.org/2000/09/xmldsig#sha1");
-    sig.signingKey = privateKeyPem;
-    sig.signatureAlgorithm = "http://www.w3.org/2000/09/xmldsig#rsa-sha1";
+    // Create SignedXml with explicit algorithms and private key for v6 compatibility
+    const sig = new SignedXml({
+        privateKey: privateKeyPem,
+        canonicalizationAlgorithm: "http://www.w3.org/2001/10/xml-exc-c14n#",
+        signatureAlgorithm: "http://www.w3.org/2000/09/xmldsig#rsa-sha1"
+    });
+    
+    // Standard WS-Security signature mappings - Using object syntax for xml-crypto v6 compatibility
+    sig.addReference({
+        xpath: "//*[local-name(.)='Body']",
+        transforms: ["http://www.w3.org/2001/10/xml-exc-c14n#"],
+        digestAlgorithm: "http://www.w3.org/2000/09/xmldsig#sha1"
+    });
+    
     sig.keyInfoProvider = new FomentoKeyInfoProvider(certificatePem);
 
     // Inject the ds:Signature after the BinarySecurityToken inside wsse:Security
@@ -147,7 +167,7 @@ Deno.serve(async (req) => {
     } catch (error) {
         return new Response(JSON.stringify({ success: false, error: error.message, stack: error.stack }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400,
+            status: 200,
         });
     }
 });

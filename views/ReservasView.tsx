@@ -298,6 +298,13 @@ export const ReservasView: React.FC = () => {
          }
 
          await updateItem(bookingId, updates);
+
+         // Auto-sync RVTC if setting is enabled
+         const autoSync = settings?.find((s: any) => s.key === 'fomento_auto_sync')?.value === 'true';
+         if (autoSync) {
+            const updatedBooking = { ...booking, ...updates };
+            handleComunicarFomento(updatedBooking, true);
+         }
       } catch (error) {
          console.error('Error assigning driver:', error);
          alert('Error al asignar conductor');
@@ -438,6 +445,13 @@ export const ReservasView: React.FC = () => {
                );
 
                assignedCount++;
+
+               // Auto-sync RVTC if setting is enabled
+               const autoSync = settings?.find((s: any) => s.key === 'fomento_auto_sync')?.value === 'true';
+               if (autoSync) {
+                  const updatedBooking = { ...booking, ...updates };
+                  handleComunicarFomento(updatedBooking, true);
+               }
             } catch (err) {
                console.error(`Error auto-asignando reserva ${booking.id}:`, err);
             }
@@ -560,28 +574,46 @@ export const ReservasView: React.FC = () => {
       }
    };
 
-   const handleComunicarFomento = async (booking: any) => {
+   const handleComunicarFomento = async (booking: any, silent: boolean = false) => {
+      console.log("[FOMENTO DEBUG] Iniciando comunicación para reserva:", booking.id);
       try {
+         const companyName = settings?.find((s: any) => s.key === 'company_name')?.value || 'Palladium Transfers S.L.';
+         const companyNif = settings?.find((s: any) => s.key === 'company_nif')?.value || 'B00000000';
+
+         // Helper to find municipality codes
+         const findMuniCodes = (name: string) => {
+            if (!municipalities || !name) return { muni: "079", prov: "03" }; // Default Alicante
+            const found = municipalities.find((m: any) => 
+               m.name.toLowerCase() === name.toLowerCase() || 
+               name.toLowerCase().includes(m.name.toLowerCase())
+            );
+            return found ? { muni: found.cod_mun, prov: found.cod_prov } : { muni: "079", prov: "03" };
+         };
+
+         const originCodes = findMuniCodes(booking.origin);
+         const destCodes = findMuniCodes(booking.destination);
+         console.log("[FOMENTO DEBUG] Códigos resueltos:", { originCodes, destCodes });
+
          // Create the payload for AltaDeServicio based on Fomento requirements
          const payload = {
-            cgmunicontrato: "079", // Example: Alicante code
-            cgmunifin: "079",
-            cgmuniinicio: "079",
-            cgprovcontrato: "03", // Alicante province
-            cgprovfin: "03",
-            cgprovinicio: "03",
+            cgmunicontrato: originCodes.muni, 
+            cgmunifin: destCodes.muni,
+            cgmuniinicio: originCodes.muni,
+            cgprovcontrato: originCodes.prov,
+            cgprovfin: destCodes.prov,
+            cgprovinicio: originCodes.prov,
             direccionfin: booking.destination_address || booking.destination,
             direccioninicio: booking.origin_address || booking.origin,
             fcontrato: booking.created_at ? booking.created_at.split('T')[0] : booking.pickup_date.split('T')[0],
             ffin: booking.pickup_date ? booking.pickup_date.split('T')[0] : "",
             fprevistainicio: `${booking.pickup_date?.split('T')[0]}T${booking.pickup_time}:00`,
             matricula: "PENDING",
-            nifarrendador: "B00000000", // Reemplazar en config real
+            nifarrendador: companyNif,
             nifarrendatario: "99999999R", // Default NIF
-            niftitular: "B00000000",
-            nombarrendador: "Palladium Transfers S.L.",
+            niftitular: companyNif,
+            nombarrendador: companyName,
             nombarrendatario: booking.client_name || booking.passenger,
-            nombtitular: "Palladium Transfers S.L."
+            nombtitular: companyName
          };
 
          // Look up assigned vehicle if available
@@ -590,20 +622,50 @@ export const ReservasView: React.FC = () => {
             const svcShift = bDate ? shifts.find((s: any) => s.driver_id === booking.driver_id && s.date === bDate) : null;
             const svcVehicle = svcShift ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
             if (svcVehicle && svcVehicle.plate) {
-               payload.matricula = svcVehicle.plate;
+               payload.matricula = svcVehicle.plate.replace(/[^a-zA-Z0-9]/g, ''); // Clean plate for Fomento
             }
          }
 
+         console.log("[FOMENTO DEBUG] Payload generado:", payload);
+
          if (payload.matricula === "PENDING") {
-            alert("⚠️ Debes asignar la reserva a un conductor con un vehículo registrado antes de comunicarla a Fomento.");
+            console.warn("[FOMENTO DEBUG] Matrícula PENDING, deteniendo.");
+            if (!silent) alert("⚠️ Debes asignar la reserva a un conductor con un vehículo registrado antes de comunicarla a Fomento.");
             return;
          }
 
-         const { data, error } = await supabase.functions.invoke('fomento-vtc', {
-            body: { action: 'alta', payload }
+         // Get current session for Authorization
+         const { data: sessionData } = await supabase.auth.getSession();
+         const token = sessionData?.session?.access_token;
+         
+         // Fallback robusto para URL y Key
+         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
+         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
+
+         console.log("[FOMENTO DEBUG] Llamando a Edge Function en:", `${supabaseUrl}/functions/v1/fomento-vtc`);
+
+         const response = await fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${token || supabaseAnonKey}`,
+               'apikey': supabaseAnonKey
+            },
+            body: JSON.stringify({ action: 'alta', payload })
          });
 
-         if (error) throw error;
+         let data;
+         const textBody = await response.text();
+         try {
+            data = JSON.parse(textBody);
+         } catch (e) {
+            throw new Error(`Error HTTP ${response.status}: ${textBody}`);
+         }
+
+         if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}: ${textBody}`);
+         }
+
          if (!data.success) throw new Error(data.error || "Error en la comunicación RVTC: " + data.resultado);
 
          // Update local and remote state
@@ -614,7 +676,7 @@ export const ReservasView: React.FC = () => {
             fomento_error: null
          });
 
-         alert("✅ Comunicación con Fomento RVTC exitosa.\nID Servicio: " + data.idservicio);
+         if (!silent) alert("✅ Comunicación con Fomento RVTC exitosa.\nID Servicio: " + data.idservicio);
 
       } catch (err: any) {
          console.error("Error Fomento:", err);
@@ -622,7 +684,7 @@ export const ReservasView: React.FC = () => {
             fomento_status: 'ERROR',
             fomento_error: err.message || 'Error desconocido'
          });
-         alert("❌ Error al comunicar con Fomento:\n" + err.message);
+         if (!silent) alert("❌ Error al comunicar con Fomento:\n" + err.message);
       }
    };
 
@@ -1090,12 +1152,24 @@ export const ReservasView: React.FC = () => {
                                                 </div>
                                              </td>
                                              <td className="px-6 py-4">
-                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-                                                   b.status === 'Confirmed' ? 'bg-blue-500/10 text-brand-gold border-blue-500/20' :
-                                                      b.status === 'En Route' || b.status === 'At Origin' || b.status === 'In Progress' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                                                         b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-                                                            'bg-red-500/10 text-red-500 border-red-500/20'
-                                                   }`}>{b.status}</span>
+                                                <div className="flex flex-col gap-1.5 items-start">
+                                                   <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                                                      b.status === 'Confirmed' ? 'bg-blue-500/10 text-brand-gold border-blue-500/20' :
+                                                         b.status === 'En Route' || b.status === 'At Origin' || b.status === 'In Progress' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                                                            b.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                               'bg-red-500/10 text-red-500 border-red-500/20'
+                                                      }`}>{b.status}</span>
+                                                   {b.fomento_status === 'COMUNICADO' && (
+                                                      <span className="flex items-center gap-1 text-[8px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold" title="Registrado en Fomento RVTC">
+                                                         <span className="material-icons-round text-[10px]">account_balance</span> RVTC OK
+                                                      </span>
+                                                   )}
+                                                   {b.fomento_status === 'ERROR' && (
+                                                      <span className="flex items-center gap-1 text-[8px] bg-red-500/10 text-red-500 border border-red-500/20 px-1.5 py-0.5 rounded font-bold cursor-help" title={b.fomento_error || 'Error al comunicar'}>
+                                                         <span className="material-icons-round text-[10px]">error_outline</span> RVTC ERR
+                                                      </span>
+                                                   )}
+                                                </div>
                                              </td>
                                              <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-2">
@@ -1185,7 +1259,11 @@ export const ReservasView: React.FC = () => {
                                                                {b.fomento_error && <p className="text-[9px] text-red-400 mt-1 italic break-words">{b.fomento_error}</p>}
 
                                                                <button
-                                                                  onClick={() => handleComunicarFomento(b)}
+                                                                  onClick={(e) => {
+                                                                     e.stopPropagation();
+                                                                     e.preventDefault();
+                                                                     handleComunicarFomento(b);
+                                                                  }}
                                                                   disabled={b.fomento_status === 'COMUNICADO'}
                                                                   className={`mt-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${b.fomento_status === 'COMUNICADO' ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
                                                                >
