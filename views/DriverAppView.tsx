@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { GananciasDriverView } from './GananciasDriverView';
 import { HistoricoDriverView } from './HistoricoDriverView';
+import { buildFomentoPayload } from '../utils/fomentoHelper';
 
 const VAPID_PUBLIC_KEY = 'BIkf8Kxpm3nN7n1ShQhbTS6TKWLummppl6-hXos65jNkvi7BL0Rm8z2fYhKBKBvroSy9GIub9D6pDaGLcAgvi44';
 
@@ -31,6 +32,8 @@ export const DriverAppView: React.FC = () => {
    const { data: vehicles, updateItem: updateVehicle } = useSupabaseData('vehicles');
    const { data: correctionRequests, refresh: refreshRequests } = useSupabaseData('time_correction_requests', { orderBy: 'created_at', ascending: false });
    const { data: myLogs, refresh: refreshLogs } = useSupabaseData('driver_logs', { orderBy: 'clock_in', ascending: false });
+   const { data: municipalities } = useSupabaseData('municipalities');
+   const { data: settings } = useSupabaseData('system_settings');
 
    useEffect(() => {
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -58,6 +61,11 @@ export const DriverAppView: React.FC = () => {
    // KM Prompt State
    const [kmModalOpen, setKmModalOpen] = useState(false);
    const [currentKm, setCurrentKm] = useState('');
+   const [vehicleCondition, setVehicleCondition] = useState('Impecable');
+   const [fuelLevel, setFuelLevel] = useState('100%');
+   const [incidenceNotes, setIncidenceNotes] = useState('');
+   const [photoFile, setPhotoFile] = useState<File | null>(null);
+   const [uploadingPhoto, setUploadingPhoto] = useState(false);
    const [pendingAction, setPendingAction] = useState<'clockIn' | 'clockOut' | null>(null);
 
    const [isSubscribed, setIsSubscribed] = useState(false);
@@ -261,6 +269,43 @@ export const DriverAppView: React.FC = () => {
       }
    }, [selectedDriverId, activeDriver?.current_status, allBookings]);
 
+   // CHECK FOR FORGOTTEN TRANSFERS
+   useEffect(() => {
+      if (!selectedDriverId || driverBookings.length === 0) return;
+
+      const interval = setInterval(() => {
+         const now = new Date();
+         driverBookings.forEach((b: any) => {
+            if (b.status === 'Pending' || b.status === 'Confirmed') {
+               try {
+                  const [hours, minutes] = b.pickup_time.split(':').map(Number);
+                  const pickupTime = new Date(b.pickup_date);
+                  pickupTime.setHours(hours, minutes, 0, 0);
+
+                  const diffMs = pickupTime.getTime() - now.getTime();
+                  const diffMins = Math.round(diffMs / 60000);
+
+                  // Alert at exactly 30, 15, or 5 minutes before pickup if still Pending/Confirmed
+                  if (diffMins === 30 || diffMins === 15 || diffMins === 5) {
+                     const msg = `⚠️ ¡ATENCIÓN! Tienes un servicio en ${diffMins} minutos y aún no has iniciado el traslado. ¿Estás de camino?`;
+                     const newAlert = { id: Date.now() + Math.random(), msg, type: 'URGENT' };
+                     setAlerts(prev => [newAlert, ...prev]);
+                     setTimeout(() => setAlerts(prev => prev.filter(a => a.id !== newAlert.id)), 30000); // 30s alert
+                     
+                     if (navigator.vibrate) {
+                        navigator.vibrate([300, 100, 300, 100, 800]);
+                     }
+                  }
+               } catch (e) {
+                  // ignore parse errors
+               }
+            }
+         });
+      }, 60000); // Check every minute
+
+      return () => clearInterval(interval);
+   }, [selectedDriverId, driverBookings]);
+
    const checkActiveShift = async () => {
       const { data } = await supabase
          .from('driver_logs')
@@ -299,6 +344,28 @@ export const DriverAppView: React.FC = () => {
          await updateVehicle(assignedVehicle.id, { km: kmValue });
       }
 
+      let uploadedPhotoUrl = null;
+      if (photoFile && pendingAction === 'clockIn') {
+         setUploadingPhoto(true);
+         const fileExt = photoFile.name.split('.').pop();
+         const fileName = `${selectedDriverId}-${Date.now()}.${fileExt}`;
+         try {
+            const { error: uploadError } = await supabase.storage
+               .from('driver_photos')
+               .upload(fileName, photoFile);
+            
+            if (!uploadError) {
+               const { data: publicUrlData } = supabase.storage.from('driver_photos').getPublicUrl(fileName);
+               uploadedPhotoUrl = publicUrlData.publicUrl;
+            } else {
+               console.error("Error uploading photo:", uploadError);
+            }
+         } catch (e) {
+            console.error("Upload failed", e);
+         }
+         setUploadingPhoto(false);
+      }
+
       let locationStr = null;
       try {
          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -319,10 +386,28 @@ export const DriverAppView: React.FC = () => {
             type: 'WORK', 
             clock_in: now,
             clock_in_location: locationStr,
-            device_info: deviceInfo
+            device_info: deviceInfo,
+            start_km: isNaN(kmValue) ? null : kmValue,
+            vehicle_condition: vehicleCondition,
+            fuel_level: fuelLevel,
+            incidence_notes: incidenceNotes,
+            photo_url: uploadedPhotoUrl
          }]).select().single();
          await updateDriver(selectedDriverId!, { current_status: 'Working' });
          setCurrentLog(data);
+
+         // Notify Dispatch via Realtime
+         if (incidenceNotes.trim()) {
+            supabase.channel('schema-db-changes').send({
+               type: 'broadcast',
+               event: 'incidence_alert',
+               payload: { 
+                  driver_name: activeDriver?.name, 
+                  vehicle: assignedVehicle?.plate,
+                  notes: incidenceNotes 
+               }
+            });
+         }
       } else if (pendingAction === 'clockOut') {
          if (!currentLog) return;
          await supabase.from('driver_logs').update({ 
@@ -333,6 +418,11 @@ export const DriverAppView: React.FC = () => {
          setCurrentLog(null);
       }
 
+      // Reset form states
+      setPhotoFile(null);
+      setIncidenceNotes('');
+      setVehicleCondition('Impecable');
+      setFuelLevel('100%');
       setKmModalOpen(false);
       setPendingAction(null);
    };
@@ -408,12 +498,95 @@ export const DriverAppView: React.FC = () => {
       }
 
       await updateBooking(bookingId, { status, status_logs: newLogs });
+
+      // COMUNICAR FOMENTO AUTOMÁTICAMENTE AL CONFIRMAR O INICIAR (Si no está ya comunicado)
+      if (bookingToUpdate && (status === 'Confirmed' || status === 'En Route' || status === 'In Progress')) {
+         // Respect fomento_auto_sync setting if it exists (defaults to true for safety/driver request)
+         const autoSyncSetting = settings?.find((s: any) => s.key === 'fomento_auto_sync');
+         const isAutoSyncEnabled = autoSyncSetting ? autoSyncSetting.value === 'true' : true;
+
+         if (isAutoSyncEnabled && bookingToUpdate.fomento_status !== 'COMUNICADO') {
+            try {
+               const payload = buildFomentoPayload(bookingToUpdate, shifts || [], vehicles || [], drivers || [], municipalities || []);
+               const { data: sessionData } = await supabase.auth.getSession();
+               const token = sessionData?.session?.access_token;
+               
+               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
+               const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
+               
+               // Read global env from database settings (defaults to test mode unless explicitly 'production')
+               const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
+               const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+               
+               fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+                  method: 'POST',
+                  headers: {
+                     'Content-Type': 'application/json',
+                     'Authorization': `Bearer ${token || supabaseAnonKey}`,
+                     'apikey': supabaseAnonKey
+                  },
+                  body: JSON.stringify({
+                     action: 'alta',
+                     payload: { ...payload, is_test: isTestMode }
+                  })
+               }).then(async res => {
+                  const data = await res.json();
+                  if (data.success) {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'COMUNICADO',
+                        fomento_idservicio: data.idservicio,
+                        fomento_error: null
+                     });
+                  } else {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'ERROR',
+                        fomento_error: data.error || data.resultado || "Error desconocido"
+                     });
+                  }
+               }).catch(async err => {
+                  console.error("Error Fomento Background Fetch:", err);
+                  try {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'ERROR',
+                        fomento_error: err.message || "Error de red/conexión en segundo plano"
+                     });
+                  } catch (dbErr) {
+                     console.error("No se pudo registrar error de Fomento en DB:", dbErr);
+                  }
+               });
+            } catch (err: any) {
+               console.error("No se pudo construir payload Fomento:", err);
+               try {
+                  await updateBooking(bookingId, {
+                     fomento_status: 'ERROR',
+                     fomento_error: err.message || "Error al construir datos (Falta matrícula o conductor)"
+                  });
+               } catch (dbErr) {
+                  console.error("No se pudo registrar error en DB:", dbErr);
+               }
+            }
+         }
+      }
    };
 
    const openGoogleMaps = (address: string) => {
       if (!address) return;
       const encodedAddress = encodeURIComponent(address);
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`, '_blank');
+   };
+
+   const initiateCollection = (booking: any) => {
+      setCollectingBooking(booking);
+      const isCash = booking.payment_method === 'Efectivo';
+      setActualPaymentMethod(isCash ? 'Efectivo' : 'TPV');
+      if (isCash) {
+         setCashAmount(booking.price?.toString() || '');
+         setTpvAmount('');
+      } else {
+         setTpvAmount(booking.price?.toString() || '');
+         setCashAmount('');
+      }
+      setPaymentModalOpen(true);
    };
 
    const finalizeService = async () => {
@@ -601,12 +774,6 @@ export const DriverAppView: React.FC = () => {
                      </span>
                      {subscriptionLoading ? '...' : isSubscribed ? 'Alertas On' : 'Activar Alertas'}
                   </button>
-                  <button
-                     onClick={() => { localStorage.removeItem('activeDriverId'); setSelectedDriverId(null); }}
-                     className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-brand-platinum hover:text-white text-[9px] font-bold uppercase tracking-[0.2em] transition-all"
-                  >
-                     Salir
-                  </button>
                </div>
             </div>
 
@@ -621,15 +788,9 @@ export const DriverAppView: React.FC = () => {
                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-               <div className="bg-brand-charcoal/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-6 hover:border-brand-gold/20 transition-all">
-                  <p className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.4em] mb-3">Ganancias Semana</p>
-                  <p className="text-3xl font-light text-white tracking-tighter">{weeklyEarnings.toFixed(2)}€</p>
-               </div>
-               <div className="bg-brand-charcoal/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-6 hover:border-emerald-500/20 transition-all">
-                  <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-[0.4em] mb-3">Servicios Hoy</p>
-                  <p className="text-3xl font-light text-white tracking-tighter">{driverBookings.length}</p>
-               </div>
+            <div className="bg-brand-charcoal/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-6 hover:border-brand-gold/20 transition-all">
+               <p className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.4em] mb-3">Ganancias Semana</p>
+               <p className="text-3xl font-light text-white tracking-tighter">{weeklyEarnings.toFixed(2)}€</p>
             </div>
 
             {activeDriver?.current_status === 'Off' ? (
@@ -721,128 +882,217 @@ export const DriverAppView: React.FC = () => {
          {activeTab === 'services' ? (
             /* Assignments */
             <div className="relative z-10 p-8 space-y-8">
-               <div className="flex items-center gap-4 mb-4">
-                  <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
-                  <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Servicios Asignados</h2>
-               </div>
+               {(() => {
+                  const sortedActiveBookings = [...driverBookings].sort((a: any, b: any) => {
+                     const aTime = new Date(`${a.pickup_date}T${a.pickup_time}`).getTime();
+                     const bTime = new Date(`${b.pickup_date}T${b.pickup_time}`).getTime();
+                     return aTime - bTime;
+                  });
+                  
+                  const currentBooking = sortedActiveBookings[0];
+                  const upcomingBookings = sortedActiveBookings.slice(1);
+                  const todayDateStr = new Date().toISOString().split('T')[0];
+                  const completedToday = completedThisWeek.filter((b: any) => b.pickup_date === todayDateStr).sort((a: any, b: any) => {
+                     const aTime = new Date(`${a.pickup_date}T${a.pickup_time}`).getTime();
+                     const bTime = new Date(`${b.pickup_date}T${b.pickup_time}`).getTime();
+                     return bTime - aTime;
+                  });
 
-               {driverBookings.length === 0 ? (
-                  <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
-                     No tienes servicios pendientes por ahora
-                  </div>
-               ) : (
-                  driverBookings.map((b: any) => (
-                     <div key={b.id} className="group relative bg-brand-charcoal/30 backdrop-blur-md border border-white/5 border-l-brand-gold/20 border-l-4 rounded-[2.5rem] p-8 overflow-hidden transition-all duration-500 hover:bg-brand-charcoal/50 hover:border-white/10 shadow-2xl">
-                        <div className="flex justify-between items-start mb-10">
-                           <div className="space-y-1">
-                              <div className="flex flex-wrap items-center gap-3 mb-2">
-                                 {/* Format Date/Time */}
-                                 <div className="flex items-center gap-2 bg-brand-gold/10 px-4 py-2 rounded-xl border border-brand-gold/20">
-                                    <span className="material-icons-round text-brand-gold text-sm">event</span>
-                                    <p className="text-brand-gold font-bold text-sm tracking-widest uppercase">
-                                       {new Date(b.pickup_date).toLocaleDateString('es-ES')} {b.pickup_time}h
-                                    </p>
+                  // Helper to parse extras into icons
+                  const renderExtrasIcons = (notes: string) => {
+                     if (!notes) return null;
+                     const text = notes.toLowerCase();
+                     const icons = [];
+                     if (text.includes('silla') || text.includes('niño')) icons.push({ icon: 'child_care', label: 'Silla de niño' });
+                     if (text.includes('maxicosi') || text.includes('bebé')) icons.push({ icon: 'baby_changing_station', label: 'Maxicosi' });
+                     if (text.includes('alzador')) icons.push({ icon: 'airline_seat_recline_normal', label: 'Alzador' });
+                     if (text.includes('mascota') || text.includes('perro') || text.includes('gato')) icons.push({ icon: 'pets', label: 'Mascota' });
+                     if (text.includes('vip')) icons.push({ icon: 'star', label: 'VIP' });
+                     
+                     if (icons.length === 0) return null;
+                     
+                     return (
+                        <div className="flex gap-2 mt-2">
+                           {icons.map((item, idx) => (
+                              <div key={idx} className="flex items-center justify-center w-8 h-8 rounded-full bg-brand-gold/20 text-brand-gold" title={item.label}>
+                                 <span className="material-icons-round text-[16px]">{item.icon}</span>
+                              </div>
+                           ))}
+                        </div>
+                     );
+                  };
+
+                  if (!currentBooking && completedToday.length === 0) {
+                     return (
+                        <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
+                           No tienes servicios pendientes por ahora
+                        </div>
+                     );
+                  }
+
+                  return (
+                     <div className="space-y-12">
+                        {/* CURRENT BOOKING */}
+                        {currentBooking ? (
+                           <div>
+                              <div className="flex items-center gap-4 mb-4">
+                                 <div className="w-8 h-px bg-brand-gold opacity-50"></div>
+                                 <h2 className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.5em] animate-pulse">Servicio Actual</h2>
+                              </div>
+                              <div className="group relative bg-brand-charcoal/30 backdrop-blur-md border border-white/5 border-l-brand-gold/50 border-l-4 rounded-[2.5rem] p-8 overflow-hidden transition-all duration-500 hover:bg-brand-charcoal/50 shadow-[0_0_40px_rgba(197,160,89,0.05)]">
+                                 <div className="flex justify-between items-start mb-10">
+                                    <div className="space-y-1">
+                                       <div className="flex flex-wrap items-center gap-3 mb-2">
+                                          <div className="flex items-center gap-2 bg-brand-gold/10 px-4 py-2 rounded-xl border border-brand-gold/20">
+                                             <span className="material-icons-round text-brand-gold text-sm">event</span>
+                                             <p className="text-brand-gold font-bold text-sm tracking-widest uppercase">
+                                                {new Date(currentBooking.pickup_date).toLocaleDateString('es-ES')} {currentBooking.pickup_time}h
+                                             </p>
+                                          </div>
+                                          {getTimeRemaining(currentBooking.pickup_date, currentBooking.pickup_time) && (
+                                             <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20 animate-pulse">
+                                                <span className="material-icons-round text-emerald-500 text-sm">schedule</span>
+                                                <p className="text-emerald-500 font-bold text-[10px] tracking-widest uppercase">
+                                                   {getTimeRemaining(currentBooking.pickup_date, currentBooking.pickup_time)}
+                                                </p>
+                                             </div>
+                                          )}
+                                       </div>
+                                       <h3 className="text-4xl font-light text-white tracking-tighter uppercase group-hover:platinum-text transition-all leading-tight">{currentBooking.passenger}</h3>
+                                       <p className="text-brand-platinum text-[10px] font-bold tracking-[0.3em] flex items-center gap-2 uppercase opacity-50 mt-1">
+                                          <span className="material-icons-round text-xs">phone</span> {currentBooking.phone || 'No disponible'}
+                                          <span className="ml-4 opacity-30 tracking-[0.5em]">ID: #{currentBooking.display_id || currentBooking.id.slice(0, 6)}</span>
+                                       </p>
+                                       {renderExtrasIcons(currentBooking.notes)}
+                                    </div>
+                                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.2em] border ${currentBooking.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 'bg-white/5 text-brand-platinum border-white/10'}`}>
+                                       {currentBooking.status}
+                                    </span>
                                  </div>
-                                 {getTimeRemaining(b.pickup_date, b.pickup_time) && (
-                                    <div className="flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20 animate-pulse">
-                                       <span className="material-icons-round text-emerald-500 text-sm">schedule</span>
-                                       <p className="text-emerald-500 font-bold text-[10px] tracking-widest uppercase">
-                                          {getTimeRemaining(b.pickup_date, b.pickup_time)}
+
+                                 <div className="grid md:grid-cols-2 gap-8 mb-10">
+                                    <div className="space-y-6">
+                                       <div className="flex items-start gap-4 group/loc">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-brand-platinum mt-1.5 shrink-0 shadow-[0_0_8px_rgba(142,145,150,0.5)]"></div>
+                                          <div>
+                                             <p className="text-brand-platinum/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Recogida</p>
+                                             <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{currentBooking.origin_address || currentBooking.origin}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex items-start gap-4 group/loc">
+                                          <div className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1.5 shrink-0 shadow-[0_0_8px_rgba(197,160,89,0.5)]"></div>
+                                          <div>
+                                             <p className="text-brand-gold/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Destino</p>
+                                             <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{currentBooking.destination_address || currentBooking.destination}</p>
+                                          </div>
+                                       </div>
+                                    </div>
+                                 </div>
+
+                                 <div className="grid grid-cols-2 gap-4 mb-10">
+                                    <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 col-span-2 hover:border-white/10 transition-all">
+                                       <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Pasajeros</p>
+                                       <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight">
+                                          <span className="material-icons-round text-sm opacity-50">groups</span> {currentBooking.pax || 1} <span className="font-bold text-brand-platinum/50 uppercase text-[10px] tracking-widest">PAX</span>
                                        </p>
                                     </div>
+                                    {currentBooking.flight_number && (
+                                       <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all col-span-2">
+                                          <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Vuelo</p>
+                                          <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight uppercase">
+                                             <span className="material-icons-round text-sm opacity-50">flight</span> {currentBooking.flight_number}
+                                          </p>
+                                       </div>
+                                    )}
+                                 </div>
+
+                                 {currentBooking.notes && (
+                                    <div className="mb-8 p-6 bg-brand-platinum/5 border border-brand-platinum/10 rounded-[2rem] relative overflow-hidden">
+                                       <div className="absolute top-0 right-0 p-3 opacity-10">
+                                          <span className="material-icons-round text-4xl">info</span>
+                                       </div>
+                                       <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.4em] mb-3 flex justify-between">
+                                          NOTAS DEL SERVICIO
+                                       </p>
+                                       <p className="text-[11px] text-slate-300 leading-relaxed font-light italic uppercase tracking-wider">{currentBooking.notes}</p>
+                                    </div>
                                  )}
-                              </div>
-                              <h3 className="text-4xl font-light text-white tracking-tighter uppercase group-hover:platinum-text transition-all leading-tight">{b.passenger}</h3>
-                              <p className="text-brand-platinum text-[10px] font-bold tracking-[0.3em] flex items-center gap-2 uppercase opacity-50 mt-1">
-                                 <span className="material-icons-round text-xs">phone</span> {b.phone || 'No disponible'}
-                                 <span className="ml-4 opacity-30 tracking-[0.5em]">ID: #{b.display_id || b.id.slice(0, 6)}</span>
-                              </p>
-                           </div>
-                           <span className={`px-4 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-[0.2em] border ${b.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 'bg-white/5 text-brand-platinum border-white/10'
-                              }`}>{b.status}</span>
-                        </div>
 
-                        <div className="grid md:grid-cols-2 gap-8 mb-10">
-                           <div className="space-y-6">
-                              <div className="flex items-start gap-4 group/loc">
-                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-platinum mt-1.5 shrink-0 shadow-[0_0_8px_rgba(142,145,150,0.5)]"></div>
-                                 <div>
-                                    <p className="text-brand-platinum/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Recogida</p>
-                                    <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.origin_address || b.origin}</p>
-                                 </div>
-                              </div>
-                              <div className="flex items-start gap-4 group/loc">
-                                 <div className="w-1.5 h-1.5 rounded-full bg-brand-gold mt-1.5 shrink-0 shadow-[0_0_8px_rgba(197,160,89,0.5)]"></div>
-                                 <div>
-                                    <p className="text-brand-gold/40 uppercase font-bold text-[8px] tracking-[0.3em] mb-1.5">Destino</p>
-                                    <p className="text-slate-200 font-light text-sm leading-relaxed tracking-tight group-hover/loc:text-white transition-colors">{b.destination_address || b.destination}</p>
+                                 <div className="grid grid-cols-1 gap-3">
+                                    {currentBooking.status === 'Pending' && (
+                                       <button onClick={() => updateStatus(currentBooking.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
+                                    )}
+                                    {currentBooking.status === 'Confirmed' && (
+                                       <button onClick={() => { updateStatus(currentBooking.id, 'En Route'); openGoogleMaps(currentBooking.origin_address || currentBooking.origin); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
+                                    )}
+                                    {currentBooking.status === 'En Route' && (
+                                       <button onClick={() => updateStatus(currentBooking.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
+                                    )}
+                                    {currentBooking.status === 'At Origin' && (
+                                       <button onClick={() => updateStatus(currentBooking.id, 'In Progress')} className="w-full py-5 bg-brand-gold text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-brand-gold/90 transition-all shadow-lg shadow-brand-gold/20">Pasajero a Bordo</button>
+                                    )}
+                                    {currentBooking.status === 'In Progress' && (
+                                       <button onClick={() => initiateCollection(currentBooking)} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/40">Finalizar Traslado</button>
+                                    )}
                                  </div>
                               </div>
                            </div>
-                        </div>
+                        ) : null}
 
-                        {/* Additional Info */}
-                        <div className="grid grid-cols-2 gap-4 mb-10">
-                           <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 col-span-2 hover:border-white/10 transition-all">
-                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Pasajeros</p>
-                              <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight">
-                                 <span className="material-icons-round text-sm opacity-50">groups</span> {b.pax || 1} <span className="font-bold text-brand-platinum/50 uppercase text-[10px] tracking-widest">PAX</span>
-                              </p>
-                           </div>
-                           <div className="bg-brand-black/30 backdrop-blur-md p-5 rounded-[2rem] border border-white/5 hover:border-white/10 transition-all">
-                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.3em] mb-2 opacity-50 italic">Vuelo</p>
-                              <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight uppercase">
-                                 <span className="material-icons-round text-sm opacity-50">flight</span> {b.flight_number || 'N/A'}
-                              </p>
-                           </div>
-                        </div>
-
-                        {/* Extras */}
-                        {b.notes && (
-                           <div className="mb-8 p-6 bg-brand-platinum/5 border border-brand-platinum/10 rounded-[2rem] relative overflow-hidden">
-                              <div className="absolute top-0 right-0 p-3 opacity-10">
-                                 <span className="material-icons-round text-4xl">info</span>
+                        {/* UPCOMING BOOKINGS */}
+                        {upcomingBookings.length > 0 && (
+                           <div>
+                              <div className="flex items-center gap-4 mb-4">
+                                 <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
+                                 <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Próximos Servicios</h2>
                               </div>
-                              <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.4em] mb-3 flex justify-between">
-                                 EXTRAS & OBSERVACIONES
-                              </p>
-                              <p className="text-[11px] text-slate-300 leading-relaxed font-light italic uppercase tracking-wider">{b.notes}</p>
+                              <div className="space-y-3">
+                                 {upcomingBookings.map((b: any) => (
+                                    <div key={b.id} className="flex items-center justify-between p-4 bg-brand-charcoal/20 border border-white/5 rounded-2xl">
+                                       <div className="flex items-center gap-4">
+                                          <div className="text-center px-3 border-r border-white/10">
+                                             <p className="text-[10px] text-brand-platinum uppercase font-bold">{b.pickup_time}</p>
+                                          </div>
+                                          <div>
+                                             <p className="text-xs text-white font-bold tracking-widest uppercase">{b.passenger}</p>
+                                             <p className="text-[9px] text-brand-platinum/50 uppercase truncate max-w-[150px] sm:max-w-[250px]">{b.origin} → {b.destination}</p>
+                                          </div>
+                                       </div>
+                                       <span className="px-2 py-1 bg-white/5 rounded-lg text-[8px] uppercase tracking-widest text-brand-platinum">{b.status}</span>
+                                    </div>
+                                 ))}
+                              </div>
                            </div>
                         )}
 
-                        <div className="grid grid-cols-1 gap-3">
-                           {b.status === 'Pending' && (
-                              <button onClick={() => updateStatus(b.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
-                           )}
-                           {b.status === 'Confirmed' && (
-                              <button onClick={() => { updateStatus(b.id, 'En Route'); openGoogleMaps(b.origin_address || b.origin); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
-                           )}
-                           {b.status === 'En Route' && (
-                              <button onClick={() => updateStatus(b.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
-                           )}
-                           {b.status === 'At Origin' && (
-                              <button onClick={() => { updateStatus(b.id, 'In Progress'); openGoogleMaps(b.destination_address || b.destination); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Ruta</button>
-                           )}
-                           {b.status === 'In Progress' && (
-                              <button onClick={() => {
-                                 setCollectingBooking(b);
-                                 const isCash = b.payment_method === 'Efectivo' || (b.notes?.toLowerCase() || '').includes('efectivo');
-                                 if (isCash) {
-                                    setCashAmount(b.price?.toString() || '');
-                                    setTpvAmount('');
-                                    setActualPaymentMethod('Efectivo');
-                                 } else {
-                                    setCashAmount('');
-                                    setTpvAmount(b.price?.toString() || '');
-                                    setActualPaymentMethod('TPV');
-                                 }
-                                 setPaymentModalOpen(true);
-                              }} className="w-full py-6 bg-gradient-to-r from-emerald-600 to-blue-600 text-white rounded-2xl text-[11px] font-bold uppercase tracking-[0.4em] shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all">Finalizar Trayecto</button>
-                           )}
-                        </div>
+                        {/* PAST BOOKINGS TODAY */}
+                        {completedToday.length > 0 && (
+                           <div>
+                              <div className="flex items-center gap-4 mb-4">
+                                 <div className="w-8 h-px bg-emerald-500 opacity-30"></div>
+                                 <h2 className="text-[9px] font-bold text-emerald-500 uppercase tracking-[0.5em]">Servicios Realizados (Hoy)</h2>
+                              </div>
+                              <div className="space-y-3 opacity-60">
+                                 {completedToday.map((b: any) => (
+                                    <div key={b.id} className="flex items-center justify-between p-4 bg-emerald-900/10 border border-emerald-500/10 rounded-2xl">
+                                       <div className="flex items-center gap-4">
+                                          <div className="text-center px-3 border-r border-emerald-500/20">
+                                             <p className="text-[10px] text-emerald-500 uppercase font-bold">{b.pickup_time}</p>
+                                          </div>
+                                          <div>
+                                             <p className="text-xs text-emerald-100 font-bold tracking-widest uppercase line-through">{b.passenger}</p>
+                                             <p className="text-[9px] text-emerald-500/50 uppercase truncate max-w-[150px] sm:max-w-[250px]">{b.origin} → {b.destination}</p>
+                                          </div>
+                                       </div>
+                                       <span className="material-icons-round text-emerald-500 text-sm">check_circle</span>
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        )}
                      </div>
-                  ))
-               )}
+                  );
+               })()}
             </div>
          ) : activeTab === 'history' ? (
             <div className="relative z-10">
@@ -1030,37 +1280,109 @@ export const DriverAppView: React.FC = () => {
 
          {/* KM Prompt Modal */}
          {kmModalOpen && (
-            <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-center justify-center p-4">
-               <div className="bg-brand-charcoal w-full max-w-sm rounded-[32px] border border-white/5 shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+               <div className="bg-brand-charcoal w-full max-w-md rounded-[32px] border border-white/5 shadow-2xl p-6 sm:p-8 animate-in zoom-in-95 duration-200 my-8">
                   <div className="text-center mb-6">
                      <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <span className="material-icons-round text-blue-500 text-3xl">speed</span>
+                        <span className="material-icons-round text-blue-500 text-3xl">fact_check</span>
                      </div>
-                     <h2 className="text-xl font-black text-white px-4">Actualizar Kilometraje</h2>
-                     <p className="text-xs text-brand-platinum/50 mt-2">Por favor, indica los kilómetros actuales del vehículo antes de fichar.</p>
+                     <h2 className="text-xl font-black text-white px-4">{pendingAction === 'clockIn' ? 'Fichar Entrada' : 'Fichar Salida'}</h2>
+                     <p className="text-xs text-brand-platinum/50 mt-2">Por favor, revisa y completa el parte de vehículo.</p>
                   </div>
 
                   <div className="space-y-4">
-                     <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-brand-platinum/30 uppercase text-xs">KM</span>
-                        <input
-                           type="number"
-                           value={currentKm}
-                           onChange={(e) => setCurrentKm(e.target.value)}
-                           className="w-full bg-brand-black border border-white/5 rounded-2xl pl-12 pr-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all placeholder-white/10"
-                           placeholder="0"
-                        />
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Kilometraje Actual</label>
+                        <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-brand-platinum/30 uppercase text-xs">KM</span>
+                           <input
+                              type="number"
+                              value={currentKm}
+                              onChange={(e) => setCurrentKm(e.target.value)}
+                              className="w-full bg-brand-black border border-white/5 rounded-2xl pl-12 pr-5 py-4 text-xl font-black text-white focus:border-blue-500 outline-none transition-all placeholder-white/10"
+                              placeholder="0"
+                           />
+                        </div>
                      </div>
 
-                     <div className="pt-2 grid gap-3">
+                     {pendingAction === 'clockIn' && (
+                        <>
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                 <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Limpieza/Estado</label>
+                                 <select
+                                    value={vehicleCondition}
+                                    onChange={(e) => setVehicleCondition(e.target.value)}
+                                    className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all appearance-none"
+                                 >
+                                    <option value="Impecable">Impecable</option>
+                                    <option value="Aceptable">Aceptable</option>
+                                    <option value="Sucio">Sucio</option>
+                                 </select>
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Combustible</label>
+                                 <select
+                                    value={fuelLevel}
+                                    onChange={(e) => setFuelLevel(e.target.value)}
+                                    className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-blue-500 outline-none transition-all appearance-none"
+                                 >
+                                    <option value="100%">100%</option>
+                                    <option value="75%">75%</option>
+                                    <option value="50%">50%</option>
+                                    <option value="25%">25%</option>
+                                    <option value="Reserva">Reserva</option>
+                                 </select>
+                              </div>
+                           </div>
+
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Incidencias / Daños</label>
+                              <textarea
+                                 value={incidenceNotes}
+                                 onChange={(e) => setIncidenceNotes(e.target.value)}
+                                 className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:border-blue-500 outline-none transition-all resize-none h-20 placeholder-white/20"
+                                 placeholder="Opcional. Escribe si hay algún rasguño, ruido, falta de agua..."
+                              />
+                           </div>
+
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Fotografía (Opcional)</label>
+                              <label className="flex items-center justify-center w-full h-16 bg-brand-black border border-white/5 border-dashed rounded-2xl cursor-pointer hover:border-brand-gold/50 transition-all group">
+                                 <div className="flex items-center gap-3 overflow-hidden px-4">
+                                    <span className="material-icons-round text-brand-platinum group-hover:text-brand-gold transition-colors">add_a_photo</span>
+                                    <span className="text-xs font-bold text-brand-platinum group-hover:text-brand-gold transition-colors truncate">
+                                       {photoFile ? photoFile.name : 'Subir o tomar foto'}
+                                    </span>
+                                 </div>
+                                 <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    capture="environment"
+                                    className="hidden" 
+                                    onChange={(e) => {
+                                       if (e.target.files && e.target.files[0]) {
+                                          setPhotoFile(e.target.files[0]);
+                                       }
+                                    }} 
+                                 />
+                              </label>
+                           </div>
+                        </>
+                     )}
+
+                     <div className="pt-4 grid gap-3">
                         <button
                            onClick={confirmKmAndProceed}
-                           className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-500 active:scale-95 shadow-lg shadow-blue-900/40 transition-all"
+                           disabled={uploadingPhoto}
+                           className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-blue-500 active:scale-95 shadow-lg shadow-blue-900/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                           Confirmar y Fichar
+                           {uploadingPhoto && <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>}
+                           {uploadingPhoto ? 'Subiendo...' : 'Confirmar y Fichar'}
                         </button>
                         <button
-                           onClick={() => { setKmModalOpen(false); setPendingAction(null); }}
+                           onClick={() => { setKmModalOpen(false); setPendingAction(null); setPhotoFile(null); }}
+                           disabled={uploadingPhoto}
                            className="w-full py-3 text-brand-platinum/50 hover:text-white font-bold uppercase text-[10px] tracking-widest transition-all"
                         >
                            Cancelar

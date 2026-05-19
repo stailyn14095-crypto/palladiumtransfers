@@ -99,7 +99,7 @@ function extractPemFromP12(p12Base64: string, password: string) {
     return { privateKeyPem, certificatePem };
 }
 
-function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKeyPem: string, certificatePem: string) {
+function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKeyPem: string, certificatePem: string, isTest: boolean) {
     const certBase64 = certificatePem.replace(/-----(BEGIN|END) CERTIFICATE-----|\n/g, '');
     const wsuNs = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd";
     const vtcUri = "http://mfom.com/vtc";
@@ -108,8 +108,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
     let uniqueIdComunica = '';
 
     if (action === 'alta') {
-        const isProd = Deno.env.get('FOMENTO_ENV') === 'production';
-        if (!isProd) {
+        if (isTest) {
             console.log(`[FOMENTO-VTC] Integración de pruebas activa. Forzando ficticios: niftitular="99999999R", nif="B26816025"`);
             payload.niftitular = "99999999R";
             payload.nif = "B26816025";
@@ -142,27 +141,14 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
 
         console.log(`[FOMENTO-VTC] Alta: fecha="${isoCommTime}" | fprevistainicio="${isoFprevistainicio}" | fcontrato="${isoFcontrato}" | idcomunica="${uniqueIdComunica}"`);
 
+        const nifAttr = (payload.nif && payload.nif !== payload.niftitular) ? `nif="${payload.nif}" ` : '';
+        const nomAttr = payload.nom ? `nom="${payload.nom}" ` : '';
+        
         dataXml = `
             <vtc:qaltavtc xmlns:vtc="${vtcUri}">
                 <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${uniqueIdComunica}"/>
                 <body>
-                    <vtcservicio 
-                        niftitular="${payload.niftitular}" 
-                        nif="${payload.nif}" 
-                        nom="${payload.nom}" 
-                        matricula="${payload.matricula}" 
-                        fcontrato="${isoFcontrato}" 
-                        cgprovcontrato="${payload.cgprovcontrato}" 
-                        cgmunicontrato="${payload.cgmunicontrato}" 
-                        cgprovinicio="${payload.cgprovinicio}" 
-                        cgmuniinicio="${payload.cgmuniinicio}" 
-                        direccioninicio="${(payload.direccioninicio || 'Direccion Origen').substring(0, 100)}" 
-                        fprevistainicio="${isoFprevistainicio}" 
-                        cgprovfin="${payload.cgprovfin}" 
-                        cgmunifin="${payload.cgmunifin}" 
-                        direccionfin="${(payload.direccionfin || 'Direccion Destino').substring(0, 100)}" 
-                        ffin="${isoFfin}" 
-                        veraz="S"/>
+                    <vtcservicio niftitular="${payload.niftitular}" ${nifAttr}${nomAttr}matricula="${payload.matricula}" fcontrato="${isoFcontrato}" cgprovcontrato="${payload.cgprovcontrato}" cgmunicontrato="${payload.cgmunicontrato}" cgprovinicio="${payload.cgprovinicio}" cgmuniinicio="${payload.cgmuniinicio}" direccioninicio="${(payload.direccioninicio || 'Direccion Origen').substring(0, 100)}" fprevistainicio="${isoFprevistainicio}" cgprovfin="${payload.cgprovfin}" cgmunifin="${payload.cgmunifin}" direccionfin="${(payload.direccionfin || 'Direccion Destino').substring(0, 100)}" ffin="${isoFfin}" veraz="S"/>
                 </body>
             </vtc:qaltavtc>
         `.trim();
@@ -210,9 +196,8 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
 
 
 
-async function sendToFomento(signedXml: string, action: string) {
-    const isProd = Deno.env.get('FOMENTO_ENV') === 'production';
-    const endpoint = isProd
+async function sendToFomento(signedXml: string, action: string, isTest: boolean) {
+    const endpoint = !isTest
         ? 'https://sede.transportes.gob.es/MFOM.Services.VTC.Server/VTCPort'
         : 'https://presede.mitma.gob.es/MFOM.Services.VTC.Server/VTCPort';
 
@@ -263,14 +248,27 @@ async function sendToFomento(signedXml: string, action: string) {
                 const RVTC_ERRORS: Record<string, string> = {
                     '00': 'OK - Servicio registrado correctamente',
                     '0':  'OK - Servicio registrado correctamente',
-                    '79': 'La comunicación del servicio debe realizarse antes del inicio del viaje',
-                    '80': 'El servicio ya fue comunicado previamente',
-                    '81': 'NIF del titular no encontrado o sin autorización VTC activa',
-                    '82': 'Matrícula no registrada o no asociada al titular',
-                    '83': 'Fecha de contrato inválida o fuera de rango',
-                    '84': 'Municipio o provincia de origen no válido',
-                    '85': 'Municipio o provincia de destino no válido',
-                    '86': 'Datos del servicio incompletos o inválidos',
+                    '51': 'El NIF que comunica no puede crear servicios para ese intermediario y matrícula',
+                    '52': 'EL NIF comunicado no puede gestionar servicios para esa matrícula',
+                    '53': 'El NIF del intermediario no es correcto',
+                    '54': 'El NIF del titular no es correcto',
+                    '55': 'La fecha de contrato debe ser anterior a la fecha prevista de inicio',
+                    '56': 'La fecha y hora prevista de inicio debe ser posterior a la fecha y hora actual',
+                    '57': 'La fecha fin del servicio debe ser igual o posterior a la fecha de inicio',
+                    '58': 'La provincia del contrato no es correcta',
+                    '59': 'La provincia de origen no es correcta',
+                    '60': 'La provincia de destino no es correcta',
+                    '61': 'La provincia del lugar más lejano no es correcta',
+                    '62': 'El municipio del contrato no es correcto',
+                    '63': 'El municipio inicio no es correcto',
+                    '64': 'El municipio fin no es correcto',
+                    '65': 'El municipio del lugar más lejano no es correcto',
+                    '66': 'Los lugares de inicio y fin son iguales. Debe comunicar el punto más lejano',
+                    '69': 'Error en el SW al crear el servicio',
+                    '79': 'El formato de la matrícula no es correcto',
+                    '83': 'El titular no dispone de la autorización de esa matrícula',
+                    '84': 'El NIF comunicado no puede gestionar servicios',
+                    '85': 'Error al crear el servicio',
                 };
 
                 const isSuccess = resultado === '00' || resultado === '0';
@@ -392,8 +390,9 @@ Deno.serve(async (req) => {
         const { privateKeyPem, certificatePem } = extractPemFromP12(certBase64, certPassword);
 
         if (action === 'alta' || action === 'anulacion') {
-            const { signedXml, idcomunica } = createSignedSoap(action as any, payload, privateKeyPem, certificatePem);
-            const fomentoRes = await sendToFomento(signedXml, action);
+            const isTest = (Deno.env.get('FOMENTO_ENV') !== 'production') || (payload && payload.is_test === true);
+            const { signedXml, idcomunica } = createSignedSoap(action as any, payload, privateKeyPem, certificatePem, isTest);
+            const fomentoRes = await sendToFomento(signedXml, action, isTest);
 
             return new Response(JSON.stringify({
                 success: fomentoRes.success !== false && (fomentoRes.resultado === '00' || fomentoRes.resultado === '0'),
@@ -407,7 +406,8 @@ Deno.serve(async (req) => {
                 diagnostics: {
                     hasRelayUrl: !!relayUrl,
                     hasRelaySecret: !!relaySecret,
-                    fomentoEnv: Deno.env.get('FOMENTO_ENV') || 'not set'
+                    fomentoEnv: Deno.env.get('FOMENTO_ENV') || 'not set',
+                    isTest: isTest
                 }
             }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },

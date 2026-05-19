@@ -55,7 +55,7 @@ serve(async (req: Request) => {
     const { data: bookings, error: bookingsError } = await supabaseClient
       .from('bookings')
       .select('*, driver:driver_id(*)')
-      .eq('status', 'Confirmed')
+      .in('status', ['Confirmed', 'Pending'])
       .gte('pickup_date', madridTodayStr)
       .not('driver_id', 'is', null)
 
@@ -76,18 +76,31 @@ serve(async (req: Request) => {
         let slot = null
         let message = ''
 
-        if (diffMinutes <= 60 && diffMinutes > 50) {
-            slot = '60m'
-            message = `Recordatorio: Tienes un servicio en 1 hora (${booking.pickup_time})`
-        } else if (diffMinutes <= 30 && diffMinutes > 20) {
-            slot = '30m'
-            message = `¡Atención! Falta media hora (${booking.pickup_time}) y no has iniciado el trayecto.`
-        } else if (diffMinutes <= 20 && diffMinutes > 10) {
-            slot = '20m'
-            message = `AVISO: Faltan 20 min para el traslado. Por favor, indica que vas "En Camino".`
-        } else if (diffMinutes <= 10 && diffMinutes > 0) {
-            slot = '10m'
-            message = `URGENTE: El servicio empieza en 10 min. Confirmar estado "En Camino".`
+        if (booking.status === 'Pending') {
+            if (diffMinutes <= 240 && diffMinutes > 230) {
+                slot = '240m_pending'
+                message = `Recordatorio: Tienes un servicio PENDIENTE en 4 horas (${booking.pickup_time}). ¡Por favor, confírmalo!`
+            } else if (diffMinutes <= 120 && diffMinutes > 110) {
+                slot = '120m_pending'
+                message = `¡Atención! Faltan 2 horas para un traslado que no has confirmado. Entra y confírmalo.`
+            } else if (diffMinutes <= 60 && diffMinutes > 50) {
+                slot = '60m_pending'
+                message = `URGENTE: Tienes un servicio en 1 hora sin confirmar.`
+            }
+        } else if (booking.status === 'Confirmed') {
+            if (diffMinutes <= 60 && diffMinutes > 50) {
+                slot = '60m'
+                message = `Recordatorio: Tienes un servicio en 1 hora (${booking.pickup_time})`
+            } else if (diffMinutes <= 30 && diffMinutes > 20) {
+                slot = '30m'
+                message = `¡Atención! Falta media hora (${booking.pickup_time}) y no has iniciado el trayecto.`
+            } else if (diffMinutes <= 20 && diffMinutes > 10) {
+                slot = '20m'
+                message = `AVISO: Faltan 20 min para el traslado. Por favor, indica que vas "En Camino".`
+            } else if (diffMinutes <= 10 && diffMinutes > 0) {
+                slot = '10m'
+                message = `URGENTE: El servicio empieza en 10 min. Confirmar estado "En Camino".`
+            }
         }
 
         if (!slot) continue

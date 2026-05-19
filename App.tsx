@@ -82,6 +82,7 @@ export default function App() {
       console.log(`App: User role fetched: "${role}" for ID: ${userId}`);
       setUserRole(role);
       setRoleReady(true);
+      localStorage.setItem('palladium_user_role', role); // Cache to avoid slow reloads
       lastFetchedUserId.current = userId;
 
       // Set default view based on role
@@ -108,6 +109,19 @@ export default function App() {
   useEffect(() => {
     console.log("App: useEffect start");
     let isMounted = true;
+
+    // Optimistic UI load: Restore cached role to bypass loading screen
+    const cachedRole = localStorage.getItem('palladium_user_role');
+    if (cachedRole) {
+      setUserRole(cachedRole);
+      setRoleReady(true);
+      if (cachedRole !== 'client') {
+        setShowLanding(false);
+        if (cachedRole === 'driver') setCurrentView(ViewState.DRIVER_APP);
+        else if (cachedRole === 'accountant') setCurrentView(ViewState.FACTURAS);
+        else setCurrentView(ViewState.OPERATIONS);
+      }
+    }
 
     // Failsafe timeout in case Supabase hangs
     const failsafe = setTimeout(() => {
@@ -141,6 +155,7 @@ export default function App() {
         } else {
           // No session found on init, or user just signed out
           console.log(`App: no session (${event}), using default client role.`);
+          localStorage.removeItem('palladium_user_role'); // Clear cache
           setShowLanding(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
           setUserRole('client');
           setRoleReady(true);
@@ -187,20 +202,18 @@ export default function App() {
     }
   }, [userRole, currentView]);
 
-  if (loading) {
+  if (loading || (session && !roleReady)) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-900 text-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-      </div>
-    );
-  }
-
-  // If session exists but role is still loading, wait before rendering anything
-  if (session && !roleReady) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-white flex-col gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
-        <p className="text-brand-platinum/50 text-xs uppercase tracking-widest font-bold">Cargando perfil...</p>
+      <div className="flex flex-col items-center justify-center h-screen bg-[#0a0a0a] text-white">
+        <div className="relative flex flex-col items-center justify-center gap-8 animate-pulse-slow">
+          <img src="/favicon.svg" alt="Palladium Logo" className="h-20 w-20 opacity-90 drop-shadow-lg" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold"></div>
+            <p className="text-brand-gold/70 text-xs uppercase tracking-widest font-bold mt-4">
+              {session ? 'Cargando perfil...' : 'Iniciando sistema...'}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

@@ -509,6 +509,7 @@ export const ClientesView = () => {
       { name: 'city', label: 'Ciudad / Municipio', type: 'text' },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'phone', label: 'Teléfono', type: 'text' },
+      { name: 'contract_date', label: 'Fecha de Contrato', type: 'date' },
       { name: 'status', label: 'Estado', type: 'select', options: ['Active', 'Inactive'], required: true },
    ] as any;
 

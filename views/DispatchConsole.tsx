@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
+import { supabase } from '../services/supabase';
 import { isDriverAvailable, getAssignedVehicleForBooking } from '../services/autoAssignment';
 
 export const DispatchConsole: React.FC = () => {
@@ -12,10 +13,34 @@ export const DispatchConsole: React.FC = () => {
    const [searchQuery, setSearchQuery] = useState('');
    const [draggedBookingId, setDraggedBookingId] = useState<string | null>(null);
    const [dropTargetDriverId, setDropTargetDriverId] = useState<string | null>(null);
+   const [dispatchAlerts, setDispatchAlerts] = useState<any[]>([]);
 
    const timelineRef = useRef<HTMLDivElement>(null);
    const HOURS = Array.from({ length: 24 }, (_, i) => i);
    const HOUR_WIDTH = 120; // px
+
+   // Listen to incidence alerts broadcasted by DriverApp
+   useEffect(() => {
+      const channel = supabase.channel('schema-db-changes');
+      
+      channel.on('broadcast', { event: 'incidence_alert' }, (payload) => {
+         const alert = {
+            id: Date.now() + Math.random(),
+            driver: payload.payload.driver_name,
+            vehicle: payload.payload.vehicle,
+            notes: payload.payload.notes,
+            time: new Date().toLocaleTimeString()
+         };
+         setDispatchAlerts((prev) => [alert, ...prev]);
+         
+         // Remove after 30s
+         setTimeout(() => {
+            setDispatchAlerts((prev) => prev.filter(a => a.id !== alert.id));
+         }, 30000);
+      }).subscribe();
+
+      return () => { channel.unsubscribe(); };
+   }, []);
 
    // Auto-scroll to current time on load (if today)
    useEffect(() => {
@@ -111,7 +136,23 @@ export const DispatchConsole: React.FC = () => {
    };
 
    return (
-      <div className="flex flex-col h-full bg-brand-black text-slate-200">
+      <div className="flex flex-col h-full bg-brand-black text-slate-200 relative">
+         
+         {/* DISPATCH ALERTS (INCIDENCES) */}
+         <div className="absolute top-20 right-4 z-[100] flex flex-col gap-3 pointer-events-none w-80">
+            {dispatchAlerts.map(alert => (
+               <div key={alert.id} className="bg-rose-600/90 backdrop-blur-md text-white p-4 rounded-xl shadow-2xl border border-rose-400 pointer-events-auto animate-[slideIn_0.3s_ease-out]">
+                  <div className="flex items-center gap-2 mb-1">
+                     <span className="material-icons-round text-lg">warning</span>
+                     <h4 className="font-bold text-sm tracking-widest uppercase">Incidencia Reportada</h4>
+                  </div>
+                  <p className="text-xs font-bold opacity-80">{alert.driver} - {alert.vehicle}</p>
+                  <p className="text-xs mt-2 italic bg-black/20 p-2 rounded">{alert.notes}</p>
+                  <p className="text-[9px] text-right mt-2 opacity-60 font-bold">{alert.time}</p>
+               </div>
+            ))}
+         </div>
+
          {/* Header */}
          <header className="min-h-[5rem] shrink-0 bg-brand-charcoal border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-8 py-4 md:py-0 z-20 shadow-xl gap-4 md:gap-0">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full md:w-auto">

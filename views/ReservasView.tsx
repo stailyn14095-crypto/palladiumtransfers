@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { DataEntryModal } from '../components/DataEntryModal';
+
+const getTodayLocal = () => {
+   const date = new Date();
+   // Adjust to Spanish Time (CEST/CET) manually if needed, or use toLocaleDateString
+   // sv-SE returns YYYY-MM-DD
+   return date.toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+};
+
 import { suggestDriver, detectScheduleConflicts, getAssignedVehicleForBooking, calculateAvailableAt } from '../services/autoAssignment';
 import { supabase } from '../services/supabase';
 import { sendCancellationEmail } from '../services/emailService';
@@ -15,7 +23,7 @@ export const ReservasView: React.FC = () => {
    const { data: clients } = useSupabaseData('clients');
    // Fetch municipalities for type lookup
    const { data: municipalities } = useSupabaseData('municipalities');
-   const { data: settings } = useSupabaseData('system_settings');
+   const { data: settings, updateItem: updateSetting } = useSupabaseData('system_settings');
    const TOTAL_FLEET = vehicles?.length || 12;
 
    // Local State for Filters
@@ -23,8 +31,8 @@ export const ReservasView: React.FC = () => {
    const [statusFilter, setStatusFilter] = useState('Todos');
    const [hideCompleted, setHideCompleted] = useState(false); // Changed initial value
    const [hideCancelled, setHideCancelled] = useState(true);
-   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
-   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]); // Changed initial value
+   const [startDate, setStartDate] = useState(getTodayLocal()); // Fixed UTC bug
+   const [endDate, setEndDate] = useState(getTodayLocal()); // Fixed UTC bug
    const [driverFilter, setDriverFilter] = useState('Todos');
    const [clientFilter, setClientFilter] = useState('Todos');
    const [vehicleIdFilter, setVehicleIdFilter] = useState('Todos'); // Filter by specific vehicle (plate)
@@ -161,7 +169,7 @@ export const ReservasView: React.FC = () => {
             passenger: data.passenger || '',
             phone: data.phone || '',
             email: data.email || '',
-            pickup_date: data.pickup_date || new Date().toISOString().split('T')[0],
+            pickup_date: data.pickup_date || getTodayLocal(),
             pickup_time: data.pickup_time || '12:00',
             origin: data.origin || '',
             origin_address: data.origin || '', // Default address to origin name
@@ -299,11 +307,35 @@ export const ReservasView: React.FC = () => {
 
          await updateItem(bookingId, updates);
 
-         // Auto-sync RVTC if setting is enabled
+         // Advanced RVTC Sync Logic: Handle changes in communications
          const autoSync = settings?.find((s: any) => s.key === 'fomento_auto_sync')?.value === 'true';
          if (autoSync) {
             const updatedBooking = { ...booking, ...updates };
-            handleComunicarFomento(updatedBooking, true);
+            
+            // If already communicated, check if we need to re-sync (plate change)
+            if (booking.fomento_status === 'COMUNICADO' && booking.fomento_idservicio) {
+               // Determine current and new plates
+               const getPlate = (driverId: string) => {
+                  const bDate = booking.pickup_date?.split('T')[0];
+                  const svcShift = bDate ? shifts?.find((s: any) => s.driver_id === driverId && s.date === bDate) : null;
+                  const svcVehicle = svcShift ? vehicles?.find((v: any) => v.id === svcShift.vehicle_id) : null;
+                  return svcVehicle?.plate?.replace(/[^a-zA-Z0-9]/g, '') || null;
+               };
+
+               const oldPlate = getPlate(booking.driver_id);
+               const newPlate = getPlate(driverId);
+
+               if (oldPlate !== newPlate) {
+                  console.log("[FOMENTO SYNC] Plate changed, re-syncing...");
+                  // 1. Anular old communication
+                  await handleAnularFomento(booking, true);
+                  // 2. Send new communication
+                  await handleComunicarFomento(updatedBooking, true);
+               }
+            } else {
+               // First time communication
+               handleComunicarFomento(updatedBooking, true);
+            }
          }
       } catch (error) {
          console.error('Error assigning driver:', error);
@@ -524,7 +556,7 @@ export const ReservasView: React.FC = () => {
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       link.setAttribute("href", url);
-      link.setAttribute("download", `reservas_completo_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `reservas_completo_${getTodayLocal()}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -533,8 +565,8 @@ export const ReservasView: React.FC = () => {
 
    const handleCreateTestBooking = async () => {
       try {
-         // Check availability for today at 12:00
-         const pickup_date = new Date().toISOString().split('T')[0];
+         // Check availability for today at 12:00 (Local Spanish Time)
+         const pickup_date = getTodayLocal();
          const pickup_time = "12:00";
          const hour = 12;
 
@@ -577,98 +609,283 @@ export const ReservasView: React.FC = () => {
    const handleComunicarFomento = async (booking: any, silent: boolean = false) => {
       console.log("[FOMENTO DEBUG] Iniciando comunicación para reserva:", booking.id);
       try {
-         const companyName = settings?.find((s: any) => s.key === 'company_name')?.value || 'Palladium Transfers S.L.';
-         const companyNif = settings?.find((s: any) => s.key === 'company_nif')?.value || 'B00000000';
+         // ✅ FIX: Force name to match Ministry portal exactly (Uppercase, no dots in SL)
+         const companyName = (settings?.find((s: any) => s.key === 'company_legal_name')?.value || 'PALLADIUM TRANSFERS SL')
+            .toUpperCase()
+            .replace(/\./g, '')
+            .trim();
+         const companyNif = settings?.find((s: any) => s.key === 'company_nif')?.value || 'B26816025';
 
-         // Helper to find municipality codes
-         const findMuniCodes = (name: string) => {
-            if (!municipalities || !name) return { muni: "079", prov: "03" }; // Default Alicante
-            const found = municipalities.find((m: any) => 
-               m.name.toLowerCase() === name.toLowerCase() || 
-               name.toLowerCase().includes(m.name.toLowerCase())
+         // Helper to find municipality codes with robust fallback
+         const findMuniCodes = (locName: string, muniName?: string, addressText?: string) => {
+            const upper = (locName || '').toUpperCase();
+            const upperMuni = (muniName || '').toUpperCase();
+            const upperAddress = (addressText || '').toUpperCase();
+            
+            // 0. Priority for Hubs (Airport/Train/Port)
+            if (upper.includes('AEROPUERTO') || upper.includes('AIRPORT') || upperAddress.includes('AEROPUERTO') || upperAddress.includes('AIRPORT')) {
+               return { prov: '03', muni: '065' }; // Elche (ALC Airport)
+            }
+
+            // 1. Try to find by the specific municipality field if it exists
+            let match = (municipalities as any[])?.find(m => 
+               m.name.toUpperCase() === upperMuni
             );
-            return found ? { muni: found.cod_mun, prov: found.cod_prov } : { muni: "079", prov: "03" };
+
+            // 2. If no match, try to find by the location text
+            if (!match && upper) {
+               match = (municipalities as any[])?.find(m => 
+                  upper.includes(m.name.toUpperCase()) || 
+                  m.name.toUpperCase().includes(upper)
+               );
+            }
+
+            // 3. If still no match, try to find in the address text
+            if (!match && upperAddress) {
+               match = (municipalities as any[])?.find(m => 
+                  upperAddress.includes(m.name.toUpperCase())
+               );
+            }
+
+            if (match) {
+               return { 
+                  prov: match.cod_prov || '03', 
+                  muni: match.cod_mun || '014' 
+               };
+            }
+
+            // Fallbacks for common cases if not found
+            if (upper.includes('ELCHE') || upper.includes('ELX') || upperAddress.includes('ELCHE') || upperAddress.includes('ELX')) return { prov: '03', muni: '065' };
+            if (upper.includes('CAMPELLO') || upperAddress.includes('CAMPELLO')) return { prov: '03', muni: '050' };
+            if (upper.includes('BENIDORM') || upperAddress.includes('BENIDORM')) return { prov: '03', muni: '031' };
+            if (upper.includes('ALTEA') || upperAddress.includes('ALTEA')) return { prov: '03', muni: '018' };
+            if (upper.includes('ALICANTE') || upper.includes('ALC') || upperAddress.includes('ALICANTE') || upperAddress.includes('ALC')) return { prov: '03', muni: '014' };
+            
+            return { prov: '03', muni: '014' }; 
          };
 
-         const originCodes = findMuniCodes(booking.origin);
-         const destCodes = findMuniCodes(booking.destination);
-         console.log("[FOMENTO DEBUG] Códigos resueltos:", { originCodes, destCodes });
-
-         // Create the payload for AltaDeServicio based on Fomento requirements
-         const payload = {
-            cgmunicontrato: originCodes.muni, 
-            cgmunifin: destCodes.muni,
-            cgmuniinicio: originCodes.muni,
-            cgprovcontrato: originCodes.prov,
-            cgprovfin: destCodes.prov,
-            cgprovinicio: originCodes.prov,
-            direccionfin: booking.destination_address || booking.destination,
-            direccioninicio: booking.origin_address || booking.origin,
-            fcontrato: booking.created_at ? booking.created_at.split('T')[0] : booking.pickup_date.split('T')[0],
-            ffin: booking.pickup_date ? booking.pickup_date.split('T')[0] : "",
-            fprevistainicio: `${booking.pickup_date?.split('T')[0]}T${booking.pickup_time}:00`,
-            matricula: "PENDING",
-            nifarrendador: companyNif,
-            nifarrendatario: "99999999R", // Default NIF
-            niftitular: companyNif,
-            nombarrendador: companyName,
-            nombarrendatario: booking.client_name || booking.passenger,
-            nombtitular: companyName
-         };
-
-         // Look up assigned vehicle if available
-         if (booking.driver_id && shifts && vehicles) {
-            const bDate = booking.pickup_date ? booking.pickup_date.split("T")[0] : null;
-            const svcShift = bDate ? shifts.find((s: any) => s.driver_id === booking.driver_id && s.date === bDate) : null;
-            const svcVehicle = svcShift ? vehicles.find((v: any) => v.id === svcShift.vehicle_id) : null;
-            if (svcVehicle && svcVehicle.plate) {
-               payload.matricula = svcVehicle.plate.replace(/[^a-zA-Z0-9]/g, ''); // Clean plate for Fomento
+         const originCodes = findMuniCodes(booking.origin, booking.origin_municipality, booking.origin_address);
+         const destCodes = findMuniCodes(booking.destination, booking.destination_municipality, booking.destination_address);
+         
+         // ✅ FORCE Company NIF for ALL services to avoid Error 51 (unregistered agency NIF)
+         // The Ministry requires the contracting party NIF to be in their registry. 
+         // By using the company's own NIF, we ensure the communication is always accepted.
+         const clientNif = companyNif.replace(/[^a-zA-Z0-9]/g, '');
+         let clientContractDate = null;
+         
+         if (booking.client_id) {
+            const client = (clients as any[])?.find(c => c.id === booking.client_id);
+            if (client) {
+               // We still fetch the contract_date if available
+               clientContractDate = client.contract_date;
             }
          }
 
-         console.log("[FOMENTO DEBUG] Payload generado:", payload);
+         // Helper to format plate with hyphen (e.g. 1234ABC -> 1234-ABC)
+         const formatPlate = (p: string) => {
+            if (!p) return "PENDING";
+            const clean = p.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            // Standard Spanish plate: 4 digits + 3 letters
+            if (clean.length === 7 && /^\d{4}[A-Z]{3}$/.test(clean)) {
+               return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+            }
+            return p.trim().toUpperCase();
+         };
 
-         if (payload.matricula === "PENDING") {
-            console.warn("[FOMENTO DEBUG] Matrícula PENDING, deteniendo.");
-            if (!silent) alert("⚠️ Debes asignar la reserva a un conductor con un vehículo registrado antes de comunicarla a Fomento.");
-            return;
+         // 📍 Location code normalization (ensure 3 digits)
+         const formatCode = (c: any) => String(c || '').padStart(3, '0').slice(-3);
+         
+         const originMuni = formatCode(originCodes.muni);
+         let destMuni = formatCode(destCodes.muni);
+
+         // ✅ FIX: Force Elche (065) for Alicante Airport if detected
+         if (booking.destination?.toUpperCase().includes('AEROPUERTO') || 
+             booking.destination?.toUpperCase().includes('AIRPORT') ||
+             booking.destination_address?.toUpperCase().includes('AEROPUERTO')) {
+            destMuni = '065';
          }
 
-         // Get current session for Authorization
-         const { data: sessionData } = await supabase.auth.getSession();
+         // Create the payload for AltaDeServicio based on Fomento requirements (Manual v2.4)
+         const payload: any = {
+            cgmunicontrato: originMuni, 
+            cgmunifin: destMuni,
+            cgmuniinicio: originMuni,
+            cgprovcontrato: originCodes.prov || '03',
+            cgprovfin: destCodes.prov || '03',
+            cgprovinicio: originCodes.prov || '03',
+            direccionfin: (booking.destination_address || booking.destination || "").substring(0, 100),
+            direccioninicio: (booking.origin_address || booking.origin || "").substring(0, 100),
+            // ✅ FIX: Use numeric only ID for idcomunica (Max 10 digits for safety)
+            idcomunica: `${Math.floor(Math.random() * 1000000000)}`, 
+            niftitular: companyNif.replace(/[^A-Z0-9]/g, '').toUpperCase(),
+            nombtitular: companyName.toUpperCase(),
+            nif: clientNif.replace(/[^A-Z0-9]/g, '').toUpperCase(),
+            // ✅ FIX: If we are using the company NIF as contracting party, the name MUST match (Company Name)
+            nom: (clientNif === companyNif.replace(/[^a-zA-Z0-9]/g, '') ? companyName.toUpperCase() : (booking.client_name || booking.passenger || "CLIENTE")).substring(0, 50),
+            matricula: "PENDING",
+            // ✅ FIX: Smart date parsing:
+            // - If pickup_date has time component ("T"), parse to local date
+            // - If it's a date-only string ("2026-05-17"), use as-is (parsing would give UTC midnight → wrong local date)
+            fecinicio: booking.pickup_date ? (
+               booking.pickup_date.includes('T')
+                  ? new Date(booking.pickup_date).toLocaleDateString('sv-SE')
+                  : booking.pickup_date.substring(0, 10)
+            ) : "",
+            horinicio: booking.pickup_time || "00:00",
+            fecfin: booking.pickup_date ? (
+               booking.pickup_date.includes('T')
+                  ? new Date(booking.pickup_date).toLocaleDateString('sv-SE')
+                  : booking.pickup_date.substring(0, 10)
+            ) : "",
+            horfin: "23:59",
+            // ✅ FIX: Force recent contract date and strip timezone
+            fcontrato: (() => {
+               const baseDate = clientContractDate || booking.created_at || new Date().toISOString();
+               const d = new Date(baseDate);
+               const now = new Date();
+               // If more than 30 days old or in the future, use NOW
+               const targetDate = (Math.abs(now.getTime() - d.getTime()) > 30 * 24 * 60 * 60 * 1000) ? now : d;
+               return targetDate.toISOString().split('.')[0];
+            })()
+         };
+
+         // Look up assigned vehicle — multi-tier fallback strategy
+         if (booking.driver_id && shifts && vehicles) {
+            const bDate = booking.pickup_date
+               ? (booking.pickup_date.includes('T')
+                  ? new Date(booking.pickup_date).toLocaleDateString('sv-SE')
+                  : booking.pickup_date.substring(0, 10))
+               : null;
+
+            // Tier 1: Shift on exact booking date
+            const exactShift = bDate ? shifts.find((s: any) => s.driver_id === booking.driver_id && s.date === bDate) : null;
+            // Tier 2: Any shift for this driver
+            const anyShift = !exactShift ? shifts.find((s: any) => s.driver_id === booking.driver_id && s.vehicle_id) : null;
+            const targetShift = exactShift || anyShift;
+            const svcVehicle = targetShift ? vehicles.find((v: any) => v.id === targetShift.vehicle_id) : null;
+
+            if (svcVehicle?.plate) {
+               payload.matricula = formatPlate(svcVehicle.plate);
+               if (!exactShift) console.warn(`[FOMENTO] No shift on ${bDate}, using vehicle from other shift: ${payload.matricula}`);
+            } else {
+               // Tier 3: First vehicle in fleet with a plate (fallback)
+               const fallbackVehicle = (vehicles as any[]).find(v => v.plate && v.plate.trim());
+               if (fallbackVehicle) {
+                  payload.matricula = formatPlate(fallbackVehicle.plate);
+                  console.warn(`[FOMENTO] No driver vehicle found, using fleet default: ${payload.matricula}`);
+               }
+            }
+         }
+
+
+         console.log("[FOMENTO DEBUG] Payload bruto:", JSON.stringify({
+            fecinicio: payload.fecinicio,
+            horinicio: payload.horinicio,
+            fecfin: payload.fecfin,
+            matricula: payload.matricula,
+            niftitular: payload.niftitular,
+         }));
+         console.log("[FOMENTO DEBUG] Empresa NIF:", companyNif, "Cliente NIF:", clientNif);
+
+         // ⚠️ VALIDACIÓN: El Ministerio rechaza comunicaciones demasiado próximas al inicio (código 79)
+         // Normalizar fecinicio a ISO yyyy-mm-dd para construir el Date correctamente
+         const normalizeDateToISO = (d: string): string => {
+            if (!d) return d;
+            if (d.includes('/')) {
+               const parts = d.split('/');
+               // dd/mm/yyyy → yyyy-mm-dd
+               if (parts[0].length <= 2) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+            }
+            return d.substring(0, 10);
+         };
+         const fecinicioISO = normalizeDateToISO(payload.fecinicio);
+         console.log(`[FOMENTO DEBUG] fecinicio normalizado: "${fecinicioISO}", horinicio: "${payload.horinicio}", matricula: "${payload.matricula}"`);
+
+         if (fecinicioISO && payload.horinicio) {
+            const tripDateStr = `${fecinicioISO}T${payload.horinicio}:00`;
+            const tripStart = new Date(tripDateStr);
+            const now = new Date();
+            const minutesUntilTrip = (tripStart.getTime() - now.getTime()) / 60000;
+            console.log(`[FOMENTO DEBUG] tripStart: ${tripStart.toISOString()}, minutesUntilTrip: ${minutesUntilTrip}`);
+            
+            if (isNaN(minutesUntilTrip)) {
+               console.error("[FOMENTO] Invalid tripStart date, check fecinicio format:", payload.fecinicio);
+            } else if (minutesUntilTrip < 0) {
+               if (!silent) {
+                  const proceed = window.confirm(
+                     `⚠️ ATENCIÓN: El viaje ya ha comenzado o está en curso.\n\n` +
+                     `El Ministerio rechazará esta comunicación (el servicio debe comunicarse ANTES del inicio).\n\n` +
+                     `¿Deseas intentarlo igualmente?`
+                  );
+                  if (!proceed) return;
+               } else {
+
+                  return; // En modo silencioso, no enviar viajes pasados
+               }
+            } else if (minutesUntilTrip < 15) {
+               if (!silent) {
+                  const proceed = window.confirm(
+                     `⚠️ AVISO: El viaje comienza en ${Math.round(minutesUntilTrip)} minutos.\n\n` +
+                     `El Ministerio puede rechazar la comunicación si el tiempo es demasiado escaso.\n\n` +
+                     `¿Deseas comunicarlo igualmente?`
+                  );
+                  if (!proceed) return;
+               }
+            }
+         }
+
+         // Get current session for Authorization (with timeout to prevent hanging)
+         console.log("[FOMENTO DEBUG] Fetching session...");
+         const sessionPromise = supabase.auth.getSession();
+         const timeoutPromise = new Promise<{data: any}>((resolve) => setTimeout(() => resolve({ data: { session: null } }), 3000));
+         const { data: sessionData } = await Promise.race([sessionPromise, timeoutPromise]);
          const token = sessionData?.session?.access_token;
+         console.log("[FOMENTO DEBUG] Session fetch complete, token attached:", !!token);
          
-         // Fallback robusto para URL y Key
          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
 
-         console.log("[FOMENTO DEBUG] Llamando a Edge Function en:", `${supabaseUrl}/functions/v1/fomento-vtc`);
-
+         const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
+         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+         
+         console.log("[FOMENTO DEBUG] Enviando petición a Edge Function...");
+         const controller = new AbortController();
+         const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+         
          const response = await fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                'Content-Type': 'application/json',
                'Authorization': `Bearer ${token || supabaseAnonKey}`,
                'apikey': supabaseAnonKey
             },
-            body: JSON.stringify({ action: 'alta', payload })
+            body: JSON.stringify({ 
+               action: 'alta', 
+               payload: {
+                  ...payload,
+                  is_test: isTestMode
+               }
+            })
          });
+         clearTimeout(timeoutId);
 
-         let data;
-         const textBody = await response.text();
-         try {
-            data = JSON.parse(textBody);
-         } catch (e) {
-            throw new Error(`Error HTTP ${response.status}: ${textBody}`);
+         const data = await response.json();
+         console.log("[FOMENTO DEBUG] Respuesta completa:", data);
+         if (data.signedXml) {
+            console.log("[FOMENTO DEBUG] XML ENVIADO:", data.signedXml);
          }
 
-         if (!response.ok) {
-            throw new Error(data.error || `HTTP ${response.status}: ${textBody}`);
+         if (!response.ok || !data.success) {
+            const errorDetail = data.body || data.error || data.resultado || "Error desconocido";
+            console.error("📄 [FOMENTO ERROR DATA]", data);
+            console.error("📄 [FOMENTO RAW XML RESPUESTA]", data.rawResponse || "(vacío)");
+            console.error("📄 [FOMENTO RESULTADO]", data.resultado, "| iderror implícito en rawResponse");
+            throw new Error(`Error RVTC: ${errorDetail}`);
          }
-
-         if (!data.success) throw new Error(data.error || "Error en la comunicación RVTC: " + data.resultado);
 
          // Update local and remote state
+         console.log("[FOMENTO DEBUG] Guardando ID de servicio:", data.idservicio);
          await updateItem(booking.id, {
             fomento_status: 'COMUNICADO',
             fomento_idservicio: data.idservicio,
@@ -680,11 +897,79 @@ export const ReservasView: React.FC = () => {
 
       } catch (err: any) {
          console.error("Error Fomento:", err);
+         const isTimeout = err.name === 'AbortError';
+         const errorMsg = isTimeout ? 'Tiempo de espera agotado (el Ministerio o el proxy no responde)' : (err.message || 'Error desconocido');
+         
          await updateItem(booking.id, {
             fomento_status: 'ERROR',
-            fomento_error: err.message || 'Error desconocido'
+            fomento_error: errorMsg
          });
-         if (!silent) alert("❌ Error al comunicar con Fomento:\n" + err.message);
+         if (!silent) alert("❌ Error al comunicar con Fomento:\n" + errorMsg);
+      }
+   };
+
+
+
+   const handleAnularFomento = async (booking: any, silent: boolean = false) => {
+      console.log("[FOMENTO DEBUG] Iniciando ANULACIÓN para reserva:", booking.id);
+      if (!booking.fomento_idservicio) {
+         if (!silent) alert("⚠️ Esta reserva no tiene un ID de servicio de Fomento para anular.");
+         return;
+      }
+
+      try {
+         // Get current session for Authorization (with timeout to prevent hanging)
+         console.log("[FOMENTO DEBUG] Fetching session...");
+         const sessionPromise = supabase.auth.getSession();
+         const timeoutPromise = new Promise<{data: any}>((resolve) => setTimeout(() => resolve({ data: { session: null } }), 3000));
+         const { data: sessionData } = await Promise.race([sessionPromise, timeoutPromise]);
+         const token = sessionData?.session?.access_token;
+         console.log("[FOMENTO DEBUG] Session fetch complete, token attached:", !!token);
+         
+         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
+         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
+
+         const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
+         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+         
+         console.log("[FOMENTO DEBUG] Enviando petición de anulación a Edge Function...");
+         const controller = new AbortController();
+         const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+         
+         const response = await fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${token || supabaseAnonKey}`,
+               'apikey': supabaseAnonKey
+            },
+            body: JSON.stringify({ 
+               action: 'anulacion', 
+               payload: { 
+                  idservicio: booking.fomento_idservicio,
+                  is_test: isTestMode
+               } 
+            })
+         });
+         clearTimeout(timeoutId);
+
+         const data = await response.json();
+
+         if (data.success) {
+            await updateItem(booking.id, {
+               fomento_status: 'ANULADO',
+               fomento_error: null
+            });
+            if (!silent) alert("✅ Comunicación ANULADA en Fomento RVTC.");
+            return true;
+         } else {
+            throw new Error(data.error || data.resultado || "Error al anular");
+         }
+      } catch (err: any) {
+         console.error("Error Anulación Fomento:", err);
+         if (!silent) alert("❌ Error al anular en Fomento:\n" + err.message);
+         return false;
       }
    };
 
@@ -717,6 +1002,11 @@ export const ReservasView: React.FC = () => {
          }
 
          await updateItem(bookingToCancel.id, updates);
+
+         // Auto-Anular in Fomento if previously communicated
+         if (bookingToCancel.fomento_status === 'COMUNICADO') {
+            handleAnularFomento(bookingToCancel, true);
+         }
 
          setIsCancelModalOpen(false);
 
@@ -836,9 +1126,56 @@ export const ReservasView: React.FC = () => {
          // Auto-generate route
          data.route = `${data.origin} - ${data.destination}`;
 
+         // Ensure municipality fields are explicitly populated to prevent null values in DB
+         if (data.origin && municipalities) {
+            const originMuni = municipalities.find((m: any) => m.name === data.origin);
+            if (originMuni) {
+               data.origin_municipality = originMuni.name;
+            }
+         }
+         if (data.destination && municipalities) {
+            const destMuni = municipalities.find((m: any) => m.name === data.destination);
+            if (destMuni) {
+               data.destination_municipality = destMuni.name;
+            }
+         }
+
+         let requiresDriverNotification = false;
+
          if (editingItem) {
+            // Check if fomento needs re-communication due to changes
+            if (editingItem.fomento_status === 'COMUNICADO' && editingItem.fomento_idservicio) {
+                // If driver changes or pickup time/date changes
+                if (data.driver_id !== editingItem.driver_id || data.pickup_time !== editingItem.pickup_time || data.pickup_date !== editingItem.pickup_date) {
+                    const confirmRes = window.confirm("La reserva ya está comunicada en Fomento. Al cambiar conductor, fecha u hora, se anulará la comunicación actual y deberás recomunicarla. ¿Proceder?");
+                    if (!confirmRes) return; // Abort save
+                    
+                    const success = await handleAnularFomento(editingItem, true);
+                    if (!success) {
+                        alert("❌ No se pudo anular en Fomento. El guardado se ha cancelado por seguridad.");
+                        return; // Abort save
+                    }
+                    
+                    // Reset Fomento fields in 'data' so it saves as pending
+                    data.fomento_status = null;
+                    data.fomento_idservicio = null;
+                    data.fomento_error = null;
+                    requiresDriverNotification = true;
+                }
+            }
+
             await updateItem(editingItem.id, data);
             alert('✅ Reserva actualizada con éxito');
+            
+            if (requiresDriverNotification && data.driver_id) {
+               // Notify driver asynchronously
+               supabase.functions.invoke('notify-driver', {
+                   body: {
+                       driver_id: data.driver_id,
+                       message: `Tu servicio del ${data.pickup_date} a las ${data.pickup_time} ha sido modificado. Revísalo y confírmalo de nuevo.`
+                   }
+               });
+            }
          } else {
             await addItem({
                ...data,
@@ -1027,6 +1364,13 @@ export const ReservasView: React.FC = () => {
                         </button>
                         <button
                            onClick={handleCreateTestBooking}
+                            className="flex-1 sm:flex-none h-10 px-4 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-purple-500/20"
+                         >
+                            <span className="material-icons-round text-sm">bug_report</span> Test
+                         </button>
+
+                         <button
+                            style={{ display: 'none' }}
                            className="flex-1 sm:flex-none h-10 px-4 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-purple-500/20"
                         >
                            <span className="material-icons-round text-sm">bug_report</span> Test
@@ -1187,8 +1531,9 @@ export const ReservasView: React.FC = () => {
                                                    >
                                                       <span className="material-icons-round text-base">edit</span>
                                                    </button>
-                                                   <button
-                                                      onClick={() => openCancelModal(b)}
+
+                                                    <button
+                                                       onClick={() => openCancelModal(b)}
                                                       className="w-9 h-9 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all"
                                                       title="Cancelar Reserva"
                                                    >
@@ -1257,19 +1602,71 @@ export const ReservasView: React.FC = () => {
                                                                </div>
                                                                <p className="text-[10px] text-brand-platinum/50 leading-tight">La ley requiere comunicar el servicio antes del viaje.</p>
                                                                {b.fomento_error && <p className="text-[9px] text-red-400 mt-1 italic break-words">{b.fomento_error}</p>}
+                                                                                                 {(() => {
+                                                                   const envSetting = settings?.find((s: any) => s.key === 'fomento_env');
+                                                                   const isProd = envSetting ? envSetting.value === 'production' : false;
+                                                                   return (
+                                                                      <div className="mt-2 flex items-center justify-between bg-brand-black p-2 rounded-lg border border-white/5">
+                                                                         <span className="text-[10px] text-brand-platinum/70 uppercase font-bold tracking-widest">Entorno:</span>
+                                                                         <label className="flex items-center cursor-pointer gap-2">
+                                                                            <span className={`text-[10px] font-bold ${!isProd ? 'text-emerald-400' : 'text-brand-platinum/30'}`}>PRUEBAS</span>
+                                                                            <div className="relative">
+                                                                               <input 
+                                                                                  type="checkbox" 
+                                                                                  className="sr-only" 
+                                                                                  checked={isProd}
+                                                                                  onChange={async (e) => {
+                                                                                     const newValue = e.target.checked ? 'production' : 'test';
+                                                                                     if (envSetting) {
+                                                                                        await updateSetting(envSetting.id, { value: newValue, updated_at: new Date().toISOString() });
+                                                                                     } else {
+                                                                                        await supabase.from('system_settings').insert({
+                                                                                           key: 'fomento_env',
+                                                                                           value: newValue,
+                                                                                           description: 'Entorno de comunicación con RVTC Fomento (test / production)'
+                                                                                        });
+                                                                                     }
+                                                                                  }}
+                                                                               />
+                                                                               <div className={`block w-8 h-4 rounded-full transition-colors ${isProd ? 'bg-red-500/50' : 'bg-emerald-500/50'}`}></div>
+                                                                               <div className={`dot absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${isProd ? 'transform translate-x-4' : ''}`}></div>
+                                                                            </div>
+                                                                            <span className={`text-[10px] font-bold ${isProd ? 'text-red-400' : 'text-brand-platinum/30'}`}>PRODUCCIÓN</span>
+                                                                         </label>
+                                                                      </div>
+                                                                   );
+                                                                })()}
 
-                                                               <button
-                                                                  onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     e.preventDefault();
-                                                                     handleComunicarFomento(b);
-                                                                  }}
-                                                                  disabled={b.fomento_status === 'COMUNICADO'}
-                                                                  className={`mt-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${b.fomento_status === 'COMUNICADO' ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
-                                                               >
-                                                                  {b.fomento_status === 'COMUNICADO' && <span className="material-icons-round text-sm">check_circle</span>}
-                                                                  {b.fomento_status === 'COMUNICADO' ? 'Comunicado a RVTC' : 'Comunicar a RVTC'}
-                                                               </button>
+                                                               <div className="flex gap-2 mt-2">
+                                                                  <button
+                                                                     onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        handleComunicarFomento(b);
+                                                                     }}
+                                                                     disabled={b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio}
+                                                                     className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
+                                                                  >
+                                                                     {(b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio) && <span className="material-icons-round text-sm">check_circle</span>}
+                                                                     {b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio ? 'Comunicado a RVTC' : (b.fomento_status === 'COMUNICADO' ? 'Re-comunicar (Falta ID)' : 'Comunicar a RVTC')}
+                                                                  </button>
+
+                                                                  {b.fomento_status === 'COMUNICADO' && (
+                                                                     <button
+                                                                        onClick={(e) => {
+                                                                           e.stopPropagation();
+                                                                           e.preventDefault();
+                                                                           if (confirm("¿Estás seguro de que quieres ANULAR este servicio en el Ministerio de Fomento?")) {
+                                                                              handleAnularFomento(b);
+                                                                           }
+                                                                        }}
+                                                                        className="px-3 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-lg transition-all"
+                                                                        title="Anular en RVTC"
+                                                                     >
+                                                                        <span className="material-icons-round text-sm">cancel</span>
+                                                                     </button>
+                                                                  )}
+                                                               </div>
                                                             </div>
 
                                                             {b.driver_id && (

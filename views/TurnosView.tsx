@@ -215,13 +215,17 @@ export const TurnosView: React.FC = () => {
             if (day > 1 && diaSemana === diaInicioLibre) contadorSemanas++;
 
             let esLibre = false;
+            let diaSiguienteInicio = (diaInicioLibre + 1) % 7;
+
             if (diaSemana === diaInicioLibre) {
-               esLibre = true; // El día base siempre es libre
-            } else if (diaSemana === (diaInicioLibre + 1) % 7) {
-               // Evaluar el patrón para el segundo día consecutivo
+               esLibre = true;
+               if (bulkData.patternConfig === "Cruzado 1-2" && contadorSemanas % 2 !== 0) esLibre = false; // Impar -> 1 día (el 2º día)
+               if (bulkData.patternConfig === "Cruzado 2-1" && contadorSemanas % 2 === 0) esLibre = false; // Par -> 1 día (el 2º día)
+            } else if (diaSemana === diaSiguienteInicio) {
                if (bulkData.patternConfig.includes("Siempre 2")) esLibre = true;
-               else if (bulkData.patternConfig === "1-2" && contadorSemanas % 2 === 0) esLibre = true;
-               else if (bulkData.patternConfig === "2-1" && contadorSemanas % 2 !== 0) esLibre = true;
+               else if (bulkData.patternConfig === "1-2" && contadorSemanas % 2 === 0) esLibre = true; // Impar -> 2 días
+               else if (bulkData.patternConfig === "2-1" && contadorSemanas % 2 !== 0) esLibre = true; // Par -> 2 días
+               else if (bulkData.patternConfig === "Cruzado 1-2" || bulkData.patternConfig === "Cruzado 2-1") esLibre = true; // Cruzado SIEMPRE libra el 2º día
             }
 
             // Cada bloque de 14 días activa la alarma de rotación
@@ -376,11 +380,14 @@ export const TurnosView: React.FC = () => {
 
             if (diaSemana === diaInicioLibre) {
                esLibre = true;
+               if (patternConfig === "Cruzado 1-2" && (Math.abs(currentWeek) % 2) === 1) esLibre = false; // Impar -> 1 día (el 2º día)
+               if (patternConfig === "Cruzado 2-1" && (Math.abs(currentWeek) % 2) === 0) esLibre = false; // Par -> 1 día (el 2º día)
             } else if (diaSemana === diaSiguienteInicio) {
                // El patrón de libranza define si el segundo día también libras
                if (patternConfig.includes("Siempre 2")) esLibre = true;
                else if (patternConfig === "1-2" && (Math.abs(currentWeek) % 2) === 1) esLibre = true; // Impar -> 2 días
                else if (patternConfig === "2-1" && (Math.abs(currentWeek) % 2) === 0) esLibre = true; // Par -> 2 días
+               else if (patternConfig === "Cruzado 1-2" || patternConfig === "Cruzado 2-1") esLibre = true; // Cruzado SIEMPRE libra el 2º día
             }
 
             let typeToAssign = 'Libre';
@@ -723,8 +730,10 @@ export const TurnosView: React.FC = () => {
                                           >
                                              <option value="Siempre 1">Siempre 1 Día Libre</option>
                                              <option value="Siempre 2">Siempre 2 Días Seguidos</option>
-                                             <option value="1-2">Alterna: 1 Día (Sem 1) / 2 Días (Sem 2)</option>
-                                             <option value="2-1">Alterna: 2 Días (Sem 1) / 1 Día (Sem 2)</option>
+                                             <option value="1-2">Alterno (Impares 1 día, Pares 2 días)</option>
+                                             <option value="2-1">Alterno (Impares 2 días, Pares 1 día)</option>
+                                             <option value="Cruzado 1-2">Cruzado B (Impar 1 día, Par 2 días - Invertido)</option>
+                                             <option value="Cruzado 2-1">Cruzado B (Impar 2 días, Par 1 día - Invertido)</option>
                                           </select>
                                        </td>
                                     </tr>
@@ -887,8 +896,10 @@ export const TurnosView: React.FC = () => {
                            >
                               <option value="Siempre 1">Siempre 1 día libre</option>
                               <option value="Siempre 2">Siempre 2 días libres</option>
-                              <option value="1-2">Alterna 1 día libre / 2 días libres</option>
-                              <option value="2-1">Alterna 2 días libres / 1 día libre</option>
+                              <option value="1-2">Alterno 1-2 (Impares 1 día)</option>
+                              <option value="2-1">Alterno 2-1 (Impares 2 días)</option>
+                              <option value="Cruzado 1-2">Cruzado B (Invertido 1-2)</option>
+                              <option value="Cruzado 2-1">Cruzado B (Invertido 2-1)</option>
                            </select>
                         </div>
                      </div>

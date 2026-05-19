@@ -79,12 +79,12 @@ const SearchableSelect = ({ field, value, onChange }: { field: Field, value: str
                     </div>
                     <div className="overflow-y-auto custom-scrollbar flex-1">
                         {filteredOptions.length > 0 ? (
-                            filteredOptions.map((opt) => {
+                            filteredOptions.map((opt, filteredIdx) => {
                                 const idx = field.options?.indexOf(opt) ?? -1;
                                 const label = field.optionLabels ? field.optionLabels[idx] : opt;
                                 return (
                                     <div
-                                        key={opt}
+                                        key={`${opt}-${filteredIdx}`}
                                         onClick={() => {
                                             onChange(opt);
                                             setIsOpen(false);
@@ -147,6 +147,13 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
         }
     }, [isOpen, initialData]);
 
+    // Side effect to notify parent of changes safely
+    useEffect(() => {
+        if (isOpen && onFormDataChange) {
+            onFormDataChange(formData);
+        }
+    }, [formData, isOpen, onFormDataChange]);
+
     if (!isOpen) return null;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -164,16 +171,7 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
     };
 
     const updateFormData = (name: string, value: any) => {
-        setFormData((prev: any) => {
-            const newData = { ...prev, [name]: value };
-
-            // Legacy logic removed - handled by onFormDataChange prop in parent
-            if (onFormDataChange) {
-                onFormDataChange(newData);
-            }
-
-            return newData;
-        });
+        setFormData((prev: any) => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
