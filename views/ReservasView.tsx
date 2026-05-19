@@ -846,7 +846,7 @@ export const ReservasView: React.FC = () => {
          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
 
          const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
-         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
          
          console.log("[FOMENTO DEBUG] Enviando petición a Edge Function...");
          const controller = new AbortController();
@@ -930,7 +930,7 @@ export const ReservasView: React.FC = () => {
          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
 
          const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
-         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
          
          console.log("[FOMENTO DEBUG] Enviando petición de anulación a Edge Function...");
          const controller = new AbortController();
@@ -1604,7 +1604,7 @@ export const ReservasView: React.FC = () => {
                                                                {b.fomento_error && <p className="text-[9px] text-red-400 mt-1 italic break-words">{b.fomento_error}</p>}
                                                                                                  {(() => {
                                                                    const envSetting = settings?.find((s: any) => s.key === 'fomento_env');
-                                                                   const isProd = envSetting ? envSetting.value === 'production' : false;
+                                                                   const isProd = envSetting ? envSetting.value !== 'test' : true;
                                                                    return (
                                                                       <div className="mt-2 flex items-center justify-between bg-brand-black p-2 rounded-lg border border-white/5">
                                                                          <span className="text-[10px] text-brand-platinum/70 uppercase font-bold tracking-widest">Entorno:</span>

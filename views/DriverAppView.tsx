@@ -516,7 +516,7 @@ export const DriverAppView: React.FC = () => {
                
                // Read global env from database settings (defaults to test mode unless explicitly 'production')
                const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
-               const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value !== 'production' : true;
+               const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
                
                fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
                   method: 'POST',
