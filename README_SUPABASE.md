@@ -34,6 +34,20 @@ Para añadir cambios a la base de datos:
 
 El script `seed.sql` contiene datos iniciales para desarrollo. Puedes aplicarlo manualmente desde el editor SQL de Supabase si necesitas resetear el entorno de pruebas.
 
+## Seguridad de la API y Permisos (Grants) - Mayo/Octubre 2026
+
+A partir del 30 de mayo de 2026 (para nuevos proyectos) y del 30 de octubre de 2026 (para todos los proyectos existentes), Supabase introduce un cambio de seguridad crítico: **las tablas del esquema `public` ya no se exponen de forma implícita a la API de datos (PostgREST, supabase-js, GraphQL)**. Cada tabla nueva requiere permisos explícitos (`GRANT`).
+
+### Solución Implementada en el Proyecto:
+
+Para garantizar que el Palladium Operations Hub continúe funcionando sin interrupciones y sin requerir mantenimiento complejo manual por cada nueva tabla, hemos incorporado la migración `20260519100000_supabase_api_grants.sql` que realiza lo siguiente de manera automatizada:
+
+1. **Permisos Existentes**: Otorga permisos explícitos de `SELECT` a `anon` y permisos de `SELECT, INSERT, UPDATE, DELETE` a `authenticated` y `service_role` en todas las tablas existentes en el esquema `public`.
+2. **Permisos por Defecto para Futuras Tablas**: Configura privilegios por defecto (`ALTER DEFAULT PRIVILEGES`) en el esquema `public`. Esto significa que **cualquier tabla creada en futuras migraciones recibirá de forma automática estos mismos permisos**, por lo que no es estrictamente necesario escribir sentencias `GRANT` manuales en cada nueva migración de creación de tabla.
+
+> [!NOTE]
+> Las políticas RLS (Row Level Security) siguen siendo el mecanismo principal para controlar qué filas y acciones puede realizar cada usuario autenticado u anónimo. Los `GRANTs` de API solo habilitan que PostgREST e interactores externos reconozcan la tabla, pero la seguridad interna sigue regida estrictamente por RLS.
+
 ## Notas
 
 -   Las vistas ahora obtienen los datos de Supabase de forma reactiva.
