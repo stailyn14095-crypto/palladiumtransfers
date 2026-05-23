@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
             const fomentoRes = await sendToFomento(signedXml, action, isTest);
 
             return new Response(JSON.stringify({
-                success: fomentoRes.success !== false && (fomentoRes.resultado === '00' || fomentoRes.resultado === '0'),
+                success: fomentoRes.success === true,
                 resultado: fomentoRes.resultado,
                 error: fomentoRes.error,
                 body: fomentoRes.body,
