@@ -651,12 +651,28 @@ export const DriverAppView: React.FC = () => {
                   const data = await res.json();
                   if (data.success) {
                      await updateBooking(bookingId, {
-                        fomento_status: 'INICIADO'
+                        fomento_status: 'INICIADO',
+                        fomento_error: null
                      });
+                  } else {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'ERROR',
+                        fomento_error: data.error || data.resultado || "Error al comunicar inicio"
+                     });
+                  }
+               }).catch(async err => {
+                  console.error("Error communicating inicio", err);
+                  try {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'ERROR',
+                        fomento_error: err.message || "Error de red al comunicar inicio"
+                     });
+                  } catch (dbErr) {
+                     console.error("No se pudo registrar error de Fomento en DB:", dbErr);
                   }
                });
             } catch (e) {
-               console.error("Error communicating inicio", e);
+               console.error("No se pudo enviar inicio Fomento:", e);
             }
          }
       }

@@ -1621,8 +1621,8 @@ export const ReservasView: React.FC = () => {
                                                                      <span className="material-icons-round text-emerald-500 text-sm">account_balance</span>
                                                                      <span className="text-xs font-bold text-white uppercase tracking-widest">Ministerio de Fomento</span>
                                                                   </div>
-                                                                  {b.fomento_status === 'COMUNICADO' ? (
-                                                                     <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded uppercase">Registrado</span>
+                                                                  {b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO' ? (
+                                                                     <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded uppercase">{b.fomento_status === 'INICIADO' ? 'Iniciado' : 'Registrado'}</span>
                                                                   ) : b.fomento_status === 'ERROR' ? (
                                                                      <span className="text-[9px] font-black bg-red-500 text-white px-2 py-0.5 rounded uppercase">Fallo</span>
                                                                   ) : (
@@ -1673,11 +1673,11 @@ export const ReservasView: React.FC = () => {
                                                                         e.preventDefault();
                                                                         handleComunicarFomento(b);
                                                                      }}
-                                                                     disabled={b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio}
-                                                                     className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
+                                                                     disabled={(b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO') && !!b.fomento_idservicio}
+                                                                     className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${(b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO') && !!b.fomento_idservicio ? 'bg-emerald-500/10 text-emerald-500/50 cursor-not-allowed border border-emerald-500/20' : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20'}`}
                                                                   >
-                                                                     {(b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio) && <span className="material-icons-round text-sm">check_circle</span>}
-                                                                     {b.fomento_status === 'COMUNICADO' && !!b.fomento_idservicio ? 'Comunicado a RVTC' : (b.fomento_status === 'COMUNICADO' ? 'Re-comunicar (Falta ID)' : 'Comunicar a RVTC')}
+                                                                     {((b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO') && !!b.fomento_idservicio) && <span className="material-icons-round text-sm">check_circle</span>}
+                                                                     {(b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO') && !!b.fomento_idservicio ? `Comunicado a RVTC ${b.fomento_status === 'INICIADO' ? '(INICIADO)' : ''}` : ((b.fomento_status === 'COMUNICADO' || b.fomento_status === 'INICIADO') ? 'Re-comunicar (Falta ID)' : 'Comunicar a RVTC')}
                                                                   </button>
 
                                                                   {b.fomento_status === 'COMUNICADO' && (
@@ -1805,7 +1805,7 @@ export const ReservasView: React.FC = () => {
                                                                </div>
                                                             )}
                                                             {b.status_logs && b.status_logs.length > 0 && (
-                                                               <div className="flex-1 overflow-x-auto pb-2 custom-scrollbar">
+                                                               <div className="flex-1 min-w-0 overflow-x-auto pb-2 custom-scrollbar">
                                                                   <div className="flex gap-3">
                                                                      {b.status_logs.map((log: any, idx: number) => (
                                                                         <div key={idx} className="bg-slate-800/50 p-3 rounded-lg min-w-[160px] border border-white/5 shrink-0 flex flex-col justify-between hover:bg-slate-800 transition-colors">
