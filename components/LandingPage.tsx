@@ -356,7 +356,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                             </div>
                         </section>
 
-                        {/* Testimonials */}
+                        {/* Testimonials - HIDDEN FOR NOW
                         <section className="relative z-10 py-40 border-t border-white/5 bg-brand-black">
                             <div className="container mx-auto px-6">
                                 <div className="text-center mb-32">
@@ -379,6 +379,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                 </div>
                             </div>
                         </section>
+                        */}
 
                         {/* Footer */}
                         <footer className="relative z-10 bg-brand-black py-40 border-t border-white/5">
