@@ -710,31 +710,39 @@ export const DriverAppView: React.FC = () => {
          });
          const data = await res.json();
          if (data.success && data.rawResponse) {
-            // Extract details from raw XML - try element format first, then attribute format
-            const matchResultado = data.rawResponse.match(/<resultado[^>]*>([^<]+)<\/resultado>/i) 
-                                || data.rawResponse.match(/resultado="([^"]+)"/i);
-            const matchMatricula = data.rawResponse.match(/<matricula[^>]*>([^<]+)<\/matricula>/i) 
-                                || data.rawResponse.match(/matricula="([^"]+)"/i);
-            const matchFInicio = data.rawResponse.match(/<(?:finicio|fprevistainicio)[^>]*>([^<]+)<\/(?:finicio|fprevistainicio)>/i)
-                               || data.rawResponse.match(/(?:finicio|fprevistainicio)="([^"]+)"/i);
-            const matchEstado = data.rawResponse.match(/<estado[^>]*>([^<]+)<\/estado>/i)
-                              || data.rawResponse.match(/estado="([^"]+)"/i);
-            const matchIdservicio = data.rawResponse.match(/<idservicio[^>]*>([^<]+)<\/idservicio>/i)
-                                 || data.rawResponse.match(/idservicio="([^"]+)"/i);
+            // Helper function to match XML elements with or without namespace prefixes
+            const getXmlVal = (tag) => {
+               const match = data.rawResponse.match(new RegExp(`<(?:[^>:]+:)?${tag}[^>]*>([^<]+)<\/(?:[^>:]+:)?${tag}>`, 'i'))
+                          || data.rawResponse.match(new RegExp(`${tag}="([^"]+)"`, 'i'));
+               return match ? match[1] : null;
+            };
+
+            const resultado = getXmlVal('resultado');
+            const idservicio = getXmlVal('idservicio');
+            const matricula = getXmlVal('matricula');
+            const fInicio = getXmlVal('finicio') || getXmlVal('fprevistainicio');
+            const fFin = getXmlVal('ffin') || getXmlVal('fprevistafin');
+            const estado = getXmlVal('estado');
             
+            // Map estado numbers to text if applicable
+            const estadoText = estado === '1' ? 'Comunicado (Alta)' : 
+                               estado === '2' ? 'Iniciado' : 
+                               estado === '3' ? 'Anulado' : estado;
+
             let message = `✅ DATOS EN FOMENTO\n`;
-            if (matchIdservicio) message += `ID Servicio: ${matchIdservicio[1]}\n`;
-            if (matchResultado) message += `Resultado: ${matchResultado[1]}\n`;
-            if (matchEstado) message += `Estado: ${matchEstado[1]}\n`;
-            if (matchMatricula) message += `Matrícula: ${matchMatricula[1]}\n`;
-            if (matchFInicio && matchFInicio[1]) {
-               message += `Fecha Inicio: ${matchFInicio[1].replace('T', ' ')}`;
-            } else {
-               message += `Fecha Inicio: (No iniciada)`;
-            }
-            if (!matchResultado && !matchMatricula && !matchFInicio) {
+            if (idservicio) message += `Código Servicio: ${idservicio}\n`;
+            if (resultado) message += `Resultado API: ${resultado}\n`;
+            if (estadoText) message += `Estado: ${estadoText}\n`;
+            if (matricula) message += `Matrícula: ${matricula}\n`;
+            if (fInicio) message += `Fecha Inicio: ${fInicio.replace('T', ' ')}\n`;
+            if (fFin) message += `Fecha Fin: ${fFin.replace('T', ' ')}\n`;
+            
+            if (!resultado && !matricula && !fInicio) {
                message += `\n\nRespuesta recibida (ver consola para XML completo)`;
                console.log('[Fomento Consulta] Raw XML:', data.rawResponse);
+            } else {
+               // Always log to console just in case we need to debug more fields
+               console.log('[Fomento Consulta] Parseado:', {idservicio, matricula, fInicio, fFin, estado}, 'Raw:', data.rawResponse);
             }
             alert(message);
          } else {
