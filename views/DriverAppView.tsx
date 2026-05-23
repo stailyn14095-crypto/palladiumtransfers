@@ -668,6 +668,53 @@ export const DriverAppView: React.FC = () => {
       window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`, '_blank');
    };
 
+   const consultFomento = async (booking: any) => {
+      if (!booking.fomento_idservicio) return;
+      try {
+         const { data: sessionData } = await supabase.auth.getSession();
+         const token = sessionData?.session?.access_token;
+         
+         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
+         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
+         
+         const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
+         const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
+
+         const res = await fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               'Authorization': `Bearer ${token || supabaseAnonKey}`,
+               'apikey': supabaseAnonKey
+            },
+            body: JSON.stringify({
+               action: 'consulta',
+               payload: { idservicio: booking.fomento_idservicio, is_test: isTestMode }
+            })
+         });
+         const data = await res.json();
+         if (data.success && data.rawResponse) {
+            // Extract some basic details from raw XML using regex
+            const matchResultado = data.rawResponse.match(/<resultado[^>]*>(.*?)<\/resultado>/i);
+            const matchMatricula = data.rawResponse.match(/<matricula[^>]*>(.*?)<\/matricula>/i);
+            const matchFInicio = data.rawResponse.match(/<finicio[^>]*>(.*?)<\/finicio>/i);
+            
+            let message = `Resultado Fomento: ${matchResultado ? matchResultado[1] : 'Desconocido'}\n`;
+            message += `Matrícula: ${matchMatricula ? matchMatricula[1] : 'N/A'}\n`;
+            if (matchFInicio && matchFInicio[1]) {
+               message += `Fecha Inicio: ${matchFInicio[1].replace('T', ' ')}`;
+            } else {
+               message += `Fecha Inicio: (No iniciada)`;
+            }
+            alert(message);
+         } else {
+            alert(`Error al consultar: ${data.error || 'Error desconocido'}`);
+         }
+      } catch (e: any) {
+         alert(`Error de red: ${e.message}`);
+      }
+   };
+
    const initiateCollection = (booking: any) => {
       setCollectingBooking(booking);
       const isCash = booking.payment_method === 'Efectivo';
@@ -1269,6 +1316,10 @@ export const DriverAppView: React.FC = () => {
                                     )}
                                     {currentBooking.status === 'In Progress' && (
                                        <button onClick={() => initiateCollection(currentBooking)} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/40">Finalizar Traslado</button>
+                                    )}
+                                    
+                                    {(currentBooking.fomento_status === 'COMUNICADO' || currentBooking.fomento_status === 'INICIADO') && currentBooking.fomento_idservicio && (
+                                       <button onClick={() => consultFomento(currentBooking)} className="w-full py-4 mt-2 bg-transparent border border-brand-platinum/20 text-brand-platinum/70 rounded-2xl text-[9px] font-bold uppercase tracking-[0.2em] hover:bg-brand-platinum/5 transition-all">Consultar Hoja de Ruta</button>
                                     )}
                                  </div>
                               </div>
