@@ -49,6 +49,18 @@ const tools = [
             },
             required: []
         }
+    },
+    {
+        name: 'consultar_tarifa',
+        description: 'Consulta el precio estimado para un trayecto basado en las tarifas de Palladium Transfers.',
+        parameters: {
+            type: 'OBJECT',
+            properties: {
+                origin: { type: 'STRING', description: 'Ciudad o aeropuerto de origen (ej: Aeropuerto de Alicante, Benidorm)' },
+                destination: { type: 'STRING', description: 'Ciudad o aeropuerto de destino (ej: Altea, Valencia)' }
+            },
+            required: ['origin', 'destination']
+        }
     }
 ];
 
@@ -75,7 +87,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
         } else {
             base += `ROL: Recepcionista VIP y Atención al Cliente.\n`;
             base += `Tu trabajo es ayudar a los clientes a entender nuestros servicios, resolver sus dudas sobre nuestra flota (Vehículos eléctricos, Mercedes Clase V, Wi-Fi, etc.), y ayudarles a pre-reservar si te lo piden.\n`;
-            base += `REGLAS:\n- Ofrece siempre un tono muy lujoso y amable.\n- Si el cliente te da los detalles de su viaje, puedes usar la herramienta 'crear_reserva' para guardarla en el sistema como solicitud pendiente.\n- Nunca reveles información interna de los conductores.\n- MUY IMPORTANTE: Cuando pidas los datos para una reserva, asegúrate de pedir SIEMPRE el correo electrónico (email) y un teléfono.`;
+            base += `REGLAS:\n- Ofrece siempre un tono muy lujoso y amable.\n- Si el cliente te da los detalles de su viaje, puedes usar la herramienta 'crear_reserva' para guardarla en el sistema como solicitud pendiente.\n- Si te piden precios o presupuestos, usa 'consultar_tarifa' para darles una estimación.\n- Nunca reveles información interna de los conductores.\n- MUY IMPORTANTE: Cuando pidas los datos para una reserva, asegúrate de pedir SIEMPRE el correo electrónico (email) y un teléfono.`;
         }
         return base;
     };
@@ -162,6 +174,22 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                 
                 const resumen = data.map(b => `[ID:${b.id}] ${b.pickup_time} | Conductor: ${b.driver?.nombre || 'NO ASIGNADO'} | Origen: ${b.origin} -> Destino: ${b.destination} | Estado: ${b.status}`);
                 return { result: 'Listado de reservas encontradas para la fecha.', total: data.length, reservas: resumen };
+            }
+            
+            if (name === 'consultar_tarifa') {
+                const { origin, destination } = args;
+                const { data, error } = await supabase.from('tariffs').select('*')
+                    .or(`and(origin.ilike.%${origin}%,destination.ilike.%${destination}%),and(origin.ilike.%${destination}%,destination.ilike.%${origin}%)`);
+                
+                if (error) return { error: error.message };
+                if (!data || data.length === 0) return { result: 'No se encontraron tarifas exactas para esa ruta. El cliente deberá solicitar un presupuesto personalizado.' };
+                
+                // Filtrar las tarifas de cliente
+                const clientTariffs = data.filter(t => t.audience_type === 'Cliente' || !t.audience_type);
+                if (clientTariffs.length === 0) return { result: 'No hay tarifas de cliente configuradas para esta ruta.' };
+                
+                const prices = clientTariffs.map(t => `${t.class || 'Standard'}: ${t.base_price || t.price || 0}€`);
+                return { result: 'Tarifas encontradas', ruta: `${origin} - ${destination}`, precios: prices };
             }
             
             return { error: 'Función no encontrada' };
