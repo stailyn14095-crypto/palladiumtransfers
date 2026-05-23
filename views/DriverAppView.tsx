@@ -1204,7 +1204,7 @@ export const DriverAppView: React.FC = () => {
                               <p className="text-xs text-white font-light">{b.destination_address || b.destination}</p>
                            </div>
                         </div>
-                        <div className="flex gap-4">
+                        <div className="flex gap-4 flex-wrap">
                            <div className="bg-brand-black/40 px-3 py-2 rounded-xl flex items-center gap-2">
                               <span className="material-icons-round text-sm text-brand-platinum/50">groups</span>
                               <span className="text-[10px] font-bold text-white uppercase">{b.pax || 1} PAX</span>
@@ -1220,6 +1220,15 @@ export const DriverAppView: React.FC = () => {
                               <span className="text-[10px] font-bold text-white uppercase">{b.phone || 'N/A'}</span>
                            </div>
                         </div>
+                        {(parseFloat(b.driver_price) > 0) && (
+                           <div className="bg-emerald-500/10 px-4 py-3 rounded-xl border border-emerald-500/30 flex items-center justify-between">
+                              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                                 <span className="material-icons-round text-sm">payments</span>
+                                 COBRO AL CLIENTE
+                              </p>
+                              <p className="text-sm font-bold text-white">{parseFloat(b.driver_price).toFixed(2)} €</p>
+                           </div>
+                        )}
                         {b.notes && (
                            <div className="p-3 bg-brand-platinum/5 rounded-xl border border-white/5">
                               <p className="text-[8px] font-bold text-brand-gold uppercase tracking-widest mb-1">NOTAS:</p>
@@ -1357,6 +1366,17 @@ export const DriverAppView: React.FC = () => {
                                           <p className="text-sm font-light text-white flex items-center gap-2 tracking-tight uppercase">
                                              <span className="material-icons-round text-sm opacity-50">flight</span> {currentBooking.flight_number}
                                           </p>
+                                       </div>
+                                    )}
+                                    {(parseFloat(currentBooking.driver_price) > 0) && (
+                                       <div className="bg-emerald-500/10 backdrop-blur-md p-5 rounded-[2rem] border border-emerald-500/30 col-span-2 flex items-center justify-between">
+                                          <div>
+                                             <p className="text-[8px] font-bold text-emerald-500 uppercase tracking-[0.3em] mb-1">COBRO AL CLIENTE</p>
+                                             <p className="text-2xl font-bold text-white flex items-center gap-2">
+                                                {parseFloat(currentBooking.driver_price).toFixed(2)} €
+                                             </p>
+                                          </div>
+                                          <span className="material-icons-round text-4xl text-emerald-500 opacity-80">payments</span>
                                        </div>
                                     )}
                                  </div>

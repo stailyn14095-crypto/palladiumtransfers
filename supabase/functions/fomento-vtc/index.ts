@@ -160,7 +160,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
             <vtc:qanulacionvtc xmlns:vtc="${vtcUri}">
                 <header version="1.0" versionsender="1.0" fecha="${isoCommTime}"/>
                 <body>
-                    <vtcservicio idservicio="${payload.idservicio}"/>
+                    <vtcanulacion idservicio="${payload.idservicio}"/>
                 </body>
             </vtc:qanulacionvtc>
         `.trim();
@@ -171,7 +171,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
             <vtc:qiniciovtc xmlns:vtc="${vtcUri}">
                 <header version="1.0" versionsender="1.0" fecha="${isoCommTime}"/>
                 <body>
-                    <vtcservicio idservicio="${payload.idservicio}"/>
+                    <vtcinicio idservicio="${payload.idservicio}"/>
                 </body>
             </vtc:qiniciovtc>
         `.trim();
