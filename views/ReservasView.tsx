@@ -316,6 +316,13 @@ export const ReservasView: React.FC = () => {
          }
 
          await updateItem(bookingId, updates);
+         
+         supabase.functions.invoke('notify-driver', {
+             body: {
+                 driver_id: driverId,
+                 message: `Tienes un nuevo servicio asignado el ${booking?.pickup_date} a las ${booking?.pickup_time}. Confírmalo en la App.`
+             }
+         });
 
          // Advanced RVTC Sync Logic: Handle changes in communications
          const autoSync = settings?.find((s: any) => s.key === 'fomento_auto_sync')?.value === 'true';

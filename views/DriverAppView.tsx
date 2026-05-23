@@ -1425,16 +1425,23 @@ export const DriverAppView: React.FC = () => {
                                     {currentBooking.status === 'Pending' && (
                                        <button onClick={() => updateStatus(currentBooking.id, 'Confirmed')} className="w-full py-5 bg-white text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
                                     )}
-                                    {currentBooking.status === 'Confirmed' && (
+
+                                    {currentBooking.status !== 'Pending' && !activeFichaje && (
+                                       <div className="w-full py-4 bg-amber-900/20 border border-amber-500/30 text-amber-400 rounded-2xl text-[10px] text-center font-bold uppercase tracking-[0.15em] px-4 shadow-inner">
+                                          ⚠️ FICHA LA ENTRADA ARRIBA PARA GESTIONAR ESTE TRASLADO
+                                       </div>
+                                    )}
+
+                                    {currentBooking.status === 'Confirmed' && activeFichaje && (
                                        <button onClick={() => { updateStatus(currentBooking.id, 'En Route'); openGoogleMaps(currentBooking.origin_address || currentBooking.origin); }} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">De Camino</button>
                                     )}
-                                    {currentBooking.status === 'En Route' && (
+                                    {currentBooking.status === 'En Route' && activeFichaje && (
                                        <button onClick={() => updateStatus(currentBooking.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
                                     )}
-                                    {currentBooking.status === 'At Origin' && (
+                                    {currentBooking.status === 'At Origin' && activeFichaje && (
                                        <button onClick={() => { updateStatus(currentBooking.id, 'In Progress'); openGoogleMaps(currentBooking.destination_address || currentBooking.destination); }} className="w-full py-5 bg-brand-gold text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-brand-gold/90 transition-all shadow-lg shadow-brand-gold/20">Pasajero a Bordo</button>
                                     )}
-                                    {currentBooking.status === 'In Progress' && (
+                                    {currentBooking.status === 'In Progress' && activeFichaje && (
                                        <button onClick={() => initiateCollection(currentBooking)} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/40">Finalizar Traslado</button>
                                     )}
                                     

@@ -104,6 +104,13 @@ export const DispatchConsole: React.FC = () => {
          assigned_driver_name: newDriver.name,
          status: 'Pending'
       });
+      
+      supabase.functions.invoke('notify-driver', {
+          body: {
+              driver_id: newDriverId,
+              message: `Tienes un nuevo servicio asignado el ${booking?.pickup_date} a las ${booking?.pickup_time}. Confírmalo en la App.`
+          }
+      });
    };
 
    const getBookingStyle = (pickupTime: string) => {
