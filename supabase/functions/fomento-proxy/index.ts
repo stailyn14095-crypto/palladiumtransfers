@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!endpoint || !signedXml || !soapAction) {
+    if (!endpoint || !signedXml || soapAction === undefined || soapAction === null) {
       return new Response(JSON.stringify({ error: 'Missing required fields: endpoint, signedXml, soapAction' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
