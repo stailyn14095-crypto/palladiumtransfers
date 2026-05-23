@@ -56,8 +56,8 @@ const tools = [
         parameters: {
             type: 'OBJECT',
             properties: {
-                origin: { type: 'STRING', description: 'Ciudad o aeropuerto de origen (ej: Aeropuerto de Alicante, Benidorm)' },
-                destination: { type: 'STRING', description: 'Ciudad o aeropuerto de destino (ej: Altea, Valencia)' }
+                origin: { type: 'STRING', description: 'Palabra clave corta del origen (ej: Alicante, Benidorm, ALC)' },
+                destination: { type: 'STRING', description: 'Palabra clave corta del destino (ej: Altea, Valencia, VLC)' }
             },
             required: ['origin', 'destination']
         }
@@ -232,6 +232,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
             } catch (e) {
                 console.warn("No text in Gemini response", e);
                 modelResponse = "He verificado la información en el sistema, pero no pude generar una respuesta clara.";
+            }
+            
+            if (!modelResponse || modelResponse.trim() === "") {
+                modelResponse = "He realizado la comprobación, pero no tengo una respuesta definitiva. ¿Puedo ayudarte con algo más?";
             }
             
             setMessages(prev => [...prev, { role: 'model', text: modelResponse }]);
