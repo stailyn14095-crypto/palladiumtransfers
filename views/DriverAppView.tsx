@@ -728,7 +728,7 @@ export const DriverAppView: React.FC = () => {
             };
 
             const resultado = getXmlVal('resultado');
-            const idservicio = getXmlVal('idservicio');
+            const idservicio = booking.fomento_idservicio;
             const matricula = getXmlVal('matricula');
             const fInicio = getXmlVal('finicio') || getXmlVal('fprevistainicio');
             const fFin = getXmlVal('ffin') || getXmlVal('fprevistafin');
@@ -1262,6 +1262,9 @@ export const DriverAppView: React.FC = () => {
                               <p className="text-[8px] font-bold text-brand-gold uppercase tracking-widest mb-1">NOTAS:</p>
                               <p className="text-[10px] text-brand-platinum/70 italic">{b.notes}</p>
                            </div>
+                        )}
+                        {b.status === 'Pending' && (
+                           <button onClick={(e) => { e.stopPropagation(); updateStatus(b.id, 'Confirmed'); }} className="w-full mt-2 py-4 bg-white text-brand-black rounded-xl text-[10px] font-bold uppercase tracking-[0.3em] shadow-xl hover:bg-slate-200 transition-all">Confirmar Recepción</button>
                         )}
                      </div>
                   );
