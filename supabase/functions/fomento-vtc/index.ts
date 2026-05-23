@@ -240,12 +240,12 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
     const soapAction = action === 'alta' 
         ? 'http://www.fomento.org/VTCService/AltaDeServicio' 
         : action === 'inicio'
-        ? 'http://www.fomento.org/VTCService/IndicacionInicio'
+        ? 'http://www.fomento.org/VTCService/InicioDeServicio'
         : action === 'modificacion'
         ? 'http://www.fomento.org/VTCService/ModificacionDeServicio'
         : action === 'consulta'
         ? 'http://www.fomento.org/VTCService/ConsultaDeServicio'
-        : 'http://www.fomento.org/VTCService/Anulacion';
+        : 'http://www.fomento.org/VTCService/AnulacionDeServicio';
 
     const internalProxyUrl = Deno.env.get('FOMENTO_INTERNAL_PROXY_URL');
 
