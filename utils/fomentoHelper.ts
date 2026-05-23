@@ -42,13 +42,13 @@ export const buildFomentoPayload = (
         }
 
         // 1. Try to find by the specific municipality field if it exists
-        let match = (municipalities as any[])?.find(m => m.name.toUpperCase() === upperMuni);
+        let match = (municipalities as any[])?.find(m => m.cod_mun && m.name.toUpperCase() === upperMuni);
 
         // 2. If no match, try to find by the location text
         if (!match && upper) {
            const matches = (municipalities as any[])?.filter(m => 
-              upper.includes(m.name.toUpperCase()) || 
-              m.name.toUpperCase().includes(upper)
+              m.cod_mun && (upper.includes(m.name.toUpperCase()) || 
+              m.name.toUpperCase().includes(upper))
            ) || [];
            if (matches.length > 0) {
               matches.sort((a, b) => {
@@ -65,7 +65,7 @@ export const buildFomentoPayload = (
         // 3. If still no match, try to find in the address text
         if (!match && upperAddress) {
            const matches = (municipalities as any[])?.filter(m => 
-              upperAddress.includes(m.name.toUpperCase())
+              m.cod_mun && upperAddress.includes(m.name.toUpperCase())
            ) || [];
            if (matches.length > 0) {
               matches.sort((a, b) => {
