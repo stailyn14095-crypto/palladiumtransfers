@@ -267,6 +267,11 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
             const text = await response.text();
             try {
                 const proxyData = JSON.parse(text);
+                
+                if (response.status === 408 || proxyData.error === 'TIMEOUT from Ministry') {
+                    return { success: false, resultado: "TIMEOUT", error: "El Ministerio no responde (Timeout). El entorno de pruebas puede estar caído.", body: "", rawResponse: "" };
+                }
+
                 const rawXml = proxyData.rawResponse || "";
                 
                 const isFault = /<[^>]*Fault[^>]*>/i.test(rawXml);
@@ -467,6 +472,8 @@ Deno.serve(async (req) => {
         if (action === 'alta' || action === 'anulacion' || action === 'inicio' || action === 'modificacion' || action === 'consulta') {
             const isTest = (Deno.env.get('FOMENTO_ENV') !== 'production') || (payload && payload.is_test === true);
             const { signedXml, idcomunica } = createSignedSoap(action as any, payload, privateKeyPem, certificatePem, isTest);
+
+
             const fomentoRes = await sendToFomento(signedXml, action, isTest);
 
             return new Response(JSON.stringify({
