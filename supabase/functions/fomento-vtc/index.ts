@@ -155,10 +155,11 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
 
     } else if (action === 'anulacion') {
         const isoCommTime = getMadridIso(new Date(), 10);
+        uniqueIdComunica = payload.idcomunica || `${Math.floor(Math.random() * 1000000000)}`;
         
         dataXml = `
             <vtc:qanulacionvtc xmlns:vtc="${vtcUri}">
-                <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${payload.idcomunica || ''}"/>
+                <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${uniqueIdComunica}"/>
                 <body>
                     <vtcservicio idservicio="${payload.idservicio}"/>
                 </body>
@@ -166,12 +167,11 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
         `.trim();
     } else if (action === 'inicio') {
         const isoCommTime = getMadridIso(new Date());
+        uniqueIdComunica = payload.idcomunica || `${Math.floor(Math.random() * 1000000000)}`;
         
-        // El idcomunica para un inicio de servicio puede ser el original o uno nuevo, 
-        // pero Fomento pide el idservicio para identificar qué se inicia.
         dataXml = `
             <vtc:qiniciovtc xmlns:vtc="${vtcUri}">
-                <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${payload.idcomunica || ''}"/>
+                <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${uniqueIdComunica}"/>
                 <body>
                     <vtcservicio idservicio="${payload.idservicio}"/>
                 </body>
