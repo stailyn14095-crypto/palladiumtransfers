@@ -733,7 +733,19 @@ export const DriverAppView: React.FC = () => {
             const fInicio = getXmlVal('finicio') || getXmlVal('fprevistainicio');
             const fFin = getXmlVal('ffin') || getXmlVal('fprevistafin');
             const estado = getXmlVal('estado');
+            const cgmuniinicio = getXmlVal('cgmuniinicio');
+            const cgprovinicio = getXmlVal('cgprovinicio');
+            const direccioninicio = getXmlVal('direccioninicio');
+            const cgmunifin = getXmlVal('cgmunifin');
+            const cgprovfin = getXmlVal('cgprovfin');
+            const direccionfin = getXmlVal('direccionfin');
             
+            const getMuniName = (prov: string, muni: string) => {
+               if (!prov || !muni) return '';
+               const found = municipalities?.find((m: any) => m.cod_prov === prov && m.cod_mun === muni);
+               return found ? found.name : `${prov}-${muni}`;
+            };
+
             // Map estado numbers to text if applicable
             const estadoText = estado === '1' ? 'Comunicado (Alta)' : 
                                estado === '2' ? 'Iniciado' : 
@@ -746,6 +758,10 @@ export const DriverAppView: React.FC = () => {
             if (matricula) message += `Matrícula: ${matricula}\n`;
             if (fInicio) message += `Fecha Inicio: ${fInicio.replace('T', ' ')}\n`;
             if (fFin) message += `Fecha Fin: ${fFin.replace('T', ' ')}\n`;
+            if (cgmuniinicio) message += `Muni. Origen: ${getMuniName(cgprovinicio, cgmuniinicio)}\n`;
+            if (direccioninicio) message += `Dir. Origen: ${direccioninicio}\n`;
+            if (cgmunifin) message += `Muni. Destino: ${getMuniName(cgprovfin, cgmunifin)}\n`;
+            if (direccionfin) message += `Dir. Destino: ${direccionfin}\n`;
             
             if (!resultado && !matricula && !fInicio) {
                message += `\n\nRespuesta recibida (ver consola para XML completo)`;
