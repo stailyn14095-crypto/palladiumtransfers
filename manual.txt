@@ -1,0 +1,78 @@
+<USER_REQUEST>
+REGISTRO DE COMUNICACIONES DE
+SERVICIOS DE ARRENDAMIENTO DE
+VEHÍCULOS CON CONDUCTOR Y FORMAS
+DE ACCESO
+MANUAL DE INTEGRACIÓN
+DEL SERVICIO WEB
+Versión 2.4
+Octubre 2024
+Registro de Comunicaciones de los Servicios de
+Arrendamiento de Vehículos con Conductor y Formas de
+Acceso
+Manual de integración del servicio web
+Página 1
+ÍNDICE
+1. INTRODUCCIÓN .................................................................................................... 2
+2. FORMAS DE ACCESO AL REGISTRO VTC ........................................................ 3
+3. SERVICIO WEB DE COMUNICACIÓN DE SERVICIOS ....................................... 4
+3.1 Uso del servicio web ..................................................................................................... 4
+3.2 Quién puede comunicar servicios ................................................................................ 4
+3.3 Direcciones de acceso al servicio web ......................................................................... 5
+3.3.1 Entorno de Integración ........................................................................................... 5
+3.3.2 Entorno de Producción ........................................................................................... 5
+3.4 Operaciones disponibles .............................................................................................. 5
+3.4.1 Comunicación de servicio ....................................................................................... 5
+3.4.2 Finalizar Comunicación .......................................................................................... 9
+3.4.3 Anulación de servicio ............................................................................................ 11
+3.4.4 Modificación de servicio ........................................................................................ 13
+3.4.5 Consulta de servicio ............................................................................................. 15
+3.5 Solicitud de acceso .............
+<truncated 34037 bytes>
+h:mm:ss’.
+Date Día como ‘YYYY-MM-DD’.
+Enum Enumeración incluyendo la lista de posibles valores.
+Long Entero de 64 bits.
+Registro de Comunicaciones de los Servicios de
+Arrendamiento de Vehículos con Conductor y Formas de
+Acceso
+Manual de integración del servicio web
+Página 22
+ Longitud
+Tamaño del valor del atributo, en caracteres.
+ Descripción
+Descripción del campo.
+Registro de Comunicaciones de los Servicios de
+Arrendamiento de Vehículos con Conductor y Formas de
+Acceso
+Manual de integración del servicio web
+Página 23
+ANEXO 2. CONEXIÓN DESDE SOAPUI
+Con objeto de facilitar la prueba del servicio, es posible utilizar la herramienta SOAPUI
+(https://www.soapui.org/) u otra equivalente.
+A continuación se indica cómo configurar esta aplicación para la firma de mensajes según el
+estándar WS-Security, utilizando un certificado electrónico previamente autorizado en el
+Registro.
+1. En primer lugar deberá darse de alta un “keystore” con el certificado electrónico (en formato
+PKCS12 o JKS).
+2. A continuación, dentro de la configuración del proyecto, en la pestaña “WS-Security
+Configurations” se deberá crear un nuevo “Outgoing WS-Security Configuration”, de tipo
+“Signature”. Se deberá configurar tal y como se muestras en la imagen siguiente.
+* Como firmaremos el XML completo, no es necesario indicar los nodos a firmar.
+Registro de Comunicaciones de los Servicios de
+Arrendamiento de Vehículos con Conductor y Formas de
+Acceso
+Manual de integración del servicio web
+Página 24
+3. Una vez que creada la configuración de firma, se deberá asignar a cada petición SOAP, en
+la pestaña “Auth”. Deberá crearse un elemento de tipo “Basic” y seleccionar el “Outgoing
+WSS” que se ha creado en el paso anterior.
+Registro de Comunicaciones de los Servicios de
+Arrendamiento de Vehículos con Conductor y Formas de
+Acceso
+Manual de integración del servicio web
+Página 25
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-05-23T13:09:25+02:00.
+</ADDITIONAL_METADATA>

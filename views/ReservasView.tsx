@@ -1789,9 +1789,14 @@ export const ReservasView: React.FC = () => {
 
                                                    {/* 4. Telemetría y Rastreo (Full Width) */}
                                                    {(b.max_speed !== undefined || (b.status_logs && b.status_logs.length > 0)) && (
-                                                      <div className="mt-8 border-t border-white/5 pt-6 pb-2">
+                                                      <details className="mt-8 border-t border-white/5 pt-6 pb-2 group">
+                                                         <summary className="flex items-center gap-2 cursor-pointer outline-none select-none w-fit mb-4">
+                                                            <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest group-open:text-brand-gold transition-colors">Telemetría y Rastreo GPS</h4>
+                                                            <span className="material-icons-round text-brand-platinum/50 text-sm transition-transform group-open:rotate-180">expand_more</span>
+                                                         </summary>
+                                                         
                                                          <div className="flex items-center justify-between mb-4">
-                                                            <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest">Telemetría y Rastreo GPS</h4>
+                                                            <div></div>
                                                             {b.status_logs && b.status_logs.length > 0 && (
                                                                <button
                                                                   onClick={(e) => {
@@ -1844,7 +1849,7 @@ export const ReservasView: React.FC = () => {
                                                                </div>
                                                             )}
                                                          </div>
-                                                      </div>
+                                                      </details>
                                                    )}
                                                 </td>
                                              </tr>
