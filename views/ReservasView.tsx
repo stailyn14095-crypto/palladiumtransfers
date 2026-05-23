@@ -1146,12 +1146,20 @@ export const ReservasView: React.FC = () => {
          { name: 'promo_code', label: 'Código Promo', type: 'text', section: 'Precios y Comisiones' },
 
          { name: 'notes', label: 'Notas para Conductor', type: 'textarea', section: 'Notas y Otros' },
+         { name: 'office_notes', label: 'Notas de Oficina', type: 'textarea', section: 'Notas y Otros' },
          { name: 'tags', label: 'Etiquetas', type: 'text', section: 'Notas y Otros' },
       ] as any[];
    }, [clients, municipalities, currentFormData.trip_type]);
 
    const handleSaveBooking = async (data: any) => {
       try {
+         // Parse tags into array if string
+         if (data.tags && typeof data.tags === 'string') {
+            data.tags = data.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0);
+         } else if (!data.tags) {
+            data.tags = [];
+         }
+
          // Auto-generate route
          data.route = `${data.origin} - ${data.destination}`;
 
@@ -1495,6 +1503,13 @@ export const ReservasView: React.FC = () => {
                                                 <div className="flex flex-col gap-0.5 mt-0.5">
                                                    <span className="font-bold text-white text-sm text-nowrap">{b.passenger}</span>
                                                    <span className="text-[10px] text-brand-platinum/30 truncate max-w-[130px]" title={b.email}>{b.email}</span>
+                                                   {b.tags && b.tags.length > 0 && (
+                                                      <div className="flex flex-wrap gap-1 mt-1">
+                                                         {b.tags.map((tag: string, i: number) => (
+                                                            <span key={i} className="bg-amber-500/20 text-amber-500 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" title="Etiqueta">{tag}</span>
+                                                         ))}
+                                                      </div>
+                                                   )}
                                                 </div>
                                              </td>
                                              <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -1554,6 +1569,12 @@ export const ReservasView: React.FC = () => {
                                                          if (prices && prices.collaborator_price) {
                                                             bookingToEdit.collaborator_price = prices.collaborator_price;
                                                          }
+                                                         
+                                                         // Format tags as comma-separated string for editing
+                                                         if (Array.isArray(bookingToEdit.tags)) {
+                                                            bookingToEdit.tags = bookingToEdit.tags.join(', ');
+                                                         }
+                                                         
                                                          setEditingItem(bookingToEdit);
                                                          setIsModalOpen(true);
                                                       }}
