@@ -287,14 +287,70 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="col-span-3 text-center bg-brand-charcoal/20 border border-white/5 rounded-[2.5rem] p-20 transition-all hover:bg-brand-charcoal/30">
-                                        <span className="material-icons-round text-6xl text-brand-platinum/30 mb-8 block">time_to_leave</span>
-                                        <h3 className="text-3xl font-light text-white uppercase tracking-widest mb-4">Información Próximamente</h3>
-                                        <p className="text-slate-400 font-light text-lg italic max-w-2xl mx-auto leading-relaxed">
-                                            {language === 'es'
-                                                ? 'Estamos actualizando esta sección. Pronto publicaremos información detallada e imágenes de nuestra moderna flota.'
-                                                : 'We are updating this section. Soon we will publish detailed information and images of our modern fleet.'}
-                                        </p>
+                                    <div className="col-span-3 bg-brand-charcoal/20 border border-white/5 rounded-[2.5rem] p-12 lg:p-20 transition-all hover:bg-brand-charcoal/30 group overflow-hidden relative flex flex-col lg:flex-row items-center gap-12">
+                                        {/* Background Effects */}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-brand-charcoal/80 to-transparent z-0"></div>
+                                        
+                                        <div className="relative z-10 flex-1 text-left">
+                                            <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-bold uppercase tracking-[0.4em] mb-8">
+                                                <span className="material-icons-round text-[14px]">eco</span>
+                                                100% Eléctrico
+                                            </div>
+                                            <h3 className="text-4xl lg:text-5xl font-light text-white uppercase tracking-tighter mb-2">Kia e-Niro <span className="font-bold">2021</span></h3>
+                                            <p className="text-brand-platinum/50 font-bold uppercase tracking-[0.4em] text-[10px] mb-8">Executive Zero Emission</p>
+                                            
+                                            <p className="text-slate-400 font-light text-lg italic leading-relaxed mb-10 max-w-lg">
+                                                {language === 'es'
+                                                    ? 'Disfruta de un viaje silencioso, cómodo y respetuoso con el medio ambiente sin renunciar al lujo y las prestaciones de Palladium.'
+                                                    : 'Enjoy a quiet, comfortable, and environmentally friendly journey without compromising on Palladium luxury and performance.'}
+                                            </p>
+
+                                            <div className="grid grid-cols-2 gap-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand-platinum">
+                                                        <span className="material-icons-round text-lg">wifi</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">Wi-Fi</span>
+                                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">{language === 'es' ? 'A Bordo' : 'On Board'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand-platinum">
+                                                        <span className="material-icons-round text-lg">settings_input_component</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">USB / 220V</span>
+                                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">{language === 'es' ? 'Carga Rápida' : 'Fast Charge'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand-platinum">
+                                                        <span className="material-icons-round text-lg">groups</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">4 Plazas</span>
+                                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">{language === 'es' ? 'Máximo confort' : 'Max comfort'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand-platinum">
+                                                        <span className="material-icons-round text-lg">ac_unit</span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">Clima</span>
+                                                        <span className="text-[9px] text-slate-500 uppercase tracking-widest">{language === 'es' ? 'Bi-zona' : 'Dual-zone'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative z-10 flex-1 w-full flex justify-center lg:justify-end">
+                                            <div className="relative w-full max-w-2xl transform group-hover:scale-105 group-hover:-translate-x-4 transition-all duration-700 ease-out">
+                                                <div className="absolute inset-0 bg-brand-platinum/10 rounded-full blur-[100px] animate-pulse"></div>
+                                                <img src="/kia-eniro.png" alt="Kia e-Niro" className="relative z-10 w-full h-auto drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]" />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
