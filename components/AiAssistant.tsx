@@ -17,6 +17,7 @@ const tools = [
             properties: {
                 client_name: { type: 'STRING', description: 'Nombre completo del cliente' },
                 phone: { type: 'STRING', description: 'Teléfono de contacto' },
+                email: { type: 'STRING', description: 'Correo electrónico del cliente' },
                 origin: { type: 'STRING', description: 'Origen (ej: ALC, Benidorm, etc.)' },
                 destination: { type: 'STRING', description: 'Destino (ej: Altea, Calpe, etc.)' },
                 pickup_date: { type: 'STRING', description: 'Fecha de recogida en formato YYYY-MM-DD' },
@@ -24,7 +25,7 @@ const tools = [
                 pax: { type: 'NUMBER', description: 'Número de pasajeros' },
                 flight_number: { type: 'STRING', description: 'Número de vuelo (opcional)' }
             },
-            required: ['client_name', 'origin', 'destination', 'pickup_date', 'pickup_time']
+            required: ['client_name', 'email', 'origin', 'destination', 'pickup_date', 'pickup_time']
         }
     },
     {
@@ -74,7 +75,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
         } else {
             base += `ROL: Recepcionista VIP y Atención al Cliente.\n`;
             base += `Tu trabajo es ayudar a los clientes a entender nuestros servicios, resolver sus dudas sobre nuestra flota (Vehículos eléctricos, Mercedes Clase V, Wi-Fi, etc.), y ayudarles a pre-reservar si te lo piden.\n`;
-            base += `REGLAS:\n- Ofrece siempre un tono muy lujoso y amable.\n- Si el cliente te da los detalles de su viaje, puedes usar la herramienta 'crear_reserva' para guardarla en el sistema como solicitud pendiente.\n- Nunca reveles información interna de los conductores.`;
+            base += `REGLAS:\n- Ofrece siempre un tono muy lujoso y amable.\n- Si el cliente te da los detalles de su viaje, puedes usar la herramienta 'crear_reserva' para guardarla en el sistema como solicitud pendiente.\n- Nunca reveles información interna de los conductores.\n- MUY IMPORTANTE: Cuando pidas los datos para una reserva, asegúrate de pedir SIEMPRE el correo electrónico (email) y un teléfono.`;
         }
         return base;
     };
@@ -115,6 +116,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                 const newBooking = {
                     passenger: args.client_name,
                     phone: args.phone || '',
+                    email: args.email || '',
                     origin: args.origin,
                     destination: args.destination,
                     pickup_date: args.pickup_date,
@@ -278,7 +280,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                                 onChange={(e) => setInput(e.target.value)}
                                 placeholder="Escribe un mensaje..."
                                 disabled={isLoading}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-brand-platinum/30 transition-all disabled:opacity-50"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-brand-platinum/30 transition-all disabled:opacity-50"
                             />
                             <button 
                                 type="submit" 
