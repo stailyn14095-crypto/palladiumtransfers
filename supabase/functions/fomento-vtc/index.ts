@@ -278,11 +278,18 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
                     return { success: false, resultado: "ERROR", error: `Ministerio: ${errorMsg}`, body: rawXml, rawResponse: rawXml };
                 }
 
-                const resultadoMatch = rawXml.match(/resultado="([^"]+)"/i);
-                const resultado = resultadoMatch ? resultadoMatch[1] : null;
-                const iderrorMatch = rawXml.match(/iderror="([^"]+)"/i);
-                const idservicioMatch = rawXml.match(/idservicio="([^"]+)"/i);
-                const idcomunicaMatch = rawXml.match(/idcomunica="([^"]+)"/i);
+                // Parse resultado: try attribute first (alta/inicio), then element (consulta/anulacion)
+                const resultadoAttrMatch = rawXml.match(/resultado="([^"]+)"/i);
+                const resultadoElemMatch = rawXml.match(/<resultado[^>]*>([^<]+)<\/resultado>/i);
+                const resultado = resultadoAttrMatch ? resultadoAttrMatch[1] : (resultadoElemMatch ? resultadoElemMatch[1].trim() : null);
+
+                // Parse other fields - try attribute then element format
+                const iderrorMatch = rawXml.match(/iderror="([^"]+)"/i) || rawXml.match(/<iderror[^>]*>([^<]+)<\/iderror>/i);
+                const idservicioMatch = rawXml.match(/idservicio="([^"]+)"/i) || rawXml.match(/<idservicio[^>]*>([^<]+)<\/idservicio>/i);
+                const idcomunicaMatch = rawXml.match(/idcomunica="([^"]+)"/i) || rawXml.match(/<idcomunica[^>]*>([^<]+)<\/idcomunica>/i);
+                
+                // Log raw response for debugging
+                console.log(`[PROXY] resultado: "${resultado}", raw snippet: ${rawXml.substring(0, 300)}`);
 
                 const RVTC_ERRORS: Record<string, string> = {
                     '00': 'OK - Servicio registrado correctamente',
@@ -311,15 +318,17 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
                 };
 
                 const isSuccess = resultado === '00' || resultado === '0';
-                const errorMsg = isSuccess ? null : (RVTC_ERRORS[resultado ?? ''] || `Error Ministerio código: ${resultado} (iderror: ${iderrorMatch ? iderrorMatch[1] : 'N/A'})`);
+                // For consulta: if resultado is null but no fault, treat as success and return raw XML
+                const consultaNoResult = action === 'consulta' && resultado === null && !rawXml.includes('Fault');
+                const errorMsg = (isSuccess || consultaNoResult) ? null : (RVTC_ERRORS[resultado ?? ''] || `Error Ministerio código: ${resultado} (iderror: ${iderrorMatch ? iderrorMatch[1] : 'N/A'})`);
 
                 return {
-                    success: isSuccess,
+                    success: isSuccess || consultaNoResult,
                     resultado: resultado,
                     error: errorMsg,
                     idservicio: idservicioMatch ? idservicioMatch[1] : null,
                     idcomunica: idcomunicaMatch ? idcomunicaMatch[1] : null,
-                    body: isSuccess ? rawXml : errorMsg,
+                    body: (isSuccess || consultaNoResult) ? rawXml : errorMsg,
                     rawResponse: rawXml
                 };
             } catch (e) {

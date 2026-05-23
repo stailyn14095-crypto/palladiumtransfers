@@ -710,17 +710,31 @@ export const DriverAppView: React.FC = () => {
          });
          const data = await res.json();
          if (data.success && data.rawResponse) {
-            // Extract some basic details from raw XML using regex
-            const matchResultado = data.rawResponse.match(/<resultado[^>]*>(.*?)<\/resultado>/i);
-            const matchMatricula = data.rawResponse.match(/<matricula[^>]*>(.*?)<\/matricula>/i);
-            const matchFInicio = data.rawResponse.match(/<finicio[^>]*>(.*?)<\/finicio>/i);
+            // Extract details from raw XML - try element format first, then attribute format
+            const matchResultado = data.rawResponse.match(/<resultado[^>]*>([^<]+)<\/resultado>/i) 
+                                || data.rawResponse.match(/resultado="([^"]+)"/i);
+            const matchMatricula = data.rawResponse.match(/<matricula[^>]*>([^<]+)<\/matricula>/i) 
+                                || data.rawResponse.match(/matricula="([^"]+)"/i);
+            const matchFInicio = data.rawResponse.match(/<(?:finicio|fprevistainicio)[^>]*>([^<]+)<\/(?:finicio|fprevistainicio)>/i)
+                               || data.rawResponse.match(/(?:finicio|fprevistainicio)="([^"]+)"/i);
+            const matchEstado = data.rawResponse.match(/<estado[^>]*>([^<]+)<\/estado>/i)
+                              || data.rawResponse.match(/estado="([^"]+)"/i);
+            const matchIdservicio = data.rawResponse.match(/<idservicio[^>]*>([^<]+)<\/idservicio>/i)
+                                 || data.rawResponse.match(/idservicio="([^"]+)"/i);
             
-            let message = `Resultado Fomento: ${matchResultado ? matchResultado[1] : 'Desconocido'}\n`;
-            message += `Matrícula: ${matchMatricula ? matchMatricula[1] : 'N/A'}\n`;
+            let message = `✅ DATOS EN FOMENTO\n`;
+            if (matchIdservicio) message += `ID Servicio: ${matchIdservicio[1]}\n`;
+            if (matchResultado) message += `Resultado: ${matchResultado[1]}\n`;
+            if (matchEstado) message += `Estado: ${matchEstado[1]}\n`;
+            if (matchMatricula) message += `Matrícula: ${matchMatricula[1]}\n`;
             if (matchFInicio && matchFInicio[1]) {
                message += `Fecha Inicio: ${matchFInicio[1].replace('T', ' ')}`;
             } else {
                message += `Fecha Inicio: (No iniciada)`;
+            }
+            if (!matchResultado && !matchMatricula && !matchFInicio) {
+               message += `\n\nRespuesta recibida (ver consola para XML completo)`;
+               console.log('[Fomento Consulta] Raw XML:', data.rawResponse);
             }
             alert(message);
          } else {
