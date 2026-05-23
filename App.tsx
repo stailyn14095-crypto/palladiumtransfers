@@ -264,12 +264,19 @@ export default function App() {
   const isStaffRole = session && roleReady && userRole !== 'client' && userRole !== '';
   if (showLanding && !isStaffRole) {
     return (
-      <LandingPage
-        onEnterApp={() => setShowLanding(false)}
-        session={session}
-        language={language}
-        setLanguage={setLanguage}
-      />
+      <>
+        <LandingPage
+          onEnterApp={() => setShowLanding(false)}
+          session={session}
+          language={language}
+          setLanguage={setLanguage}
+        />
+        <Suspense fallback={null}>
+          <div className="print:hidden">
+            <AiAssistant role="client" userName={session?.user?.email} />
+          </div>
+        </Suspense>
+      </>
     );
   }
 
