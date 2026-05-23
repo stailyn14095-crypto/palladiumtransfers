@@ -33,10 +33,16 @@ export function useSupabaseData<T>(tableName: string, options: {
                 .subscribe();
         }
 
+        const handleGlobalRefresh = () => {
+            fetchData();
+        };
+        window.addEventListener('app:refresh', handleGlobalRefresh);
+
         return () => {
             if (subscription) {
                 supabase.removeChannel(subscription);
             }
+            window.removeEventListener('app:refresh', handleGlobalRefresh);
         };
     }, [tableName, select, orderBy, ascending, limit, realtime]);
 

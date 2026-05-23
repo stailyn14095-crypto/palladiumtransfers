@@ -45,6 +45,48 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showLanding, setShowLanding] = useState(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
 
+  // Inactivity and Auto-Refresh Timer
+  useEffect(() => {
+    if (!session) return;
+
+    let inactivityTimer = 0;
+    const ACTIVITY_LIMIT = 60 * 60; // 1 hour in seconds
+    const REFRESH_INTERVAL = 5 * 60; // 5 minutes in seconds
+
+    const resetInactivity = () => {
+      inactivityTimer = 0;
+    };
+
+    const interval = setInterval(() => {
+      inactivityTimer += 1;
+
+      // Auto refresh data every 5 minutes
+      if (inactivityTimer > 0 && inactivityTimer % REFRESH_INTERVAL === 0) {
+        window.dispatchEvent(new CustomEvent('app:refresh'));
+      }
+
+      // Logout after 1 hour of inactivity
+      if (inactivityTimer >= ACTIVITY_LIMIT) {
+        supabase.auth.signOut().then(() => {
+          window.location.reload();
+        });
+      }
+    }, 1000);
+
+    window.addEventListener('mousemove', resetInactivity);
+    window.addEventListener('keydown', resetInactivity);
+    window.addEventListener('touchstart', resetInactivity);
+    window.addEventListener('click', resetInactivity);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mousemove', resetInactivity);
+      window.removeEventListener('keydown', resetInactivity);
+      window.removeEventListener('touchstart', resetInactivity);
+      window.removeEventListener('click', resetInactivity);
+    };
+  }, [session]);
+
   const activeFetchRef = useRef<string | null>(null);
   const lastFetchedUserId = useRef<string | null>(null);
 
@@ -258,12 +300,28 @@ export default function App() {
             </div>
             <span className="font-light text-sm tracking-[0.2em] text-white">PALLADIUM</span>
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-white hover:bg-white/5 rounded-lg transition-colors border border-white/10"
-          >
-            <span className="material-icons-round">menu</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                window.dispatchEvent(new CustomEvent('app:refresh'));
+                const icon = e.currentTarget.querySelector('.material-icons-round');
+                if (icon) {
+                  icon.classList.add('animate-spin');
+                  setTimeout(() => icon.classList.remove('animate-spin'), 1000);
+                }
+              }}
+              className="p-2 text-brand-platinum hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-white/10"
+              title="Actualizar Datos"
+            >
+              <span className="material-icons-round">refresh</span>
+            </button>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 text-white hover:bg-white/5 rounded-lg transition-colors border border-white/10"
+            >
+              <span className="material-icons-round">menu</span>
+            </button>
+          </div>
         </div>
 
         <Suspense fallback={

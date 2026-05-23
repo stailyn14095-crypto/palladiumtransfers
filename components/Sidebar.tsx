@@ -236,13 +236,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, lan
                 <p className="text-[9px] text-brand-platinum/50 uppercase font-bold tracking-tighter">Active Session</p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className={`text-slate-400 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 ${isCollapsed ? 'md:p-1' : ''}`}
-              title="Cerrar Sesión"
-            >
-              <span className="material-icons-round">logout</span>
-            </button>
+            <div className={`flex gap-1 ${isCollapsed ? 'md:flex-col' : ''}`}>
+              <button
+                onClick={(e) => {
+                  window.dispatchEvent(new CustomEvent('app:refresh'));
+                  const icon = e.currentTarget.querySelector('.material-icons-round');
+                  if (icon) {
+                    icon.classList.add('animate-spin');
+                    setTimeout(() => icon.classList.remove('animate-spin'), 1000);
+                  }
+                }}
+                className={`text-slate-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5 ${isCollapsed ? 'md:p-1' : ''}`}
+                title="Actualizar Datos"
+              >
+                <span className="material-icons-round">refresh</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className={`text-slate-400 hover:text-red-400 transition-colors p-2 rounded-full hover:bg-white/5 ${isCollapsed ? 'md:p-1' : ''}`}
+                title="Cerrar Sesión"
+              >
+                <span className="material-icons-round">logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </aside>
