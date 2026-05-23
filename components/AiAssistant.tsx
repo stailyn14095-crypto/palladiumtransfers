@@ -113,7 +113,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
         try {
             if (name === 'crear_reserva') {
                 const newBooking = {
-                    client_name: args.client_name,
+                    passenger: args.client_name,
                     phone: args.phone || '',
                     origin: args.origin,
                     destination: args.destination,
@@ -126,7 +126,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                 };
                 
                 const { error } = await supabase.from('bookings').insert([newBooking]);
-                if (error) throw error;
+                if (error) {
+                    console.error("Error Supabase:", error);
+                    return { error: "Hubo un problema de permisos (RLS) al insertar en la base de datos: " + error.message };
+                }
                 
                 return { result: 'Reserva creada con éxito y guardada como Pendiente.', booking_details: newBooking };
             }
