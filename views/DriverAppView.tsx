@@ -969,8 +969,10 @@ export const DriverAppView: React.FC = () => {
             <div className="relative z-10 p-4 md:p-8 space-y-6 md:space-y-8">
                {(() => {
                   const sortedActiveBookings = [...driverBookings].sort((a: any, b: any) => {
-                     const aTime = new Date(`${a.pickup_date}T${a.pickup_time}`).getTime();
-                     const bTime = new Date(`${b.pickup_date}T${b.pickup_time}`).getTime();
+                     const aDateStr = a.pickup_date.split('T')[0];
+                     const bDateStr = b.pickup_date.split('T')[0];
+                     const aTime = new Date(`${aDateStr}T${a.pickup_time}`).getTime();
+                     const bTime = new Date(`${bDateStr}T${b.pickup_time}`).getTime();
                      return aTime - bTime;
                   });
                   
@@ -982,9 +984,11 @@ export const DriverAppView: React.FC = () => {
                   const futureBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === todayStr || b.pickup_date.split('T')[0] === tomorrowStr);
                   
                   const todayDateStr = new Date().toISOString().split('T')[0];
-                  const completedToday = completedThisWeek.filter((b: any) => b.pickup_date === todayDateStr).sort((a: any, b: any) => {
-                     const aTime = new Date(`${a.pickup_date}T${a.pickup_time}`).getTime();
-                     const bTime = new Date(`${b.pickup_date}T${b.pickup_time}`).getTime();
+                  const completedToday = completedThisWeek.filter((b: any) => b.pickup_date.split('T')[0] === todayDateStr).sort((a: any, b: any) => {
+                     const aDateStr = a.pickup_date.split('T')[0];
+                     const bDateStr = b.pickup_date.split('T')[0];
+                     const aTime = new Date(`${aDateStr}T${a.pickup_time}`).getTime();
+                     const bTime = new Date(`${bDateStr}T${b.pickup_time}`).getTime();
                      return bTime - aTime;
                   });
 
