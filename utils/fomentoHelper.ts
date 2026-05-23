@@ -46,17 +46,37 @@ export const buildFomentoPayload = (
 
         // 2. If no match, try to find by the location text
         if (!match && upper) {
-           match = (municipalities as any[])?.find(m => 
+           const matches = (municipalities as any[])?.filter(m => 
               upper.includes(m.name.toUpperCase()) || 
               m.name.toUpperCase().includes(upper)
-           );
+           ) || [];
+           if (matches.length > 0) {
+              matches.sort((a, b) => {
+                 const idxA = upper.indexOf(a.name.toUpperCase());
+                 const idxB = upper.indexOf(b.name.toUpperCase());
+                 const realA = idxA !== -1 ? idxA : 999;
+                 const realB = idxB !== -1 ? idxB : 999;
+                 return realA - realB;
+              });
+              match = matches[0];
+           }
         }
 
         // 3. If still no match, try to find in the address text
         if (!match && upperAddress) {
-           match = (municipalities as any[])?.find(m => 
+           const matches = (municipalities as any[])?.filter(m => 
               upperAddress.includes(m.name.toUpperCase())
-           );
+           ) || [];
+           if (matches.length > 0) {
+              matches.sort((a, b) => {
+                 const idxA = upperAddress.indexOf(a.name.toUpperCase());
+                 const idxB = upperAddress.indexOf(b.name.toUpperCase());
+                 const realA = idxA !== -1 ? idxA : 999;
+                 const realB = idxB !== -1 ? idxB : 999;
+                 return realA - realB;
+              });
+              match = matches[0];
+           }
         }
 
         if (match) {
