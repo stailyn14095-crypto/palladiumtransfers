@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface Field {
     name: string;
     label: string;
-    type: 'text' | 'number' | 'email' | 'select' | 'searchable-select' | 'date' | 'time' | 'checkbox' | 'textarea';
+    type: 'text' | 'number' | 'email' | 'select' | 'searchable-select' | 'date' | 'time' | 'checkbox' | 'textarea' | 'file';
     required?: boolean;
     options?: string[]; // For select inputs
     optionLabels?: string[]; // Display labels for select inputs
@@ -295,8 +295,28 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
                                                 />
                                                 <span className="text-sm font-bold text-slate-300">{field.placeholder || field.label}</span>
                                             </div>
+                                        ) : field.type === 'file' ? (
+                                            <div className="w-full bg-[#101822] border border-white/10 rounded-2xl px-4 py-2 text-white text-sm font-bold flex items-center justify-between">
+                                                <input
+                                                    type="file"
+                                                    name={field.name}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onload = (ev) => {
+                                                                updateFormData(field.name, ev.target?.result);
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        } else {
+                                                            updateFormData(field.name, null);
+                                                        }
+                                                    }}
+                                                    className="w-full text-xs file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-600/20 file:text-blue-400 hover:file:bg-blue-600/30 cursor-pointer"
+                                                />
+                                                {formData[field.name] && <span className="material-icons-round text-emerald-500 text-sm">check_circle</span>}
+                                            </div>
                                         ) : (
-                                            // ... (existing input)
                                             <input
                                                 type={field.type}
                                                 name={field.name}

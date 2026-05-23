@@ -70,10 +70,7 @@ export const DriverAppView: React.FC = () => {
    const [pendingAction, setPendingAction] = useState<'clockIn' | 'clockOut' | null>(null);
 
    
-   // Cartel Modal State
-   const [cartelModalOpen, setCartelModalOpen] = useState(false);
-   const [cartelData, setCartelData] = useState({ passenger: '', subtitle: '', logoDataUrl: '' });
-   const [cartelBookingId, setCartelBookingId] = useState<string | null>(null);
+   // Cartel configuration is now in ReservasView
    const [upcomingCollapsed, setUpcomingCollapsed] = useState(false);
 
    const [isSubscribed, setIsSubscribed] = useState(false);
@@ -630,7 +627,7 @@ export const DriverAppView: React.FC = () => {
    };
 
    
-   const generatePDF = () => {
+   const generatePDF = (booking: any) => {
       const doc = new jsPDF({ orientation: 'landscape' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -639,11 +636,16 @@ export const DriverAppView: React.FC = () => {
       doc.setFillColor(15, 15, 15); // brand-black
       doc.rect(0, 0, pageWidth, pageHeight, 'F');
 
-      if (cartelData.logoDataUrl) {
+      if (booking.cartel_logo) {
          try {
-            doc.addImage(cartelData.logoDataUrl, 'PNG', pageWidth / 2 - 25, 20, 50, 50);
+            // Depending on image aspect ratio, width/height could be adjusted
+            doc.addImage(booking.cartel_logo, 'PNG', pageWidth / 2 - 25, 20, 50, 50);
          } catch(e) {
             console.error("Error adding image to PDF", e);
+            // Fallback to text if image fails
+            doc.setTextColor(197, 160, 89); // brand-gold
+            doc.setFontSize(24);
+            doc.text("PALLADIUM TRANSFERS", pageWidth / 2, 40, { align: 'center' });
          }
       } else {
          doc.setTextColor(197, 160, 89); // brand-gold
@@ -653,16 +655,14 @@ export const DriverAppView: React.FC = () => {
 
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(48);
-      doc.text(cartelData.passenger.toUpperCase(), pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
+      // Use cartel_text if present, otherwise fallback to passenger name
+      const mainText = booking.cartel_text || booking.passenger;
+      doc.text(mainText.toUpperCase(), pageWidth / 2, pageHeight / 2 + 10, { align: 'center' });
 
-      if (cartelData.subtitle) {
-         doc.setTextColor(197, 160, 89);
-         doc.setFontSize(24);
-         doc.text(cartelData.subtitle, pageWidth / 2, pageHeight / 2 + 40, { align: 'center' });
-      }
+      // We can use the notes as subtitle or just omit it if the cartel text overrides it.
+      // We will only render subtitle if they provided custom text AND a separate passenger name, but to keep it simple, we just print the main text.
 
       window.open(doc.output('bloburl'), '_blank');
-      setCartelModalOpen(false);
    };
 
    const finalizeService = async () => {
@@ -1060,15 +1060,11 @@ export const DriverAppView: React.FC = () => {
                                           {currentBooking.status}
                                        </span>
                                        <button 
-                                          onClick={() => {
-                                             setCartelData({ passenger: currentBooking.passenger, subtitle: '', logoDataUrl: '' });
-                                             setCartelBookingId(currentBooking.id);
-                                             setCartelModalOpen(true);
-                                          }}
+                                          onClick={() => generatePDF(currentBooking)}
                                           className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-gold/10 border border-brand-gold/20 text-brand-gold rounded-full hover:bg-brand-gold hover:text-black transition-all"
                                        >
                                           <span className="material-icons-round text-[10px]">edit_document</span>
-                                          <span className="text-[8px] font-black uppercase tracking-widest">Cartel PDF</span>
+                                          <span className="text-[8px] font-black uppercase tracking-widest">Descargar Cartel</span>
                                        </button>
                                     </div>
                                  </div>
@@ -1529,49 +1525,6 @@ export const DriverAppView: React.FC = () => {
                            Cancelar
                         </button>
                      </div>
-                  </div>
-               </div>
-            </div>
-         )}
-
-         {/* Cartel PDF Modal */}
-         {cartelModalOpen && (
-            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-               <div className="bg-brand-charcoal border border-brand-gold/30 rounded-3xl w-full max-w-md p-6">
-                  <h2 className="text-lg font-black text-brand-gold mb-2">Generar Cartel PDF</h2>
-                  <p className="text-xs text-brand-platinum mb-6">
-                     Diseña un cartel elegante para mostrar en la tablet al cliente en el aeropuerto.
-                  </p>
-
-                  <div className="space-y-4">
-                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Nombre Pasajero</label>
-                        <input type="text" value={cartelData.passenger} onChange={e => setCartelData({...cartelData, passenger: e.target.value})} className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none uppercase font-black" />
-                     </div>
-                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Subtítulo / Mensaje (Opcional)</label>
-                        <input type="text" value={cartelData.subtitle} onChange={e => setCartelData({...cartelData, subtitle: e.target.value})} placeholder="Ej: VIP, Happy Birthday..." className="w-full bg-slate-800 text-white p-3 rounded-xl border border-white/5 focus:border-brand-gold outline-none" />
-                     </div>
-                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Logo / Imagen (Opcional)</label>
-                        <input type="file" accept="image/*" onChange={(e) => {
-                           const file = e.target.files?.[0];
-                           if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                 setCartelData({...cartelData, logoDataUrl: ev.target?.result as string});
-                              };
-                              reader.readAsDataURL(file);
-                           }
-                        }} className="w-full text-[10px] text-brand-platinum file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-brand-gold/10 file:text-brand-gold hover:file:bg-brand-gold/20 cursor-pointer"/>
-                     </div>
-                  </div>
-
-                  <div className="flex gap-3 mt-8">
-                     <button onClick={() => setCartelModalOpen(false)} className="flex-1 bg-white/5 text-white font-bold p-3 rounded-xl hover:bg-white/10 transition text-[10px] uppercase tracking-widest">Cancelar</button>
-                     <button onClick={generatePDF} className="flex-1 bg-brand-gold text-brand-black font-black uppercase tracking-widest p-3 rounded-xl hover:bg-yellow-500 transition text-[10px] flex items-center justify-center gap-2">
-                        <span className="material-icons-round text-sm">print</span> Generar PDF
-                     </button>
                   </div>
                </div>
             </div>
