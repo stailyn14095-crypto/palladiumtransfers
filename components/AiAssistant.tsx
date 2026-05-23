@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '../services/supabase';
+import { Logo } from './ui/Logo';
 
 // Inicializar Gemini
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -176,8 +177,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
         try {
             let result = await chatSessionRef.current.sendMessage(userText);
             
+            let callCount = 0;
             // Loop for handling function calls
-            while (result.response.functionCalls && result.response.functionCalls.length > 0) {
+            while (result.response.functionCalls && result.response.functionCalls.length > 0 && callCount < 3) {
+                callCount++;
                 const call = result.response.functionCalls[0];
                 const functionResponse = await handleFunctionCall(call);
                 
@@ -190,12 +193,19 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                 }]);
             }
             
-            const modelResponse = result.response.text();
+            let modelResponse = "Respuesta recibida.";
+            try {
+                modelResponse = result.response.text();
+            } catch (e) {
+                console.warn("No text in Gemini response", e);
+                modelResponse = "He verificado la información en el sistema, pero no pude generar una respuesta clara.";
+            }
+            
             setMessages(prev => [...prev, { role: 'model', text: modelResponse }]);
             
         } catch (error) {
             console.error("Error en el chat:", error);
-            setMessages(prev => [...prev, { role: 'system', text: 'Lo siento, ocurrió un error procesando tu solicitud.' }]);
+            setMessages(prev => [...prev, { role: 'system', text: 'Lo siento, ocurrió un error procesando tu solicitud o la API no respondió.' }]);
         } finally {
             setIsLoading(false);
         }
@@ -212,7 +222,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                     <div className="p-4 bg-black/40 border-b border-white/5 flex justify-between items-center">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-brand-platinum/10 flex items-center justify-center">
-                                <span className="material-icons-round text-brand-platinum text-sm">smart_toy</span>
+                                <Logo variant="icon" className="w-5 h-5 brightness-125" color="white" />
                             </div>
                             <div>
                                 <h3 className="text-white text-xs font-bold uppercase tracking-widest">
@@ -285,7 +295,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                     onClick={() => setIsOpen(true)}
                     className="w-14 h-14 bg-brand-platinum text-brand-black rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:scale-105 transition-all group"
                 >
-                    <span className="material-icons-round text-2xl group-hover:scale-110 transition-transform">smart_toy</span>
+                    <Logo variant="icon" className="w-8 h-8 brightness-0 group-hover:scale-110 transition-transform" />
                 </button>
             )}
         </div>
