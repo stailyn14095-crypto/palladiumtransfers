@@ -4,8 +4,18 @@ import { DataEntryModal } from '../components/DataEntryModal';
 
 const getTodayLocal = () => {
    const date = new Date();
-   // Adjust to Spanish Time (CEST/CET) manually if needed, or use toLocaleDateString
-   // sv-SE returns YYYY-MM-DD
+   return date.toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+};
+
+const getYesterdayLocal = () => {
+   const date = new Date();
+   date.setDate(date.getDate() - 1);
+   return date.toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+};
+
+const getTomorrowLocal = () => {
+   const date = new Date();
+   date.setDate(date.getDate() + 1);
    return date.toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
 };
 
@@ -31,8 +41,8 @@ export const ReservasView: React.FC = () => {
    const [statusFilter, setStatusFilter] = useState('Todos');
    const [hideCompleted, setHideCompleted] = useState(false); // Changed initial value
    const [hideCancelled, setHideCancelled] = useState(true);
-   const [startDate, setStartDate] = useState(getTodayLocal()); // Fixed UTC bug
-   const [endDate, setEndDate] = useState(getTodayLocal()); // Fixed UTC bug
+   const [startDate, setStartDate] = useState(getYesterdayLocal()); // Default to yesterday
+   const [endDate, setEndDate] = useState(getTomorrowLocal()); // Default to tomorrow
    const [driverFilter, setDriverFilter] = useState('Todos');
    const [clientFilter, setClientFilter] = useState('Todos');
    const [vehicleIdFilter, setVehicleIdFilter] = useState('Todos'); // Filter by specific vehicle (plate)

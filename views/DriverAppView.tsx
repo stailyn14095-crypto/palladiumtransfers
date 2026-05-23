@@ -1083,7 +1083,7 @@ export const DriverAppView: React.FC = () => {
                   
                   // Split into Ayer and Future (Hoy, Mañana)
                   const ayerBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === yesterdayStr);
-                  const futureBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === todayStr || b.pickup_date.split('T')[0] === tomorrowStr);
+                  const futureBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === yesterdayStr || b.pickup_date.split('T')[0] === todayStr || b.pickup_date.split('T')[0] === tomorrowStr);
                   
                   const todayDateStr = new Date().toISOString().split('T')[0];
                   const completedToday = completedThisWeek.filter((b: any) => b.pickup_date.split('T')[0] === todayDateStr).sort((a: any, b: any) => {
@@ -1346,8 +1346,8 @@ export const DriverAppView: React.FC = () => {
                               
                               {!upcomingCollapsed && (
                                  <div className="space-y-6">
-                                    {['Hoy', 'Mañana'].map(dayGroup => {
-                                       const targetStr = dayGroup === 'Hoy' ? todayStr : tomorrowStr;
+                                    {['Ayer', 'Hoy', 'Mañana'].map(dayGroup => {
+                                       const targetStr = dayGroup === 'Ayer' ? yesterdayStr : dayGroup === 'Hoy' ? todayStr : tomorrowStr;
                                        const groupBookings = futureBookings.filter((b: any) => b.pickup_date.split('T')[0] === targetStr);
                                        if (groupBookings.length === 0) return null;
                                        
