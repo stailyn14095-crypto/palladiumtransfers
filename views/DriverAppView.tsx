@@ -1210,7 +1210,7 @@ export const DriverAppView: React.FC = () => {
                                        <button onClick={() => updateStatus(currentBooking.id, 'At Origin')} className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-white/10 transition-all">En Origen</button>
                                     )}
                                     {currentBooking.status === 'At Origin' && (
-                                       <button onClick={() => updateStatus(currentBooking.id, 'In Progress')} className="w-full py-5 bg-brand-gold text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-brand-gold/90 transition-all shadow-lg shadow-brand-gold/20">Pasajero a Bordo</button>
+                                       <button onClick={() => { updateStatus(currentBooking.id, 'In Progress'); openGoogleMaps(currentBooking.destination_address || currentBooking.destination); }} className="w-full py-5 bg-brand-gold text-brand-black rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-brand-gold/90 transition-all shadow-lg shadow-brand-gold/20">Pasajero a Bordo</button>
                                     )}
                                     {currentBooking.status === 'In Progress' && (
                                        <button onClick={() => initiateCollection(currentBooking)} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/40">Finalizar Traslado</button>
