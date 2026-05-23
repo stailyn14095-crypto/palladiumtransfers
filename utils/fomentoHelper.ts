@@ -44,19 +44,25 @@ export const buildFomentoPayload = (
         // 1. Try to find by the specific municipality field if it exists
         let match = (municipalities as any[])?.find(m => m.cod_mun && m.name.toUpperCase() === upperMuni);
 
+        // Helper to check word boundaries safely
+        const hasWord = (text: string, word: string) => {
+           if (!word) return false;
+           // Escape regex chars
+           const safeWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+           return new RegExp(`(?:^|\\s|,|-|/)${safeWord}(?:$|\\s|,|-|/)`).test(text);
+        };
+
         // 2. If no match, try to find by the location text
         if (!match && upper) {
            const matches = (municipalities as any[])?.filter(m => 
-              m.cod_mun && (upper.includes(m.name.toUpperCase()) || 
-              m.name.toUpperCase().includes(upper))
+              m.cod_mun && (hasWord(upper, m.name.toUpperCase()) || 
+              hasWord(m.name.toUpperCase(), upper))
            ) || [];
            if (matches.length > 0) {
               matches.sort((a, b) => {
-                 const idxA = upper.indexOf(a.name.toUpperCase());
-                 const idxB = upper.indexOf(b.name.toUpperCase());
-                 const realA = idxA !== -1 ? idxA : 999;
-                 const realB = idxB !== -1 ? idxB : 999;
-                 return realA - realB;
+                 if (a.name.toUpperCase() === upper) return -1;
+                 if (b.name.toUpperCase() === upper) return 1;
+                 return b.name.length - a.name.length; // Longest match wins
               });
               match = matches[0];
            }
@@ -65,15 +71,13 @@ export const buildFomentoPayload = (
         // 3. If still no match, try to find in the address text
         if (!match && upperAddress) {
            const matches = (municipalities as any[])?.filter(m => 
-              m.cod_mun && upperAddress.includes(m.name.toUpperCase())
+              m.cod_mun && hasWord(upperAddress, m.name.toUpperCase())
            ) || [];
            if (matches.length > 0) {
               matches.sort((a, b) => {
-                 const idxA = upperAddress.indexOf(a.name.toUpperCase());
-                 const idxB = upperAddress.indexOf(b.name.toUpperCase());
-                 const realA = idxA !== -1 ? idxA : 999;
-                 const realB = idxB !== -1 ? idxB : 999;
-                 return realA - realB;
+                 if (a.name.toUpperCase() === upperAddress) return -1;
+                 if (b.name.toUpperCase() === upperAddress) return 1;
+                 return b.name.length - a.name.length; // Longest match wins
               });
               match = matches[0];
            }
