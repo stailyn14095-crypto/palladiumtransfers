@@ -160,7 +160,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
             <vtc:qanulacionvtc xmlns:vtc="${vtcUri}">
                 <header version="1.0" versionsender="1.0" fecha="${isoCommTime}"/>
                 <body>
-                    <vtcanulacion idservicio="${payload.idservicio}"/>
+                    <vtcservicio idservicio="${payload.idservicio}"/>
                 </body>
             </vtc:qanulacionvtc>
         `.trim();
@@ -171,7 +171,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
             <vtc:qiniciovtc xmlns:vtc="${vtcUri}">
                 <header version="1.0" versionsender="1.0" fecha="${isoCommTime}"/>
                 <body>
-                    <vtcinicio idservicio="${payload.idservicio}"/>
+                    <vtcservicio idservicio="${payload.idservicio}"/>
                 </body>
             </vtc:qiniciovtc>
         `.trim();
@@ -240,12 +240,12 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
     const soapAction = action === 'alta' 
         ? 'http://www.fomento.org/VTCService/AltaDeServicio' 
         : action === 'inicio'
-        ? 'http://www.fomento.org/VTCService/InicioDeServicio'
+        ? 'http://www.fomento.org/VTCService/Inicio'
         : action === 'modificacion'
-        ? 'http://www.fomento.org/VTCService/ModificacionDeServicio'
+        ? 'http://www.fomento.org/VTCService/Modificacion'
         : action === 'consulta'
-        ? ''  // Test: empty SOAPAction for consulta - Ministry may not require it for this operation
-        : 'http://www.fomento.org/VTCService/AnulacionDeServicio';
+        ? 'http://www.fomento.org/VTCService/Consulta'
+        : 'http://www.fomento.org/VTCService/Anulacion';
 
     const internalProxyUrl = Deno.env.get('FOMENTO_INTERNAL_PROXY_URL');
 

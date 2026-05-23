@@ -104,6 +104,7 @@ export const buildFomentoPayload = (
     const cDate = contractDate.toISOString().split('T')[0] + 'T10:00:00';
 
     return {
+        idcomunica: booking.display_id?.toString() || booking.id.substring(0, 8),
         fecinicio: booking.pickup_date.split('T')[0],
         horinicio: booking.pickup_time ? booking.pickup_time.substring(0, 5) : '00:00',
         fecfin: booking.pickup_date.split('T')[0],
