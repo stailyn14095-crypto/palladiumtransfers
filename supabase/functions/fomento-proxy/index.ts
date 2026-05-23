@@ -15,7 +15,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { endpoint, signedXml, soapAction, secret } = await req.json();
+    const body = await req.json();
+    const { endpoint, signedXml, soapAction, secret, action } = body;
+
+    // WSDL discovery (no secret needed - just reads WSDL)
+    if (action === 'wsdl') {
+      const wsdlUrl = endpoint || 'https://presede.mitma.gob.es/MFOM.Services.VTC.Server/VTCPort?wsdl';
+      const wsdlRes = await fetch(wsdlUrl, { signal: AbortSignal.timeout(20000) });
+      const wsdlText = await wsdlRes.text();
+      const soapActions = [...wsdlText.matchAll(/soapAction="([^"]+)"/g)].map(m => m[1]);
+      const operations = [...wsdlText.matchAll(/operation name="([^"]+)"/g)].map(m => m[1]);
+      return new Response(JSON.stringify({
+        soapActions,
+        operations,
+        wsdlSnippet: wsdlText.substring(0, 5000),
+        status: wsdlRes.status
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
 
     // Validate internal secret
     const expectedSecret = Deno.env.get('FOMENTO_RELAY_SECRET');

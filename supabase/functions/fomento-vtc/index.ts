@@ -244,7 +244,7 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
         : action === 'modificacion'
         ? 'http://www.fomento.org/VTCService/ModificacionDeServicio'
         : action === 'consulta'
-        ? 'http://www.fomento.org/VTCService/ConsultaDeServicio'
+        ? ''  // Test: empty SOAPAction for consulta - Ministry may not require it for this operation
         : 'http://www.fomento.org/VTCService/AnulacionDeServicio';
 
     const internalProxyUrl = Deno.env.get('FOMENTO_INTERNAL_PROXY_URL');
@@ -426,7 +426,34 @@ Deno.serve(async (req) => {
             throw new Error("Invalid JSON in request body");
         }
 
+        // WSDL discovery - no cert needed
+        if (action === 'wsdl') {
+            const wsdlUrl = 'https://presede.mitma.gob.es/MFOM.Services.VTC.Server/VTCPort?wsdl';
+            try {
+                const wsdlRes = await fetch(wsdlUrl, { signal: AbortSignal.timeout(10000) });
+                const wsdlText = await wsdlRes.text();
+                const soapActions = [...wsdlText.matchAll(/soapAction="([^"]+)"/g)].map(m => m[1]);
+                return new Response(JSON.stringify({ wsdlSnippet: wsdlText.substring(0, 4000), soapActions, status: wsdlRes.status }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
+                });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: `WSDL fetch failed: ${e.message}` }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
+                });
+            }
+        }
+
         const { privateKeyPem, certificatePem } = extractPemFromP12(certBase64, certPassword);
+
+        if (action === 'wsdl') {
+            const wsdlUrl = 'https://presede.mitma.gob.es/MFOM.Services.VTC.Server/VTCPort?wsdl';
+            const wsdlRes = await fetch(wsdlUrl);
+            const wsdlText = await wsdlRes.text();
+            const soapActions = [...wsdlText.matchAll(/soapAction="([^"]+)"/g)].map(m => m[1]);
+            return new Response(JSON.stringify({ wsdlSnippet: wsdlText.substring(0, 3000), soapActions }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
+            });
+        }
 
         if (action === 'alta' || action === 'anulacion' || action === 'inicio' || action === 'modificacion' || action === 'consulta') {
             const isTest = (Deno.env.get('FOMENTO_ENV') !== 'production') || (payload && payload.is_test === true);
