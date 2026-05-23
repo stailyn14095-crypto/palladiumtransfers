@@ -1139,14 +1139,13 @@ export const ReservasView: React.FC = () => {
 
          { name: 'payment_method', label: 'Método de Pago', type: 'select', options: ['Efectivo', 'Tarjeta (TPV Conductor)', 'Pre-pagado (Stripe)', 'Facturación Mensual'], required: true, section: 'Precios y Comisiones' },
          { name: 'price', label: 'Precio Total (€)', type: 'number', required: true, section: 'Precios y Comisiones' },
-         { name: 'driver_price', label: 'Pago Conductor (€)', type: 'number', section: 'Precios y Comisiones' },
-         { name: 'collaborator_price', label: 'Precio Colaborador (€)', type: 'number', section: 'Precios y Comisiones' },
+         { name: 'driver_price', label: 'Cobro al Cliente (€)', type: 'number', section: 'Precios y Comisiones' },
+         { name: 'collaborator_price', label: 'Comisión Colaborador (€)', type: 'number', section: 'Precios y Comisiones', tooltip: 'Comisión que se llevará el colaborador/conductor por realizar el traslado' },
          { name: 'agency_commission', label: 'Comisión Agencia (€)', type: 'number', section: 'Precios y Comisiones' },
          { name: 'stripe_commission', label: 'Comisión Stripe (€)', type: 'number', section: 'Precios y Comisiones' },
          { name: 'promo_code', label: 'Código Promo', type: 'text', section: 'Precios y Comisiones' },
 
          { name: 'notes', label: 'Notas para Conductor', type: 'textarea', section: 'Notas y Otros' },
-         { name: 'office_notes', label: 'Notas de Oficina', type: 'textarea', section: 'Notas y Otros' },
          { name: 'tags', label: 'Etiquetas', type: 'text', section: 'Notas y Otros' },
       ] as any[];
    }, [clients, municipalities, currentFormData.trip_type]);

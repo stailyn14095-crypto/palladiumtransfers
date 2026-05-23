@@ -715,15 +715,49 @@ export const DriverAppView: React.FC = () => {
       }
    };
 
-   const initiateCollection = (booking: any) => {
+   const initiateCollection = async (booking: any) => {
+      const cobroCliente = parseFloat(booking.driver_price) || 0;
+      
+      if (cobroCliente <= 0) {
+         // Finalizar directo sin cobro
+         let currentLog = null;
+         try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+               if (!navigator.geolocation) return reject('No geolocation');
+               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            });
+            currentLog = {
+               status: 'Completed',
+               lat: pos.coords.latitude,
+               lng: pos.coords.longitude,
+               time: new Date().toISOString()
+            };
+         } catch (err) {
+            console.warn("No se pudo obtener GPS para el log", err);
+         }
+         let newLogs = booking.status_logs || [];
+         if (currentLog) {
+            newLogs = [...newLogs, currentLog];
+         }
+         await updateBooking(booking.id, {
+            status: 'Completed',
+            collected_amount: 0,
+            cash_amount: 0,
+            tpv_amount: 0,
+            actual_payment_method: null,
+            status_logs: newLogs
+         });
+         return;
+      }
+
       setCollectingBooking(booking);
       const isCash = booking.payment_method === 'Efectivo';
       setActualPaymentMethod(isCash ? 'Efectivo' : 'TPV');
       if (isCash) {
-         setCashAmount(booking.price?.toString() || '');
+         setCashAmount(cobroCliente.toString());
          setTpvAmount('');
       } else {
-         setTpvAmount(booking.price?.toString() || '');
+         setTpvAmount(cobroCliente.toString());
          setCashAmount('');
       }
       setPaymentModalOpen(true);

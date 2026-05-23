@@ -10,6 +10,7 @@ interface Field {
     placeholder?: string;
     defaultValue?: any;
     section?: string;
+    tooltip?: string;
 }
 
 export interface DataEntryModalProps {
@@ -247,7 +248,9 @@ export const DataEntryModal: React.FC<DataEntryModalProps> = ({ isOpen, onClose,
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 {(sectionFields as Field[]).map((field: Field) => (
                                     <div key={field.name} className={`space-y-1.5 ${field.type === 'textarea' || (field as any).type === 'location' || (field as any).type === 'searchable-select' ? 'col-span-1 md:col-span-2' : ''}`}>
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">{field.label}</label>
+                                        <label title={field.tooltip} className={`block text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 ${field.tooltip ? 'cursor-help border-b border-dashed border-slate-500/50 w-fit' : ''}`}>
+                                            {field.label}
+                                        </label>
 
                                         {/* Field Rendering Logic */}
                                         {String(field.type) === 'searchable-select' ? (
