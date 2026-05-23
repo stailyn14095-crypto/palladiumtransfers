@@ -995,79 +995,81 @@ export const DriverAppView: React.FC = () => {
          </div>
 
          {/* Header */}
-         <div className="relative z-10 bg-brand-charcoal/50 backdrop-blur-xl p-4 md:p-8 border-b border-white/5">
-            <div className="flex justify-between items-start mb-10">
-               <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-brand-platinum text-[8px] font-bold uppercase tracking-[0.3em]">
+         <div className="relative z-10 bg-brand-charcoal/50 backdrop-blur-xl p-4 border-b border-white/5">
+            <div className="flex justify-between items-center mb-4">
+               <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-brand-platinum text-[8px] font-bold uppercase tracking-[0.2em]">
                      <div className="w-1 h-1 rounded-full bg-brand-platinum animate-pulse"></div>
                      Driver Portal
                   </div>
-                  <h1 className="text-4xl font-light tracking-tighter text-white">
+                  <h1 className="text-2xl font-light tracking-tighter text-white">
                      Hola, <span className="platinum-text font-black">{(activeDriver?.name || '').split(' ')[0]}</span>
                   </h1>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.3em] flex items-center gap-2 ${activeDriver?.current_status === 'Working' ? 'text-emerald-400' : activeDriver?.current_status === 'Paused' ? 'text-amber-400' : 'text-slate-500'}`}>
-                     <span className={`w-2 h-2 rounded-full ${activeDriver?.current_status === 'Working' ? 'bg-emerald-400 animate-pulse' : activeDriver?.current_status === 'Paused' ? 'bg-amber-400' : 'bg-slate-700'}`}></span>
+                  <p className={`text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-1.5 ${activeDriver?.current_status === 'Working' ? 'text-emerald-400' : activeDriver?.current_status === 'Paused' ? 'text-amber-400' : 'text-slate-500'}`}>
+                     <span className={`w-1.5 h-1.5 rounded-full ${activeDriver?.current_status === 'Working' ? 'bg-emerald-400 animate-pulse' : activeDriver?.current_status === 'Paused' ? 'bg-amber-400' : 'bg-slate-700'}`}></span>
                      {activeDriver?.current_status === 'Working' ? 'En servicio' : activeDriver?.current_status === 'Paused' ? 'En pausa' : 'Fuera de servicio'}
                   </p>
                </div>
-               <div className="flex gap-2">
-                  <button
-                     onClick={isSubscribed ? unsubscribeUser : subscribeUser}
-                     disabled={subscriptionLoading}
-                     className={`px-4 py-2 border rounded-full text-[9px] font-bold uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${
-                        isSubscribed 
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
-                        : 'bg-white/5 border-white/10 text-brand-platinum hover:bg-white/10'
-                     }`}
-                  >
-                     <span className="material-icons-round text-xs">
-                        {isSubscribed ? 'notifications_active' : 'notifications_none'}
-                     </span>
-                     {subscriptionLoading ? '...' : isSubscribed ? 'Alertas On' : 'Activar Alertas'}
-                  </button>
+               <button
+                  onClick={isSubscribed ? unsubscribeUser : subscribeUser}
+                  disabled={subscriptionLoading}
+                  className={`p-2 border rounded-xl transition-all flex items-center justify-center ${
+                     isSubscribed 
+                     ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' 
+                     : 'bg-white/5 border-white/10 text-brand-platinum hover:bg-white/10'
+                  }`}
+                  title={isSubscribed ? 'Alertas On' : 'Activar Alertas'}
+               >
+                  <span className="material-icons-round text-lg">
+                     {isSubscribed ? 'notifications_active' : 'notifications_none'}
+                  </span>
+               </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+               {/* Assigned Vehicle */}
+               <div className="p-3 bg-brand-black/40 rounded-2xl border border-white/5 flex flex-col justify-center relative overflow-hidden group hover:border-brand-gold/20 transition-all">
+                  <div className="absolute right-[-10px] bottom-[-10px] opacity-5">
+                     <span className="material-icons-round text-6xl">directions_car</span>
+                  </div>
+                  <p className="text-[8px] font-bold text-brand-platinum uppercase tracking-[0.2em] mb-1 opacity-60">Vehículo</p>
+                  <p className="text-sm font-light text-white tracking-tight truncate relative z-10">{assignedVehicle ? `${assignedVehicle.model}` : 'Ninguno'}</p>
+                  <p className="font-bold text-brand-gold text-xs relative z-10">{assignedVehicle?.plate || '-'}</p>
+               </div>
+
+               {/* Ganancias Semana */}
+               <div className="p-3 bg-brand-charcoal/40 backdrop-blur-md border border-white/5 rounded-2xl flex flex-col justify-center relative overflow-hidden hover:border-brand-gold/20 transition-all">
+                  <div className="absolute right-[-10px] bottom-[-10px] opacity-5">
+                     <span className="material-icons-round text-6xl">payments</span>
+                  </div>
+                  <p className="text-[8px] font-bold text-brand-gold uppercase tracking-[0.2em] mb-1 relative z-10">Ganancias Sem.</p>
+                  <p className="text-xl font-light text-white tracking-tighter relative z-10">{weeklyEarnings.toFixed(2)}€</p>
                </div>
             </div>
 
-            {/* Assigned Vehicle */}
-            <div className="mb-8">
-               <div className="p-6 bg-brand-black/40 rounded-3xl border border-white/5 flex items-center gap-5 group hover:border-brand-gold/20 transition-all duration-500">
-                  <div className="w-14 h-14 bg-brand-gold/10 rounded-2xl flex items-center justify-center text-brand-gold border border-brand-gold/10 group-hover:bg-brand-gold group-hover:text-black transition-all">
-                     <span className="material-icons-round text-2xl">directions_car</span>
-                  </div>
-                  <div>
-                     <p className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.4em] mb-1.5 opacity-50">Vehículo Asignado</p>
-                     <p className="text-lg font-light text-white tracking-tight">{assignedVehicle ? `${assignedVehicle.model}` : 'Sin vehículo asignado'} <span className="font-bold text-brand-gold ml-2">{assignedVehicle?.plate}</span></p>
-                  </div>
+            {sharedVehicleAlerts.map((alert, idx) => (
+               <div key={idx} className="mb-4 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 animate-pulse">
+                  <span className="material-icons-round text-amber-500 text-sm">warning</span>
+                  <p className="text-amber-500 text-[9px] font-bold uppercase tracking-widest">{alert}</p>
                </div>
-               {sharedVehicleAlerts.map((alert, idx) => (
-                  <div key={idx} className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3 animate-pulse">
-                     <span className="material-icons-round text-amber-500 text-sm">warning</span>
-                     <p className="text-amber-500 text-[10px] font-bold uppercase tracking-widest">{alert}</p>
-                  </div>
-               ))}
-            </div>
-
-            <div className="bg-brand-charcoal/40 backdrop-blur-md border border-white/5 rounded-[2rem] p-6 hover:border-brand-gold/20 transition-all">
-               <p className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.4em] mb-3">Ganancias Semana</p>
-               <p className="text-3xl font-light text-white tracking-tighter">{weeklyEarnings.toFixed(2)}€</p>
-            </div>
+            ))}
 
             {activeDriver?.current_status === 'Off' ? (
-               <button onClick={handleClockIn} className="w-full mt-8 py-5 bg-white text-brand-black rounded-2xl font-bold uppercase text-[10px] tracking-[0.3em] hover:bg-slate-200 shadow-xl transition-all">
+               <button onClick={handleClockIn} className="w-full py-3.5 bg-white text-brand-black rounded-xl font-bold uppercase text-[10px] tracking-[0.3em] hover:bg-slate-200 shadow-xl transition-all">
                   Fichar Entrada
                </button>
             ) : (
-               <div className="grid grid-cols-2 gap-4 mt-8">
+               <div className="grid grid-cols-2 gap-3">
                   <button
                      onClick={handlePauseToggle}
-                     className={`py-5 rounded-2xl font-bold uppercase text-[10px] tracking-[0.3em] border transition-all ${activeDriver?.current_status === 'Paused'
+                     className={`py-3.5 rounded-xl font-bold uppercase text-[10px] tracking-[0.3em] border transition-all ${activeDriver?.current_status === 'Paused'
                         ? 'bg-amber-600 text-white border-amber-500 shadow-lg shadow-amber-900/20'
                         : 'bg-white/5 text-amber-500 border-white/10 hover:bg-amber-500 hover:text-white'
                         }`}
                   >
                      {activeDriver?.current_status === 'Paused' ? 'Reanudar' : 'Pausa'}
                   </button>
-                  <button onClick={handleClockOut} className="py-5 bg-white/5 text-red-500 border border-white/10 rounded-2xl font-bold uppercase text-[10px] tracking-[0.3em] hover:bg-red-500 hover:text-white transition-all">
+                  <button onClick={handleClockOut} className="py-3.5 bg-white/5 text-red-500 border border-white/10 rounded-xl font-bold uppercase text-[10px] tracking-[0.3em] hover:bg-red-500 hover:text-white transition-all">
                      Fichar Salida
                   </button>
                </div>
