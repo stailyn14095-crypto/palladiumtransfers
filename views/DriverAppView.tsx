@@ -23,6 +23,8 @@ function urlBase64ToUint8Array(base64String: string) {
    return outputArray;
 }
 
+const fomentoAltaLocks: Record<string, Promise<any>> = {};
+
 export const DriverAppView: React.FC = () => {
    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
    const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -556,77 +558,85 @@ export const DriverAppView: React.FC = () => {
                const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
                const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
                
-               fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
-                  method: 'POST',
-                  headers: {
-                     'Content-Type': 'application/json',
-                     'Authorization': `Bearer ${token || supabaseAnonKey}`,
-                     'apikey': supabaseAnonKey
-                  },
-                  body: JSON.stringify({
-                     action: 'alta',
-                     payload: { ...payload, is_test: isTestMode }
-                  })
-               }).then(async res => {
-                  const data = await res.json();
-                  if (data.success) {
-                     await updateBooking(bookingId, {
-                        fomento_status: 'COMUNICADO',
-                        fomento_idservicio: data.idservicio,
-                        fomento_error: null
-                     });
+               if (!fomentoAltaLocks[bookingId]) {
+                  fomentoAltaLocks[bookingId] = fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+                     method: 'POST',
+                     headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token || supabaseAnonKey}`,
+                        'apikey': supabaseAnonKey
+                     },
+                     body: JSON.stringify({
+                        action: 'alta',
+                        payload: { ...payload, is_test: isTestMode }
+                     })
+                  }).then(res => res.json());
+               }
 
-                     // If the status is In Progress, also send inicio immediately after alta
-                     if (status === 'In Progress') {
-                        fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
-                           method: 'POST',
-                           headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token || supabaseAnonKey}`,
-                              'apikey': supabaseAnonKey
-                           },
-                           body: JSON.stringify({
-                              action: 'inicio',
-                              payload: { idservicio: data.idservicio, is_test: isTestMode }
-                           })
-                        }).then(async iniRes => {
-                           const iniData = await iniRes.json();
-                           if (iniData.success) {
-                              await updateBooking(bookingId, { fomento_status: 'INICIADO' });
-                           }
-                        });
-                     }
-                  } else {
-                     await updateBooking(bookingId, {
-                        fomento_status: 'ERROR',
-                        fomento_error: data.error || data.resultado || "Error desconocido"
+               const data = await fomentoAltaLocks[bookingId];
+
+               if (data.success) {
+                  await updateBooking(bookingId, {
+                     fomento_status: 'COMUNICADO',
+                     fomento_idservicio: data.idservicio,
+                     fomento_error: null
+                  });
+
+                  // If the status is In Progress, also send inicio immediately after alta
+                  if (status === 'In Progress') {
+                     fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+                        method: 'POST',
+                        headers: {
+                           'Content-Type': 'application/json',
+                           'Authorization': `Bearer ${token || supabaseAnonKey}`,
+                           'apikey': supabaseAnonKey
+                        },
+                        body: JSON.stringify({
+                           action: 'inicio',
+                           payload: { idservicio: data.idservicio, is_test: isTestMode }
+                        })
+                     }).then(async iniRes => {
+                        const iniData = await iniRes.json();
+                        if (iniData.success) {
+                           await updateBooking(bookingId, { fomento_status: 'INICIADO' });
+                        }
                      });
                   }
-               }).catch(async err => {
-                  console.error("Error Fomento Background Fetch:", err);
-                  try {
-                     await updateBooking(bookingId, {
-                        fomento_status: 'ERROR',
-                        fomento_error: err.message || "Error de red/conexión en segundo plano"
-                     });
-                  } catch (dbErr) {
-                     console.error("No se pudo registrar error de Fomento en DB:", dbErr);
-                  }
-               });
+               } else {
+                  delete fomentoAltaLocks[bookingId]; // Allow retry if failed
+                  await updateBooking(bookingId, {
+                     fomento_status: 'ERROR',
+                     fomento_error: data.error || data.resultado || "Error desconocido"
+                  });
+               }
             } catch (err: any) {
-               console.error("No se pudo construir payload Fomento:", err);
+               delete fomentoAltaLocks[bookingId];
+               console.error("Error Fomento Background Fetch / Construir Payload:", err);
                try {
                   await updateBooking(bookingId, {
                      fomento_status: 'ERROR',
-                     fomento_error: err.message || "Error al construir datos (Falta matrícula o conductor)"
+                     fomento_error: err.message || "Error al construir/comunicar datos"
                   });
                } catch (dbErr) {
-                  console.error("No se pudo registrar error en DB:", dbErr);
+                  console.error("No se pudo registrar error de Fomento en DB:", dbErr);
                }
             }
-         } else if (isAutoSyncEnabled && status === 'In Progress' && bookingToUpdate.fomento_status === 'COMUNICADO' && bookingToUpdate.fomento_idservicio) {
+         } else if (isAutoSyncEnabled && status === 'In Progress' && (bookingToUpdate.fomento_status === 'COMUNICADO' || fomentoAltaLocks[bookingId])) {
             // Already Alta, just do Inicio
             try {
+               // If Alta is still running, wait for it!
+               let idservicio = bookingToUpdate.fomento_idservicio;
+               if (!idservicio && fomentoAltaLocks[bookingId]) {
+                  const altaData = await fomentoAltaLocks[bookingId];
+                  if (altaData.success) {
+                     idservicio = altaData.idservicio;
+                  } else {
+                     return; // Alta failed, can't do Inicio
+                  }
+               }
+               
+               if (!idservicio) return;
+
                const { data: sessionData } = await supabase.auth.getSession();
                const token = sessionData?.session?.access_token;
                
@@ -645,7 +655,7 @@ export const DriverAppView: React.FC = () => {
                   },
                   body: JSON.stringify({
                      action: 'inicio',
-                     payload: { idservicio: bookingToUpdate.fomento_idservicio, is_test: isTestMode }
+                     payload: { idservicio, is_test: isTestMode }
                   })
                }).then(async res => {
                   const data = await res.json();
