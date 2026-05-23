@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { GananciasDriverView } from './GananciasDriverView';
 import { HistoricoDriverView } from './HistoricoDriverView';
+import { DriverCalendarView } from './DriverCalendarView';
 import { buildFomentoPayload } from '../utils/fomentoHelper';
 import { jsPDF } from 'jspdf';
 
@@ -52,7 +53,7 @@ export const DriverAppView: React.FC = () => {
    const [currentLog, setCurrentLog] = useState<any>(null);
    const [weeklyEarnings, setWeeklyEarnings] = useState(0);
    const [alerts, setAlerts] = useState<any[]>([]);
-   const [activeTab, setActiveTab] = useState<'services' | 'history' | 'earnings' | 'jornada'>('services');
+   const [activeTab, setActiveTab] = useState<'services' | 'history' | 'earnings' | 'jornada' | 'turnos'>('services');
 
    // Payment Modal State
    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -1160,8 +1161,15 @@ export const DriverAppView: React.FC = () => {
                   onClick={() => setActiveTab('jornada')}
                   className={`min-w-[100px] flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all snap-start ${activeTab === 'jornada' ? 'bg-blue-500 text-white shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
                >
-                  <span className="material-icons-round text-sm">timer</span>
-                  Jornada
+                  <span className="material-icons-round text-[14px]">history_edu</span>
+                  Fichajes
+               </button>
+               <button
+                  onClick={() => setActiveTab('turnos')}
+                  className={`min-w-[100px] flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all snap-start ${activeTab === 'turnos' ? 'bg-purple-500 text-white shadow-lg' : 'text-brand-platinum/30 hover:text-white'}`}
+               >
+                  <span className="material-icons-round text-[14px]">calendar_month</span>
+                  Turnos
                </button>
             </div>
          </div>
@@ -1566,7 +1574,7 @@ export const DriverAppView: React.FC = () => {
             <div className="relative z-10">
                <GananciasDriverView driverId={selectedDriverId} />
             </div>
-         ) : (
+         ) : activeTab === 'jornada' ? (
             /* Jornada Tab */
             <div className="relative z-10 p-8 space-y-6">
                <div className="flex items-center gap-4 mb-4">
@@ -1618,7 +1626,11 @@ export const DriverAppView: React.FC = () => {
                   })
                )}
             </div>
-         )}
+         ) : activeTab === 'turnos' ? (
+            <div className="relative z-10 h-full overflow-hidden">
+               <DriverCalendarView driverId={selectedDriverId || ''} />
+            </div>
+         ) : null}
 
          {/* Driver Propose Modal */}
          {driverProposeModal && (
