@@ -543,7 +543,7 @@ export const DriverAppView: React.FC = () => {
          const autoSyncSetting = settings?.find((s: any) => s.key === 'fomento_auto_sync');
          const isAutoSyncEnabled = autoSyncSetting ? autoSyncSetting.value === 'true' : true;
 
-         if (isAutoSyncEnabled && bookingToUpdate.fomento_status !== 'COMUNICADO') {
+         if (isAutoSyncEnabled && bookingToUpdate.fomento_status !== 'COMUNICADO' && bookingToUpdate.fomento_status !== 'INICIADO') {
             try {
                const payload = buildFomentoPayload(bookingToUpdate, shifts || [], vehicles || [], drivers || [], municipalities || []);
                const { data: sessionData } = await supabase.auth.getSession();
@@ -575,6 +575,27 @@ export const DriverAppView: React.FC = () => {
                         fomento_idservicio: data.idservicio,
                         fomento_error: null
                      });
+
+                     // If the status is In Progress, also send inicio immediately after alta
+                     if (status === 'In Progress') {
+                        fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+                           method: 'POST',
+                           headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token || supabaseAnonKey}`,
+                              'apikey': supabaseAnonKey
+                           },
+                           body: JSON.stringify({
+                              action: 'inicio',
+                              payload: { idservicio: data.idservicio, is_test: isTestMode }
+                           })
+                        }).then(async iniRes => {
+                           const iniData = await iniRes.json();
+                           if (iniData.success) {
+                              await updateBooking(bookingId, { fomento_status: 'INICIADO' });
+                           }
+                        });
+                     }
                   } else {
                      await updateBooking(bookingId, {
                         fomento_status: 'ERROR',
@@ -602,6 +623,40 @@ export const DriverAppView: React.FC = () => {
                } catch (dbErr) {
                   console.error("No se pudo registrar error en DB:", dbErr);
                }
+            }
+         } else if (isAutoSyncEnabled && status === 'In Progress' && bookingToUpdate.fomento_status === 'COMUNICADO' && bookingToUpdate.fomento_idservicio) {
+            // Already Alta, just do Inicio
+            try {
+               const { data: sessionData } = await supabase.auth.getSession();
+               const token = sessionData?.session?.access_token;
+               
+               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (window as any)._env_?.VITE_SUPABASE_URL;
+               const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (window as any)._env_?.VITE_SUPABASE_ANON_KEY;
+               
+               const fomentoEnvSetting = settings?.find((s: any) => s.key === 'fomento_env');
+               const isTestMode = fomentoEnvSetting ? fomentoEnvSetting.value === 'test' : false;
+
+               fetch(`${supabaseUrl}/functions/v1/fomento-vtc`, {
+                  method: 'POST',
+                  headers: {
+                     'Content-Type': 'application/json',
+                     'Authorization': `Bearer ${token || supabaseAnonKey}`,
+                     'apikey': supabaseAnonKey
+                  },
+                  body: JSON.stringify({
+                     action: 'inicio',
+                     payload: { idservicio: bookingToUpdate.fomento_idservicio, is_test: isTestMode }
+                  })
+               }).then(async res => {
+                  const data = await res.json();
+                  if (data.success) {
+                     await updateBooking(bookingId, {
+                        fomento_status: 'INICIADO'
+                     });
+                  }
+               });
+            } catch (e) {
+               console.error("Error communicating inicio", e);
             }
          }
       }

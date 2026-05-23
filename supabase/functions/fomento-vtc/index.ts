@@ -153,7 +153,7 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
             </vtc:qaltavtc>
         `.trim();
 
-    } else {
+    } else if (action === 'anulacion') {
         const isoCommTime = getMadridIso(new Date(), 10);
         
         dataXml = `
@@ -163,6 +163,19 @@ function createSignedSoap(action: 'alta' | 'anulacion', payload: any, privateKey
                     <vtcservicio idservicio="${payload.idservicio}"/>
                 </body>
             </vtc:qanulacionvtc>
+        `.trim();
+    } else if (action === 'inicio') {
+        const isoCommTime = getMadridIso(new Date());
+        
+        // El idcomunica para un inicio de servicio puede ser el original o uno nuevo, 
+        // pero Fomento pide el idservicio para identificar qué se inicia.
+        dataXml = `
+            <vtc:qiniciovtc xmlns:vtc="${vtcUri}">
+                <header version="1.0" versionsender="1.0" fecha="${isoCommTime}" idcomunica="${payload.idcomunica || ''}"/>
+                <body>
+                    <vtcservicio idservicio="${payload.idservicio}"/>
+                </body>
+            </vtc:qiniciovtc>
         `.trim();
     }
 
@@ -206,6 +219,8 @@ async function sendToFomento(signedXml: string, action: string, isTest: boolean)
 
     const soapAction = action === 'alta' 
         ? 'http://www.fomento.org/VTCService/AltaDeServicio' 
+        : action === 'inicio'
+        ? 'http://www.fomento.org/VTCService/InicioDeServicio'
         : 'http://www.fomento.org/VTCService/Anulacion';
 
     const internalProxyUrl = Deno.env.get('FOMENTO_INTERNAL_PROXY_URL');
@@ -389,7 +404,7 @@ Deno.serve(async (req) => {
 
         const { privateKeyPem, certificatePem } = extractPemFromP12(certBase64, certPassword);
 
-        if (action === 'alta' || action === 'anulacion') {
+        if (action === 'alta' || action === 'anulacion' || action === 'inicio') {
             const isTest = (Deno.env.get('FOMENTO_ENV') !== 'production') || (payload && payload.is_test === true);
             const { signedXml, idcomunica } = createSignedSoap(action as any, payload, privateKeyPem, certificatePem, isTest);
             const fomentoRes = await sendToFomento(signedXml, action, isTest);
