@@ -9,13 +9,14 @@ export const TurnosView: React.FC = () => {
    const { data: drivers, loading: loadingDrivers, updateItem: updateDriver } = useSupabaseData('drivers');
    const { data: vehicles } = useSupabaseData('vehicles');
    const { data: shifts, loading: loadingShifts, addItem: addShift, deleteItem: deleteShift, refresh: refreshShifts } = useSupabaseData('shifts');
-   const { data: shiftTypes, loading: loadingTypes, addItem: addType, deleteItem: deleteType } = useSupabaseData('shift_types');
+   const { data: shiftTypes, loading: loadingTypes, addItem: addType, deleteItem: deleteType, updateItem: updateType } = useSupabaseData('shift_types');
    const { data: maintenance } = useSupabaseData('vehicle_maintenance');
 
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [selectedDay, setSelectedDay] = useState<number | null>(null);
    const [selectedDriver, setSelectedDriver] = useState<any>(null);
    const [plateQuery, setPlateQuery] = useState('');
+   const [editingType, setEditingType] = useState<any>(null);
 
    const daysInMonth = (month: number, year: number) => new Date(year, month + 1, 0).getDate();
    const monthName = currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
@@ -124,7 +125,7 @@ export const TurnosView: React.FC = () => {
       refreshShifts();
    };
 
-   const handleAddType = async (e: React.FormEvent) => {
+   const handleSaveType = async (e: React.FormEvent) => {
       e.preventDefault();
       const form = e.target as HTMLFormElement;
       const name = (form.elements.namedItem('name') as HTMLInputElement).value;
@@ -133,7 +134,12 @@ export const TurnosView: React.FC = () => {
       const color = (form.elements.namedItem('color') as HTMLInputElement).value;
 
       if (name && start && end) {
-         await addType({ name, start_time: start, end_time: end, color });
+         if (editingType) {
+            await updateType(editingType.id, { name, start_time: start, end_time: end, color });
+            setEditingType(null);
+         } else {
+            await addType({ name, start_time: start, end_time: end, color });
+         }
          form.reset();
       }
    };
@@ -753,25 +759,32 @@ export const TurnosView: React.FC = () => {
                <div className="p-8 overflow-auto custom-scrollbar">
                   <div className="max-w-4xl mx-auto space-y-6">
                      <div className="bg-[#1a2533] border border-slate-700 rounded-xl p-6">
-                        <h3 className="text-lg font-bold text-white mb-4">Añadir Nuevo Tipo de Turno</h3>
-                        <form onSubmit={handleAddType} className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                        <h3 className="text-lg font-bold text-white mb-4">{editingType ? 'Editar Tipo de Turno' : 'Añadir Nuevo Tipo de Turno'}</h3>
+                        <form key={editingType ? editingType.id : 'new'} onSubmit={handleSaveType} className="flex flex-col md:flex-row gap-4 items-start md:items-end">
                            <div className="flex-1 w-full md:w-auto">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre</label>
-                              <input name="name" type="text" placeholder="Ej: Mañana Refuerzo" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
+                              <input name="name" type="text" defaultValue={editingType?.name || ''} placeholder="Ej: Mañana Refuerzo" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
                            <div className="w-full md:w-32">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Inicio</label>
-                              <input name="start" type="time" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
+                              <input name="start" type="time" defaultValue={editingType?.start_time || ''} className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
                            <div className="w-full md:w-32">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fin</label>
-                              <input name="end" type="time" className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
+                              <input name="end" type="time" defaultValue={editingType?.end_time || ''} className="w-full bg-[#101822] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none" required />
                            </div>
                            <div className="w-full md:w-20">
                               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Color</label>
-                              <input name="color" type="color" defaultValue="#10b981" className="w-full h-[38px] bg-[#101822] border border-slate-700 rounded-lg cursor-pointer" />
+                              <input name="color" type="color" defaultValue={editingType?.color || '#10b981'} className="w-full h-[38px] bg-[#101822] border border-slate-700 rounded-lg cursor-pointer" />
                            </div>
-                           <button type="submit" className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition-colors h-[38px]">Añadir</button>
+                           <div className="flex gap-2 w-full md:w-auto">
+                              {editingType && (
+                                 <button type="button" onClick={() => setEditingType(null)} className="w-full md:w-auto bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold transition-colors h-[38px]">Cancelar</button>
+                              )}
+                              <button type="submit" className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold transition-colors h-[38px]">
+                                 {editingType ? 'Guardar' : 'Añadir'}
+                              </button>
+                           </div>
                         </form>
                      </div>
 
@@ -795,7 +808,10 @@ export const TurnosView: React.FC = () => {
                                           <div className="w-6 h-6 rounded border border-slate-600" style={{ backgroundColor: type.color }}></div>
                                        </td>
                                        <td className="px-6 py-3 text-right">
-                                          <button onClick={() => deleteType(type.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                                          <button onClick={() => setEditingType(type)} className="text-blue-400 hover:text-blue-300 transition-colors mr-3" title="Editar">
+                                             <span className="material-icons-round text-sm">edit</span>
+                                          </button>
+                                          <button onClick={() => deleteType(type.id)} className="text-red-400 hover:text-red-300 transition-colors" title="Eliminar">
                                              <span className="material-icons-round text-sm">delete</span>
                                           </button>
                                        </td>
