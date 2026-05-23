@@ -72,6 +72,7 @@ export const DriverAppView: React.FC = () => {
    
    // Cartel configuration is now in ReservasView
    const [upcomingCollapsed, setUpcomingCollapsed] = useState(false);
+   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
    const [isSubscribed, setIsSubscribed] = useState(false);
    const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -973,8 +974,13 @@ export const DriverAppView: React.FC = () => {
                      return aTime - bTime;
                   });
                   
-                  const currentBooking = sortedActiveBookings[0];
+                  const currentBooking = sortedActiveBookings.length > 0 ? sortedActiveBookings[0] : null;
                   const upcomingBookings = sortedActiveBookings.slice(1);
+                  
+                  // Split into Ayer and Future (Hoy, Mañana)
+                  const ayerBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === yesterdayStr);
+                  const futureBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === todayStr || b.pickup_date.split('T')[0] === tomorrowStr);
+                  
                   const todayDateStr = new Date().toISOString().split('T')[0];
                   const completedToday = completedThisWeek.filter((b: any) => b.pickup_date === todayDateStr).sort((a: any, b: any) => {
                      const aTime = new Date(`${a.pickup_date}T${a.pickup_time}`).getTime();
@@ -1006,6 +1012,45 @@ export const DriverAppView: React.FC = () => {
                      );
                   };
 
+                  
+                  // Render helper for expanded folded cards
+                  const renderExpandedDetails = (b: any) => (
+                     <div className="mt-4 pt-4 border-t border-white/5 space-y-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="grid grid-cols-2 gap-4">
+                           <div>
+                              <p className="text-[8px] font-bold text-brand-platinum/40 uppercase tracking-[0.3em] mb-1">Recogida</p>
+                              <p className="text-xs text-white font-light">{b.origin_address || b.origin}</p>
+                           </div>
+                           <div>
+                              <p className="text-[8px] font-bold text-brand-gold/40 uppercase tracking-[0.3em] mb-1">Destino</p>
+                              <p className="text-xs text-white font-light">{b.destination_address || b.destination}</p>
+                           </div>
+                        </div>
+                        <div className="flex gap-4">
+                           <div className="bg-brand-black/40 px-3 py-2 rounded-xl flex items-center gap-2">
+                              <span className="material-icons-round text-sm text-brand-platinum/50">groups</span>
+                              <span className="text-[10px] font-bold text-white uppercase">{b.pax || 1} PAX</span>
+                           </div>
+                           {b.flight_number && (
+                              <div className="bg-brand-black/40 px-3 py-2 rounded-xl flex items-center gap-2">
+                                 <span className="material-icons-round text-sm text-brand-platinum/50">flight</span>
+                                 <span className="text-[10px] font-bold text-white uppercase">{b.flight_number}</span>
+                              </div>
+                           )}
+                           <div className="bg-brand-black/40 px-3 py-2 rounded-xl flex items-center gap-2">
+                              <span className="material-icons-round text-sm text-brand-platinum/50">phone</span>
+                              <span className="text-[10px] font-bold text-white uppercase">{b.phone || 'N/A'}</span>
+                           </div>
+                        </div>
+                        {b.notes && (
+                           <div className="p-3 bg-brand-platinum/5 rounded-xl border border-white/5">
+                              <p className="text-[8px] font-bold text-brand-gold uppercase tracking-widest mb-1">NOTAS:</p>
+                              <p className="text-[10px] text-brand-platinum/70 italic">{b.notes}</p>
+                           </div>
+                        )}
+                     </div>
+                  );
+
                   if (!currentBooking && completedToday.length === 0) {
                      return (
                         <div className="p-20 text-center bg-brand-charcoal/20 border border-dashed border-white/5 rounded-[3rem] text-brand-platinum opacity-30 font-light italic">
@@ -1016,9 +1061,49 @@ export const DriverAppView: React.FC = () => {
 
                   return (
                      <div className="space-y-12">
+                        {/* AYER BOOKINGS (ABOVE CURRENT) */}
+                        {ayerBookings.length > 0 && (
+                           <div className="mb-8">
+                              <div className="flex items-center gap-4 mb-4">
+                                 <div className="w-8 h-px bg-brand-platinum opacity-30"></div>
+                                 <h2 className="text-[9px] font-bold text-brand-platinum uppercase tracking-[0.5em]">Servicios de Ayer</h2>
+                              </div>
+                              <div className="space-y-3">
+                                 {ayerBookings.map((b: any) => (
+                                    <div key={b.id} className="flex flex-col p-4 bg-brand-charcoal/20 border border-white/5 rounded-2xl relative transition-all">
+                                       <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-4">
+                                             <div className="text-center px-3 border-r border-white/10">
+                                                <p className="text-[10px] text-brand-platinum uppercase font-bold">{b.pickup_time}</p>
+                                             </div>
+                                             <div>
+                                                <p className="text-xs text-white font-bold tracking-widest uppercase">{b.passenger}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                   <span className="material-icons-round text-[10px] text-brand-platinum/50">route</span>
+                                                   <p className="text-[9px] text-brand-platinum/50 uppercase truncate max-w-[150px] sm:max-w-[250px]">{b.origin} → {b.destination}</p>
+                                                </div>
+                                             </div>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                             <span className="px-2 py-1 bg-white/5 rounded-lg text-[8px] uppercase tracking-widest text-brand-platinum">{b.status}</span>
+                                             <button 
+                                                onClick={() => setExpandedBookingId(expandedBookingId === b.id ? null : b.id)}
+                                                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-brand-gold/20 hover:text-brand-gold text-brand-platinum transition-colors"
+                                             >
+                                                <span className="material-icons-round text-sm">{expandedBookingId === b.id ? 'expand_less' : 'visibility'}</span>
+                                             </button>
+                                          </div>
+                                       </div>
+                                       {expandedBookingId === b.id && renderExpandedDetails(b)}
+                                    </div>
+                                 ))}
+                              </div>
+                           </div>
+                        )}
+
                         {/* CURRENT BOOKING */}
                         {currentBooking ? (
-                           <div>
+                           <div className="mb-8">
                               <div className="flex items-center gap-4 mb-4">
                                  <div className="w-8 h-px bg-brand-gold opacity-50"></div>
                                  <h2 className="text-[9px] font-bold text-brand-gold uppercase tracking-[0.5em] animate-pulse">Servicio Actual</h2>
@@ -1061,10 +1146,9 @@ export const DriverAppView: React.FC = () => {
                                        </span>
                                        <button 
                                           onClick={() => generatePDF(currentBooking)}
-                                          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-gold/10 border border-brand-gold/20 text-brand-gold rounded-full hover:bg-brand-gold hover:text-black transition-all"
+                                          className="flex items-center gap-1.5 px-4 py-2 bg-brand-gold/10 border border-brand-gold/20 text-brand-gold rounded-full hover:bg-brand-gold hover:text-black transition-all shadow-[0_0_15px_rgba(197,160,89,0.2)]"
                                        >
-                                          <span className="material-icons-round text-[10px]">edit_document</span>
-                                          <span className="text-[8px] font-black uppercase tracking-widest">Descargar Cartel</span>
+                                          <span className="text-[10px] font-black uppercase tracking-widest">LETRERO</span>
                                        </button>
                                     </div>
                                  </div>
@@ -1132,8 +1216,8 @@ export const DriverAppView: React.FC = () => {
                            </div>
                         ) : null}
 
-                        {/* UPCOMING BOOKINGS (Grouped) */}
-                        {upcomingBookings.length > 0 && (
+                        {/* UPCOMING BOOKINGS (Future) */}
+                        {futureBookings.length > 0 && (
                            <div>
                               <div 
                                  className="flex items-center justify-between mb-4 cursor-pointer group"
@@ -1142,7 +1226,7 @@ export const DriverAppView: React.FC = () => {
                                  <div className="flex items-center gap-4">
                                     <div className="w-8 h-px bg-brand-platinum opacity-30 group-hover:bg-brand-gold transition-colors"></div>
                                     <h2 className="text-[9px] font-bold text-brand-platinum group-hover:text-brand-gold transition-colors uppercase tracking-[0.5em]">
-                                       Próximos Servicios ({upcomingBookings.length})
+                                       Próximos Servicios ({futureBookings.length})
                                     </h2>
                                  </div>
                                  <span className="material-icons-round text-brand-platinum/50 group-hover:text-brand-gold text-sm transition-all">
@@ -1152,9 +1236,9 @@ export const DriverAppView: React.FC = () => {
                               
                               {!upcomingCollapsed && (
                                  <div className="space-y-6">
-                                    {['Ayer', 'Hoy', 'Mañana'].map(dayGroup => {
-                                       const targetStr = dayGroup === 'Ayer' ? yesterdayStr : dayGroup === 'Hoy' ? todayStr : tomorrowStr;
-                                       const groupBookings = upcomingBookings.filter((b: any) => b.pickup_date.split('T')[0] === targetStr);
+                                    {['Hoy', 'Mañana'].map(dayGroup => {
+                                       const targetStr = dayGroup === 'Hoy' ? todayStr : tomorrowStr;
+                                       const groupBookings = futureBookings.filter((b: any) => b.pickup_date.split('T')[0] === targetStr);
                                        if (groupBookings.length === 0) return null;
                                        
                                        return (
@@ -1163,8 +1247,8 @@ export const DriverAppView: React.FC = () => {
                                                 {dayGroup} - {new Date(targetStr).toLocaleDateString('es-ES')}
                                              </p>
                                              {groupBookings.map((b: any) => (
-                                                <div key={b.id} className="flex flex-col p-4 bg-brand-charcoal/20 border border-white/5 rounded-2xl relative overflow-hidden">
-                                                   <div className="flex items-center justify-between mb-2">
+                                                <div key={b.id} className="flex flex-col p-4 bg-brand-charcoal/20 border border-white/5 rounded-2xl relative transition-all">
+                                                   <div className="flex items-center justify-between">
                                                       <div className="flex items-center gap-4">
                                                          <div className="text-center px-3 border-r border-white/10">
                                                             <p className="text-[10px] text-brand-platinum uppercase font-bold">{b.pickup_time}</p>
@@ -1177,21 +1261,24 @@ export const DriverAppView: React.FC = () => {
                                                             </div>
                                                          </div>
                                                       </div>
-                                                      <span className="px-2 py-1 bg-white/5 rounded-lg text-[8px] uppercase tracking-widest text-brand-platinum">{b.status}</span>
+                                                      <div className="flex flex-col items-end gap-2">
+                                                         <div className="flex items-center gap-3">
+                                                            <span className="px-2 py-1 bg-white/5 rounded-lg text-[8px] uppercase tracking-widest text-brand-platinum">{b.status}</span>
+                                                            <button 
+                                                               onClick={() => setExpandedBookingId(expandedBookingId === b.id ? null : b.id)}
+                                                               className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-brand-gold/20 hover:text-brand-gold text-brand-platinum transition-colors"
+                                                            >
+                                                               <span className="material-icons-round text-sm">{expandedBookingId === b.id ? 'expand_less' : 'visibility'}</span>
+                                                            </button>
+                                                         </div>
+                                                         {getTimeRemaining(b.pickup_date, b.pickup_time) && (
+                                                            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">
+                                                               {getTimeRemaining(b.pickup_date, b.pickup_time)}
+                                                            </span>
+                                                         )}
+                                                      </div>
                                                    </div>
-                                                   {(dayGroup === 'Hoy' || dayGroup === 'Mañana') && getTimeRemaining(b.pickup_date, b.pickup_time) && (
-                                                      <div className="mt-2 text-right">
-                                                         <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">
-                                                            {getTimeRemaining(b.pickup_date, b.pickup_time)}
-                                                         </span>
-                                                      </div>
-                                                   )}
-                                                   {b.notes && (
-                                                      <div className="mt-3 p-2 bg-white/5 rounded-xl border border-white/5">
-                                                         <p className="text-[8px] text-brand-gold uppercase tracking-widest mb-1">Notas:</p>
-                                                         <p className="text-[9px] text-brand-platinum/70 italic leading-relaxed">{b.notes}</p>
-                                                      </div>
-                                                   )}
+                                                   {expandedBookingId === b.id && renderExpandedDetails(b)}
                                                 </div>
                                              ))}
                                           </div>
