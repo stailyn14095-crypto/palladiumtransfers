@@ -108,6 +108,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
         isLoggedIn
     } = useBooking(language);
 
+    const [privacyAccepted, setPrivacyAccepted] = useState(false);
+    const [marketingConsent, setMarketingConsent] = useState(false);
+
     useEffect(() => {
         if (onStepChange) {
             onStepChange(step);
@@ -159,7 +162,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        await submitBooking();
+        if (!privacyAccepted) {
+            alert(language === 'es' ? 'Debe aceptar la Política de Privacidad para proceder con la reserva.' : 'You must accept the Privacy Policy to proceed with the booking.');
+            return;
+        }
+        await submitBooking(marketingConsent);
     };
 
     return (
@@ -526,6 +533,92 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* GDPR Consent Layer */}
+                    <div className="mt-8 p-6 bg-white/5 border border-white/10 rounded-2xl text-xs space-y-4 animate-in fade-in duration-500">
+                        <p className="font-bold text-white uppercase tracking-wider text-[10px]">
+                            {language === 'es' ? 'Información Básica sobre Protección de Datos' : 'Basic Data Protection Information'}
+                        </p>
+                        <div className="space-y-2 text-[11px] text-slate-400">
+                            <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">{language === 'es' ? 'Responsable' : 'Controller'}</span>
+                                <span className="col-span-2 text-slate-300">Palladium Transfers S.L. (CIF: B26816025)</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">{language === 'es' ? 'Finalidad' : 'Purpose'}</span>
+                                <span className="col-span-2 text-slate-300">
+                                    {language === 'es' ? 'Gestión de la reserva de traslado y prestación del servicio.' : 'Booking management and service provision.'}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">{language === 'es' ? 'Legitimación' : 'Legal Basis'}</span>
+                                <span className="col-span-2 text-slate-300">
+                                    {language === 'es' ? 'Ejecución de contrato y consentimiento del interesado.' : 'Contract execution and user consent.'}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">{language === 'es' ? 'Derechos' : 'Rights'}</span>
+                                <span className="col-span-2 text-slate-300">
+                                    {language === 'es' ? 'Acceso, rectificación, supresión y otros derechos mediante' : 'Access, rectification, erasure, and other rights via'} <a href="mailto:palladiumtransfers@gmail.com" className="text-brand-gold hover:underline">palladiumtransfers@gmail.com</a>
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <span className="font-bold text-slate-500 uppercase tracking-widest text-[9px]">{language === 'es' ? 'Más Info' : 'More Info'}</span>
+                                <span className="col-span-2 text-brand-gold hover:underline">
+                                    <a
+                                        href="/politica-privacidad"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/politica-privacidad');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                        }}
+                                    >
+                                        {language === 'es' ? 'Política de Privacidad' : 'Privacy Policy'}
+                                    </a>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                            <label className="flex items-start gap-3 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={privacyAccepted}
+                                    onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                                    className="mt-1 w-4 h-4 rounded border-white/10 bg-white/5 text-brand-gold focus:ring-brand-gold/50 cursor-pointer"
+                                />
+                                <span className="text-[11px] text-slate-300 select-none group-hover:text-white transition-colors">
+                                    {language === 'es' ? (
+                                        <>He leído y acepto la <a href="/politica-privacidad" onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/politica-privacidad');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                        }} className="text-brand-gold hover:underline">Política de Privacidad</a> * (obligatorio)</>
+                                    ) : (
+                                        <>I have read and accept the <a href="/politica-privacidad" onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/politica-privacidad');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                        }} className="text-brand-gold hover:underline">Privacy Policy</a> * (required)</>
+                                    )}
+                                </span>
+                            </label>
+
+                            <label className="flex items-start gap-3 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={marketingConsent}
+                                    onChange={(e) => setMarketingConsent(e.target.checked)}
+                                    className="mt-1 w-4 h-4 rounded border-white/10 bg-white/5 text-brand-gold focus:ring-brand-gold/50 cursor-pointer"
+                                />
+                                <span className="text-[11px] text-slate-400 select-none group-hover:text-white transition-colors">
+                                    {language === 'es' 
+                                        ? 'Consiento recibir comunicaciones comerciales de Palladium Transfers S.L. (opcional)'
+                                        : 'I consent to receive commercial communications from Palladium Transfers S.L. (optional)'}
+                                </span>
+                            </label>
+                        </div>
                     </div>
 
                     <div className="flex gap-4 pt-8 sticky bottom-0 bg-brand-charcoal pb-4">

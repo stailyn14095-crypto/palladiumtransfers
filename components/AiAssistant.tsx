@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { supabase } from '../services/supabase';
 import { Logo } from './ui/Logo';
 
@@ -13,17 +13,17 @@ const tools = [
         name: 'crear_reserva',
         description: 'Crea una reserva nueva en el sistema de Palladium Transfers. Siempre entrará en estado Pending.',
         parameters: {
-            type: 'OBJECT',
+            type: SchemaType.OBJECT,
             properties: {
-                client_name: { type: 'STRING', description: 'Nombre completo del cliente' },
-                phone: { type: 'STRING', description: 'Teléfono de contacto' },
-                email: { type: 'STRING', description: 'Correo electrónico del cliente' },
-                origin: { type: 'STRING', description: 'Origen (ej: ALC, Benidorm, etc.)' },
-                destination: { type: 'STRING', description: 'Destino (ej: Altea, Calpe, etc.)' },
-                pickup_date: { type: 'STRING', description: 'Fecha de recogida en formato YYYY-MM-DD' },
-                pickup_time: { type: 'STRING', description: 'Hora de recogida en formato HH:MM' },
-                pax: { type: 'NUMBER', description: 'Número de pasajeros' },
-                flight_number: { type: 'STRING', description: 'Número de vuelo (opcional)' }
+                client_name: { type: SchemaType.STRING, description: 'Nombre completo del cliente' },
+                phone: { type: SchemaType.STRING, description: 'Teléfono de contacto' },
+                email: { type: SchemaType.STRING, description: 'Correo electrónico del cliente' },
+                origin: { type: SchemaType.STRING, description: 'Origen (ej: ALC, Benidorm, etc.)' },
+                destination: { type: SchemaType.STRING, description: 'Destino (ej: Altea, Calpe, etc.)' },
+                pickup_date: { type: SchemaType.STRING, description: 'Fecha de recogida en formato YYYY-MM-DD' },
+                pickup_time: { type: SchemaType.STRING, description: 'Hora de recogida en formato HH:MM' },
+                pax: { type: SchemaType.NUMBER, description: 'Número de pasajeros' },
+                flight_number: { type: SchemaType.STRING, description: 'Número de vuelo (opcional)' }
             },
             required: ['client_name', 'email', 'origin', 'destination', 'pickup_date', 'pickup_time']
         }
@@ -32,9 +32,9 @@ const tools = [
         name: 'consultar_estado_vuelo',
         description: 'Consulta el estado de un vuelo usando la API de AirLabs.',
         parameters: {
-            type: 'OBJECT',
+            type: SchemaType.OBJECT,
             properties: {
-                flight_iata: { type: 'STRING', description: 'El número de vuelo IATA (ej: FR4032, VY1234)' }
+                flight_iata: { type: SchemaType.STRING, description: 'El número de vuelo IATA (ej: FR4032, VY1234)' }
             },
             required: ['flight_iata']
         }
@@ -43,21 +43,20 @@ const tools = [
         name: 'consultar_disponibilidad_conductores',
         description: 'Obtiene la lista de reservas de hoy para comprobar solapamientos o consultar quién está libre.',
         parameters: {
-            type: 'OBJECT',
+            type: SchemaType.OBJECT,
             properties: {
-                fecha: { type: 'STRING', description: 'Fecha a consultar en formato YYYY-MM-DD (por defecto hoy)' }
-            },
-            required: []
+                fecha: { type: SchemaType.STRING, description: 'Fecha a consultar en formato YYYY-MM-DD (por defecto hoy)' }
+            }
         }
     },
     {
         name: 'consultar_tarifa',
         description: 'Consulta el precio estimado para un trayecto basado en las tarifas de Palladium Transfers.',
         parameters: {
-            type: 'OBJECT',
+            type: SchemaType.OBJECT,
             properties: {
-                origin: { type: 'STRING', description: 'Palabra clave corta del origen (ej: Alicante, Benidorm, ALC)' },
-                destination: { type: 'STRING', description: 'Palabra clave corta del destino (ej: Altea, Valencia, VLC)' }
+                origin: { type: SchemaType.STRING, description: 'Palabra clave corta del origen (ej: Alicante, Benidorm, ALC)' },
+                destination: { type: SchemaType.STRING, description: 'Palabra clave corta del destino (ej: Altea, Valencia, VLC)' }
             },
             required: ['origin', 'destination']
         }
@@ -133,19 +132,16 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
                     destination: args.destination,
                     pickup_date: args.pickup_date,
                     pickup_time: args.pickup_time,
-                    pax: args.pax || 1,
+                    pax_count: args.pax || 1,
                     flight_number: args.flight_number || '',
                     status: 'Pending',
                     notes: 'REVISAR: Creado por IA desde el Chat.'
                 };
                 
-                const { error } = await supabase.from('bookings').insert([newBooking]);
-                if (error) {
-                    console.error("Error Supabase:", error);
-                    return { error: "Hubo un problema de permisos (RLS) al insertar en la base de datos: " + error.message };
-                }
+                // Dispatch event to open the modal in ReservasView.tsx
+                window.dispatchEvent(new CustomEvent('open-booking-modal', { detail: newBooking }));
                 
-                return { result: 'Reserva creada con éxito y guardada como Pendiente.', booking_details: newBooking };
+                return { result: 'He abierto el formulario de Nueva Reserva con los datos extraídos para que el operador lo revise y guarde.', booking_details: newBooking };
             }
             
             if (name === 'consultar_estado_vuelo') {
@@ -235,14 +231,23 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ role = 'client', userN
             }
             
             if (!modelResponse || modelResponse.trim() === "") {
-                modelResponse = "He realizado la comprobación, pero no tengo una respuesta definitiva. ¿Puedo ayudarte con algo más?";
+                if (callCount > 0) {
+                    modelResponse = "He completado la acción solicitada. Revisa la pantalla para continuar.";
+                } else {
+                    modelResponse = "He realizado la comprobación, pero no tengo una respuesta definitiva. ¿Puedo ayudarte con algo más?";
+                }
             }
             
             setMessages(prev => [...prev, { role: 'model', text: modelResponse }]);
             
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error en el chat:", error);
-            setMessages(prev => [...prev, { role: 'system', text: 'Lo siento, ocurrió un error procesando tu solicitud o la API no respondió.' }]);
+            const errorMessage = error?.message || 'Error desconocido';
+            if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('too many requests')) {
+                setMessages(prev => [...prev, { role: 'system', text: 'Has alcanzado el límite de peticiones gratuitas por minuto (15/min). Por favor, espera un minuto e inténtalo de nuevo.' }]);
+            } else {
+                setMessages(prev => [...prev, { role: 'system', text: `Error de API: ${errorMessage}` }]);
+            }
         } finally {
             setIsLoading(false);
         }

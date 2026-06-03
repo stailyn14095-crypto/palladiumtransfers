@@ -6,15 +6,19 @@ interface LegalModalsProps {
     type: 'legal' | 'privacy' | 'cookies' | 'terms' | null;
     language: Language;
     onClose: () => void;
+    standalone?: boolean;
 }
 
-export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClose }) => {
+export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClose, standalone = false }) => {
     const { data: settings } = useSupabaseData('system_settings');
     const [companyInfo, setCompanyInfo] = useState({
         name: 'Palladium Transfers S.L.',
-        nif: '[Pendiente de completar]',
-        address: '[Pendiente de completar]',
-        email: 'info@palladiumtransfers.com'
+        nif: 'B26816025',
+        address: 'Av. Maisonnave, 41 3ºB., 03003 - Alicante/Alacant (Alicante)',
+        phone: '655454978',
+        email: 'palladiumtransfers@gmail.com',
+        web: 'https://www.palladiumtransfers.com',
+        vtc: 'Autorizaciones de arrendamiento de vehículos con conductor (VTC) expedidas por la Generalitat Valenciana.'
     });
 
     useEffect(() => {
@@ -38,18 +42,32 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Aviso Legal',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>En cumplimiento con el deber de información recogido en artículo 10 de la Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información y del Comercio Electrónico (LSSI-CE), a continuación se hacen constar los siguientes datos identificativos:</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. DATOS IDENTIFICATIVOS</h3>
+                        <p>En cumplimiento del artículo 10 de la Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información y de Comercio Electrónico (LSSICE), se informa:</p>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Titular de la web:</strong> {companyInfo.name}</li>
-                            <li><strong>NIF:</strong> {companyInfo.nif}</li>
-                            <li><strong>Domicilio Social:</strong> {companyInfo.address}</li>
-                            <li><strong>Correo electrónico de contacto:</strong> {companyInfo.email}</li>
-                            <li><strong>Actividad principal:</strong> Servicios de transporte privado y traslado (VTC).</li>
+                            <li><strong>Denominación social:</strong> {companyInfo.name}</li>
+                            <li><strong>CIF:</strong> {companyInfo.nif}</li>
+                            <li><strong>Domicilio social:</strong> {companyInfo.address}</li>
+                            <li><strong>Teléfono:</strong> {companyInfo.phone}</li>
+                            <li><strong>Email:</strong> {companyInfo.email}</li>
+                            <li><strong>Actividad:</strong> Transporte de viajeros</li>
+                            <li><strong>Página web:</strong> <a href={companyInfo.web} className="text-brand-gold hover:underline">{companyInfo.web}</a></li>
+                            <li><strong>Licencias VTC:</strong> {companyInfo.vtc}</li>
                         </ul>
-                        <h3 className="text-white font-bold mt-6 mb-2">Propiedad Intelectual e Industrial</h3>
-                        <p>Los derechos de propiedad intelectual de la página web, su código fuente, diseño, estructuras de navegación y los distintos elementos en ella contenidos son titularidad de {companyInfo.name}, a quien corresponde el ejercicio exclusivo de los derechos de explotación de los mismos.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Condiciones de Uso</h3>
-                        <p>El usuario de la web se compromete a hacer un uso adecuado y lícito del sitio web y de sus contenidos, de conformidad con la Legislación aplicable y el presente Aviso Legal.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. OBJETO Y CONDICIONES DE USO</h3>
+                        <p>Palladium Transfers S.L. pone a disposición de los usuarios la presente plataforma web con la finalidad de gestionar los servicios de transporte de viajeros contratados. El acceso y uso de esta plataforma implica la aceptación de las presentes condiciones de uso.</p>
+                        <p>El usuario se compromete a hacer un uso adecuado de los contenidos y servicios, no utilizándolos para actividades ilícitas o contrarias a la buena fe, al orden público, o que pudieran suponer una lesión de los derechos de terceros.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. PROPIEDAD INTELECTUAL E INDUSTRIAL</h3>
+                        <p>Todos los contenidos de la plataforma, incluyendo textos, fotografías, gráficos, imágenes, iconos, tecnología, software, y demás contenidos audiovisuales o sonoros, así como su diseño gráfico y códigos fuente, son propiedad intelectual de Palladium Transfers S.L. o de terceros que han autorizado su uso, y están protegidos por las leyes vigentes en materia de propiedad intelectual e industrial.</p>
+                        <p>Queda expresamente prohibida la reproducción, distribución, communication pública, transformación o cualquier otro acto de explotación sin la autorización expresa y por escrito de Palladium Transfers S.L..</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">4. EXCLUSIÓN DE RESPONSABILIDAD</h3>
+                        <p>Palladium Transfers S.L. no se responsabiliza de los daños y perjuicios que pudieran derivarse de interferencias, omisiones, interrupciones, virus informáticos, averías telefónicas o desconexiones en el funcionamiento operativo del sistema electrónico. Tampoco se responsabiliza de posibles retrasos o bloqueos en el uso causados por deficiencias o sobrecargas de Internet.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">5. LEY APLICABLE Y JURISDICCIÓN</h3>
+                        <p>Las presentes condiciones se rigen por la legislación española. Para la resolución de cualquier controversia o cuestión relacionada con la presente plataforma, las partes se someten a los Juzgados y Tribunales del domicilio del usuario, de conformidad con la normativa vigente de protección de consumidores y usuarios.</p>
                     </div>
                 )
             },
@@ -57,17 +75,71 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Política de Privacidad',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>En {companyInfo.name} nos tomamos muy en serio la protección de sus datos personales. Esta Política de Privacidad describe cómo recogemos, usamos y protegemos sus datos, de acuerdo con el Reglamento General de Protección de Datos (RGPD) y la Ley Orgánica 3/2018 de Protección de Datos Personales y garantía de los derechos digitales (LOPDGDD).</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Responsable del Tratamiento</h3>
-                        <p>Identidad: {companyInfo.name} | Email: {companyInfo.email}</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Finalidad</h3>
-                        <p>Tus datos se recopilan exclusivamente para: gestionar las reservas de servicios de traslado, contactar en caso de incidencias con el servicio o facturación, y garantizar su correcta prestación.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Legitimación</h3>
-                        <p>La base legal para el tratamiento de sus datos es la ejecución del contrato de prestación de servicios (reserva) y el consentimiento expreso del usuario al rellenar el formulario de reserva.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Destinatarios</h3>
-                        <p>No se cederán datos a terceros salvo obligación legal. Los datos correspondientes de recogida y destino son compartidos únicamente con el conductor asignado para poder llevar a cabo el servicio.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Derechos (ARCO+)</h3>
-                        <p>Cualquier persona tiene derecho a solicitar el acceso, rectificación, supresión, limitación y oposición del tratamiento de sus datos, enviando un correo a {companyInfo.email} adjuntando copia de su DNI o documento equivalente.</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. RESPONSABLE DEL TRATAMIENTO</h3>
+                        <ul className="list-disc pl-5 space-y-2">
+                            <li><strong>Denominación social:</strong> {companyInfo.name}</li>
+                            <li><strong>CIF:</strong> {companyInfo.nif}</li>
+                            <li><strong>Dirección:</strong> {companyInfo.address}</li>
+                            <li><strong>Teléfono:</strong> {companyInfo.phone}</li>
+                            <li><strong>Email:</strong> {companyInfo.email}</li>
+                            <li><strong>Web:</strong> <a href={companyInfo.web} className="text-brand-gold hover:underline">{companyInfo.web}</a></li>
+                        </ul>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. INFORMACIÓN Y CONSENTIMIENTO</h3>
+                        <h4 className="text-white font-semibold mt-2">2.1 Principio de información</h4>
+                        <p>Mediante el presente aviso de privacidad, Palladium Transfers S.L. informa a los usuarios de la plataforma web sobre el tratamiento de sus datos personales, en cumplimiento del Reglamento (UE) 2016/679, de 27 de abril de 2016 (RGPD), y de la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales (LOPDGDD).</p>
+
+                        <h4 className="text-white font-semibold mt-2">2.2 Finalidades del tratamiento</h4>
+                        <p>Sus datos personales serán usados para nuestra relación y poder prestarle nuestros servicios propios como empresa de transporte de viajeros VIP, traslados con chófer privado y alquiler de vehículos de lujo con conductor. Dichos datos son necesarios para poder relacionarnos con usted y gestionar las reservas, traslados y servicios contratados, lo que nos permite el uso de su información personal dentro de la legalidad. Asimismo, también pueden ser usados para otras actividades, como enviarle publicidad o promocionar nuestras actividades, caso en el cual le pediremos los correspondientes consentimientos.</p>
+
+                        <h4 className="text-white font-semibold mt-2">2.3 Base jurídica del tratamiento</h4>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>Ejecución del contrato de prestación de servicios de transporte (art. 6.1.b RGPD).</li>
+                            <li>Cumplimiento de obligaciones legales aplicables, incluyendo la normativa de transporte de viajeros y, en su caso, el Real Decreto 933/2021 sobre registro de viajeros (art. 6.1.c RGPD).</li>
+                            <li>Consentimiento del interesado para el envío de comunicaciones comerciales y publicidad (art. 6.1.a RGPD).</li>
+                            <li>Interés legítimo del responsable del tratamiento para la gestión operativa de la flota y servicios (art. 6.1.f RGPD).</li>
+                        </ul>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. DESTINATARIOS DE LOS DATOS</h3>
+                        <p>Solo el personal de nuestra entidad que esté debidamente autorizado podrá tener conocimiento de la información que le pedimos. Asimismo, podrán tener conocimiento de su información aquellas entidades que necesiten tener acceso a la misma para que podamos prestarle nuestros servicios, tales como empresas de seguridad y geolocalización de vehículos, empresas de prevención de riesgos laborales y asesores laborales y fiscales. Igualmente, tendrán conocimiento de su información aquellas entidades públicas o privadas a las cuales estemos obligados a facilitar sus datos personales con motivo del cumplimiento de alguna ley.</p>
+                        <p>Puede consultar el listado actualizado de encargados de tratamiento en nuestras oficinas.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">4. TRANSFERENCIAS INTERNACIONALES</h3>
+                        <p>Su información puede ser tratada por proveedores de servicios tecnológicos con servidores ubicados fuera del Espacio Económico Europeo, concretamente en los Estados Unidos (Supabase Inc.). Esta transferencia se realiza al amparo del Marco de Privacidad UE-EE.UU. (adecuación 2023), siempre que el proveedor esté adherido al mismo, o mediante la aplicación de Cláusulas Contractuales Tipo aprobadas por la Comisión Europea.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">5. CONSERVACIÓN DE LOS DATOS</h3>
+                        <p>Conservaremos sus datos durante nuestra relación y mientras nos obliguen las leyes aplicables. Una vez finalizados los plazos legales, procederemos a eliminarlos de forma segura. En particular:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>Datos de reservas y servicios de transporte: durante la vigencia de la relación contractual y 5 años adicionales por prescripción de acciones civiles.</li>
+                            <li>Datos fiscales y de facturación: 6 años (art. 30 Código de Comercio).</li>
+                            <li>Registro de viajeros (si aplica RD 933/2021): 3 años desde la finalización del servicio.</li>
+                            <li>Datos de videovigilancia (si aplica): máximo 30 días, salvo que sean prueba de hechos.</li>
+                        </ul>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">6. DERECHOS DE LAS PERSONAS INTERESADAS</h3>
+                        <p>En cualquier momento puede dirigirse a nosotros para saber qué información tenemos sobre usted, rectificarla si fuese incorrecta y eliminarla una vez finalizada nuestra relación, en el caso de que ello sea legalmente posible. También tiene derecho a:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>Acceso: conocer qué datos personales tratamos sobre usted.</li>
+                            <li>Rectificación: corregir datos inexactos o incompletos.</li>
+                            <li>Supresión: solicitar la eliminación cuando los datos ya no sean necesarios.</li>
+                            <li>Oposición: oponerse al tratamiento basado en interés legítimo o con fines de mercadotecnia directa.</li>
+                            <li>Limitación del tratamiento: solicitar la restricción del tratamiento en determinadas circunstancias.</li>
+                            <li>Portabilidad: recibir sus datos en un formato estructurado y de uso común.</li>
+                            <li>No ser objeto de decisiones individualizadas automatizadas con efectos jurídicos.</li>
+                        </ul>
+                        <p>Para ejercer sus derechos, debe realizar una solicitud mediante cualquier medio válido de identificación (art. 12 RGPD) dirigida a:</p>
+                        <p className="bg-white/5 p-4 rounded-xl font-mono text-xs">
+                            Palladium Transfers S.L.<br />
+                            Av. Maisonnave, 41 3ºB., 03003 - Alicante/Alacant (Alicante)<br />
+                            Email: {companyInfo.email}
+                        </p>
+                        <p>En caso de que entienda que sus derechos han sido desatendidos por nuestra entidad, puede formular una reclamación ante la Agencia Española de Protección de Datos (<a href="https://www.aepd.es" className="text-brand-gold hover:underline">www.aepd.es</a>) o llamando al 901 100 099 / 91 266 35 17.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">7. SEGURIDAD</h3>
+                        <p>Palladium Transfers S.L. ha adoptado las medidas técnicas y organizativas necesarias para garantizar la seguridad e integridad de los datos personales que trata, así como para evitar su pérdida, alteración y/o acceso por parte de terceros no autorizados.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">8. ACTUALIZACIÓN DE LA POLÍTICA</h3>
+                        <p>Nos reservamos el derecho a modificar la presente política para adaptarla a novedades legislativas o jurisprudenciales. En dichos supuestos, se anunciará en esta página los cambios introducidos con razonable antelación a su puesta en práctica.</p>
                     </div>
                 )
             },
@@ -75,14 +147,59 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Política de Cookies',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>Esta web utiliza cookies imprescindibles para el correcto funcionamiento tecnológico de la plataforma. De conformidad con la normativa española (LSSI-CE), le informamos sobre el uso de cookies en nuestro sistema.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">¿Qué son las cookies?</h3>
-                        <p>Las cookies son pequeños archivos de texto que se instalan y almacenan en el navegador cuando se visitan páginas web. Su fin principal es recordar detalles de la visita.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">¿Piden permiso para instalar cookies?</h3>
-                        <p>Nuestra web <strong>NO utiliza cookies de análisis o marketing (tracking) de terceros</strong> (como Google Analytics, Meta Pixel, etc.) que requieran de consentimiento explícito.</p>
-                        <p>Únicamente utilizamos cookies <strong>TÉCNICAS O ESTRICTAMENTE NECESARIAS</strong>. Éstas permiten mantener el estado de la sesión (por ejemplo, acceder al portal de administración), evitar ataques CSRF y recordar la preferencia de idioma del navegador. Al ser imprescindibles, están exentas de la obligación de obtener el consentimiento del usuario.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Cómo desactivar las cookies</h3>
-                        <p>Puede usted restringir, bloquear o borrar las cookies de nuestro sitio o de cualquier otra página web utilizando su navegador. Sin embargo, advertimos que al desactivar estas cookies de sesión, el portal de clientes y empleados podría dejar de operar correctamente.</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. ¿QUÉ SON LAS COOKIES?</h3>
+                        <p>Las cookies son pequeños archivos de texto que los sitios web instalan en el navegador o dispositivo del usuario cuando accede a ellos. Sirven para que el sitio web recuerde información sobre su visita, como su idioma preferido y otras opciones, lo que puede facilitar su próxima visita y hacer que el sitio le resulte más útil.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. TIPOS DE COOKIES QUE UTILIZAMOS</h3>
+                        <div className="overflow-x-auto my-4 border border-white/10 rounded-xl">
+                            <table className="min-w-full text-left text-xs text-slate-300">
+                                <thead className="bg-white/5 text-white font-bold uppercase tracking-widest text-[10px] border-b border-white/10">
+                                    <tr>
+                                        <th className="p-3">Nombre</th>
+                                        <th className="p-3">Dominio</th>
+                                        <th className="p-3">Titular</th>
+                                        <th className="p-3">Tipo</th>
+                                        <th className="p-3">Finalidad</th>
+                                        <th className="p-3">Duración</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    <tr>
+                                        <td className="p-3 font-mono font-bold text-white">__cf_bm</td>
+                                        <td className="p-3">.palladiumtransfers.com</td>
+                                        <td className="p-3">Cloudflare, Inc. (EE.UU.)</td>
+                                        <td className="p-3">Necesaria</td>
+                                        <td className="p-3">Soporte Cloudflare Bot Management. Distingue entre humanos y bots automatizados.</td>
+                                        <td className="p-3">1 hora</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 font-mono font-bold text-white">Supabase</td>
+                                        <td className="p-3">supabase.co</td>
+                                        <td className="p-3">Supabase Inc. (EE.UU.)</td>
+                                        <td className="p-3">Necesaria / Funcional</td>
+                                        <td className="p-3">Gestión de sesiones y autenticación de usuarios en la plataforma.</td>
+                                        <td className="p-3">Sesión</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p>Las cookies necesarias/técnicas no requieren el consentimiento del usuario al ser imprescindibles para el funcionamiento de la plataforma.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. TRANSFERENCIAS INTERNACIONALES</h3>
+                        <p>Las cookies de Cloudflare, Inc. y Supabase Inc. implican transferencia de datos a EE.UU. Cloudflare y Supabase participan en el Marco de Privacidad UE-EE.UU. Puede verificar la adhesión en <a href="https://www.dataprivacyframework.gov" className="text-brand-gold hover:underline">www.dataprivacyframework.gov</a>.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">4. CÓMO GESTIONAR LAS COOKIES</h3>
+                        <p>Puede configurar su navegador para aceptar o rechazar las cookies, o para que le avise cuando un sitio web quiera instalarlas. A continuación le indicamos cómo gestionar las cookies en los principales navegadores:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li><strong>Google Chrome:</strong> Configuración &gt; Privacidad y seguridad &gt; Cookies y otros datos de sitios.</li>
+                            <li><strong>Mozilla Firefox:</strong> Opciones &gt; Privacidad y Seguridad &gt; Cookies y datos del sitio.</li>
+                            <li><strong>Safari:</strong> Preferencias &gt; Privacidad &gt; Gestionar datos de sitios web.</li>
+                            <li><strong>Microsoft Edge:</strong> Configuración &gt; Permisos del sitio &gt; Cookies y datos del sitio.</li>
+                        </ul>
+                        <p>Tenga en cuenta que bloquear las cookies necesarias puede afectar al funcionamiento de la plataforma.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">5. ACTUALIZACIÓN DE ESTA POLÍTICA</h3>
+                        <p>Palladium Transfers S.L. puede actualizar esta política de cookies para adaptarla a cambios tecnológicos, legislativos o de los servicios prestados. Le informaremos mediante aviso en la web cuando se produzcan cambios relevantes.</p>
                     </div>
                 )
             },
@@ -95,7 +212,7 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                         <p>Todas las reservas deben realizarse con la debida antelación. La reserva no se considerará "confirmada" hasta que el sistema emita un comprobante o voucher (PDF/Email) y el pago, si corresponde por adelantado, haya sido debidamente procesado.</p>
                         <h3 className="text-white font-bold mt-6 mb-2">2. Política de Espera (Retrasos)</h3>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Recogidas en Aeropuerto:</strong> Se concede un margen de cortesía de hasta 30 minutos desde la hora programada de aterrizaje del vuelo. Monitoreamos los tiempos reales.</li>
+                            <li><strong>Recogidas en Aeropuerto:</strong> Se concede un margen de cortesía de hasta 60 minutos (1 hora) desde la hora programada de aterrizaje del vuelo. Monitoreamos los tiempos reales. En el caso de cancelación o derivación del vuelo a otro aeropuerto se considerará con cliente no presentado.</li>
                             <li><strong>Recogidas en Ciudad/Hotel:</strong> El tiempo de espera o cortesía será de 15 minutos máximo desde la hora acordada.</li>
                         </ul>
                         <p>Superados estos tiempos sin localizar al cliente (No-Show), el servicio se podrá dar por finalizado aplicándose penalización del 100%.</p>
@@ -113,18 +230,30 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Legal Notice',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>In compliance with the duty of information contained in article 10 of Law 34/2002, of July 11, on Services of the Information Society and Electronic Commerce (LSSI-CE), the following identifying data are recorded:</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. IDENTIFYING DATA</h3>
+                        <p>In compliance with article 10 of Law 34/2002, of July 11, on Services of the Information Society and Electronic Commerce (LSSICE), we inform you:</p>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Website Owner:</strong> {companyInfo.name}</li>
-                            <li><strong>Tax ID (NIF):</strong> {companyInfo.nif}</li>
+                            <li><strong>Company Name:</strong> {companyInfo.name}</li>
+                            <li><strong>Tax ID (CIF):</strong> {companyInfo.nif}</li>
                             <li><strong>Registered Office:</strong> {companyInfo.address}</li>
-                            <li><strong>Contact Email:</strong> {companyInfo.email}</li>
-                            <li><strong>Main Activity:</strong> Private transport and transfer services (VTC).</li>
+                            <li><strong>Phone:</strong> {companyInfo.phone}</li>
+                            <li><strong>Email:</strong> {companyInfo.email}</li>
+                            <li><strong>Activity:</strong> Passenger transport</li>
+                            <li><strong>Website:</strong> <a href={companyInfo.web} className="text-brand-gold hover:underline">{companyInfo.web}</a></li>
+                            <li><strong>VTC Licenses:</strong> {companyInfo.vtc}</li>
                         </ul>
-                        <h3 className="text-white font-bold mt-6 mb-2">Intellectual and Industrial Property</h3>
-                        <p>The intellectual property rights of the website, its source code, design, navigation structures, and the various elements contained therein belong to {companyInfo.name}, to whom corresponds the exclusive exercise of the rights to exploit them.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Conditions of Use</h3>
-                        <p>The user of the website undertakes to make appropriate and lawful use of the website and its contents, in accordance with the applicable Legislation and this Legal Notice.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. OBJECT AND CONDITIONS OF USE</h3>
+                        <p>Palladium Transfers S.L. provides users with this web platform to manage contracted passenger transport services. Access to and use of this platform implies acceptance of these conditions of use.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. INTELLECTUAL AND INDUSTRIAL PROPERTY</h3>
+                        <p>All contents of the platform are the intellectual property of Palladium Transfers S.L. or third parties who have authorized their use, and are protected by applicable intellectual property laws.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">4. EXCLUSION OF LIABILITY</h3>
+                        <p>Palladium Transfers S.L. is not responsible for damages resulting from technical issues, connection delays, or system outages beyond its control.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">5. APPLICABLE LAW AND JURISDICTION</h3>
+                        <p>These conditions are governed by Spanish law. Any disputes shall be submitted to the courts of the user's domicile in accordance with consumer regulations.</p>
                     </div>
                 )
             },
@@ -132,17 +261,29 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Privacy Policy',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>At {companyInfo.name} we take the protection of your personal data very seriously. This Privacy Policy describes how we collect, use, and protect your data, in accordance with the General Data Protection Regulation (GDPR) and current EU privacy laws.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Data Controller</h3>
-                        <p>Identity: {companyInfo.name} | Email: {companyInfo.email}</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Purpose</h3>
-                        <p>Your data is collected exclusively to: manage reservations for transfer services, contact you in case of incidents with the service or billing, and ensure its correct provision.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Legitimation</h3>
-                        <p>The legal basis for the processing of your data is the execution of the service provision contract (reservation) and the express consent of the user when filling out the reservation form.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Recipients</h3>
-                        <p>Data will not be transferred to third parties except under legal obligation. The corresponding pick-up and destination data are shared only with the assigned driver in order to carry out the service.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Rights (GDPR)</h3>
-                        <p>Anyone has the right to request access, rectification, deletion, limitation, and opposition to the processing of their data by sending an email to {companyInfo.email} attaching a copy of their ID or equivalent document.</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. DATA CONTROLLER</h3>
+                        <ul className="list-disc pl-5 space-y-2">
+                            <li><strong>Company Name:</strong> {companyInfo.name}</li>
+                            <li><strong>Tax ID (CIF):</strong> {companyInfo.nif}</li>
+                            <li><strong>Address:</strong> {companyInfo.address}</li>
+                            <li><strong>Phone:</strong> {companyInfo.phone}</li>
+                            <li><strong>Email:</strong> {companyInfo.email}</li>
+                        </ul>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. INFORMATION AND CONSENT</h3>
+                        <p>In accordance with GDPR, Palladium Transfers S.L. informs users about how their personal data is processed. Your data is collected exclusively to manage VIP transfer bookings and private chauffeur services.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. DATA RECIPIENTS</h3>
+                        <p>Only authorized personnel and necessary service providers (such as security, fleet management, and legal/tax advisors) will have access to your data. We do not sell or share data with third parties except under legal obligations.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">4. INTERNATIONAL DATA TRANSFERS</h3>
+                        <p>Your data may be processed by technological providers with servers outside the EEA, specifically Supabase Inc. (USA). This transfer is conducted under the EU-US Data Privacy Framework (DPF) adequacy decision, or standard contractual clauses.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">5. DATA RETENTION</h3>
+                        <p>Data will be stored during our contractual relationship and for the legally required periods (typically 5 to 6 years for legal and tax compliance, and up to 3 years for traveler registration records).</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">6. YOUR RIGHTS</h3>
+                        <p>You have the right to access, rectify, delete, oppose, limit processing, and request portability of your data by writing to {companyInfo.email} along with a valid ID proof.</p>
                     </div>
                 )
             },
@@ -150,14 +291,14 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Cookie Policy',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>This website uses essential cookies for the correct technological operation of the platform. In accordance with Spanish regulations (LSSI-CE) and GDPR, we inform you about the use of cookies in our system.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">What are cookies?</h3>
-                        <p>Cookies are small text files that are installed and stored in the browser when web pages are visited. Their main purpose is to remember details of the visit.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">Do you ask for permission to install cookies?</h3>
-                        <p>Our website <strong>DOES NOT use third-party analysis or marketing tracking cookies</strong> (such as Google Analytics, Meta Pixel, etc.) that require explicit consent.</p>
-                        <p>We only use <strong>TECHNICAL OR STRICTLY NECESSARY cookies</strong>. These allow maintaining the session state (for example, accessing the administration portal), preventing CSRF attacks, and remembering the browser language preference. Being essential, they are exempt from the obligation to obtain user consent.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">How to disable cookies</h3>
-                        <p>You can restrict, block, or delete cookies from our site or any other website using your browser. However, we warn that by disabling these session cookies, the client and employee portal may stop operating normally.</p>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. WHAT ARE COOKIES?</h3>
+                        <p>Cookies are small text files stored in your browser to remember information about your visit, improve usability, and maintain session states.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">2. COOKIES WE USE</h3>
+                        <p>We only use strictly necessary technical cookies (from Cloudflare for bot management and Supabase for session authentication) which are exempt from requiring user consent under Spanish LSSI-CE regulations.</p>
+
+                        <h3 className="text-white font-bold mt-6 mb-2">3. INTERNATIONAL TRANSFERS</h3>
+                        <p>These essential cookies are managed by Cloudflare Inc. and Supabase Inc. with servers in the USA, adhering to the EU-US Data Privacy Framework.</p>
                     </div>
                 )
             },
@@ -165,20 +306,14 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
                 title: 'Terms and Conditions',
                 body: (
                     <div className="space-y-4 text-sm text-slate-300">
-                        <p>These General Sales Conditions govern the purchase of transfer services from {companyInfo.name} through the website.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">1. Reservations and Confirmation</h3>
-                        <p>All reservations must be made well in advance. The reservation will not be considered "confirmed" until the system issues a voucher (PDF/Email) and payment, if applicable in advance, has been duly processed.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">2. Waiting Policy (Delays)</h3>
+                        <h3 className="text-white font-bold mt-4 mb-2">1. RESERVATIONS</h3>
+                        <p>All bookings must be requested in advance. Confirmation vouchers (PDF/Email) will be issued once the request is verified and processed.</p>
+                        <h3 className="text-white font-bold mt-6 mb-2">2. WAITING TIMES</h3>
                         <ul className="list-disc pl-5 space-y-2">
-                            <li><strong>Airport Pickups:</strong> A courtesy margin of up to 30 minutes from the scheduled flight landing time is granted. We monitor real-time flight data.</li>
-                            <li><strong>City/Hotel Pickups:</strong> The waiting or courtesy time will be a maximum of 15 minutes from the agreed time.</li>
+                            <li><strong>Airport Pickups:</strong> A courtesy wait of up to 60 minutes (1 hour) is granted from the scheduled flight landing time. We monitor real-time flight data. In the case of flight cancellation or diversion to another airport, it will be considered as a client No-Show.</li>
+                            <li><strong>City/Hotel Pickups:</strong> The maximum courtesy wait time is 15 minutes from the agreed pickup time.</li>
                         </ul>
-                        <p>If these times are exceeded without locating the client (No-Show), the service may be considered complete, applying a 100% penalty.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">3. Cancellation Policy</h3>
-                        <p>Cancellations made more than 24 hours before the service will have no surcharge. If canceled with less notice, {companyInfo.name} will retain 100% of the budgeted amount.</p>
-                        <h3 className="text-white font-bold mt-6 mb-2">4. Luggage and Capacity</h3>
-                        <p>The specified capacity for our standard/premium vehicles is strictly a maximum of <strong>3 passengers and 2 standard-sized suitcases</strong> (maximum dimensions approx. 63 x 36 x 21 cm per suitcase).</p>
-                        <p className="mt-2">This capacity is limiting. If the group exceeds the declared volume or the legal maximum capacity of the vehicle upon arrival, the driver will not be able to perform the service due to a violation of traffic safety regulations, which will be considered a cancellation by the client.</p>
+                        <p>Exceeding these limits without contacting us (No-Show) will result in a 100% penalty fee, and the service will be canceled.</p>
                     </div>
                 )
             }
@@ -186,6 +321,17 @@ export const LegalModals: React.FC<LegalModalsProps> = ({ type, language, onClos
     };
 
     const currentContent = content[language][type];
+
+    if (standalone) {
+        return (
+            <div className="flex flex-col bg-brand-charcoal text-slate-300">
+                <h2 className="text-2xl font-light text-white tracking-tighter uppercase mb-6">{currentContent.title}</h2>
+                <div className="text-sm space-y-4">
+                    {currentContent.body}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">

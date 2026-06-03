@@ -386,7 +386,7 @@ export const useBooking = (language: string = 'es') => {
         return doc.output('datauristring').split(',')[1];
     };
 
-    const submitBooking = async () => {
+    const submitBooking = async (marketingConsent?: boolean) => {
         setLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -543,7 +543,7 @@ export const useBooking = (language: string = 'es') => {
                 pickup_address: formData.pickupAddress,
                 origin_address: finalOriginAddress,
                 destination_address: finalDestAddress,
-                notes: `[IDA] Extras: ${selectedExtrasNames || 'Ninguno'}. Vehículo: ${formData.vehicleModel}. Notas: ${formData.notes}`,
+                notes: `[IDA] Extras: ${selectedExtrasNames || 'Ninguno'}. Vehículo: ${formData.vehicleModel}. Consentimiento comercial: ${marketingConsent ? 'SÍ' : 'NO'}. Notas: ${formData.notes}`,
                 vehicle_class: formData.vehicleModel,
                 user_id: userId,
                 created_at: new Date().toISOString()
@@ -640,6 +640,11 @@ export const useBooking = (language: string = 'es') => {
                             <p style="color: #475569; line-height: 1.6;">Su reserva ha sido procesada con éxito.</p>
                             <p style="color: #475569; line-height: 1.6; margin-top: 20px;">Puede acceder a su <a href="https://palladiumtransfers.com/" style="color: #3b82f6;">Portal de Cliente</a> para gestionar su reserva o solicitar cambios (cambios de hora permitidos hasta 24h antes por el portal, o a través de reservas@palladiumtransfers.com).</p>
                             <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF adjunto contiene todos los detalles de su traslado.</p>
+                            
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: justify; line-height: 1.4;">
+                                <p style="margin: 0 0 10px 0;"><strong>Confidencialidad / Confidentiality:</strong> Este mensaje y sus archivos adjuntos van dirigidos exclusivamente a su destinatario, pudiendo contener información confidencial sometida a secreto profesional. Si usted no es el destinatario final, por favor elimínelo e infórmenos. / This message and its attachments are intended solely for the recipient and may contain confidential information subject to professional secrecy. If you are not the intended recipient, please delete it and notify us.</p>
+                                <p style="margin: 0;"><strong>Protección de Datos (RGPD) / Data Protection (GDPR):</strong> Responsable: Palladium Transfers S.L. (CIF: B26816025). Finalidad: Gestión del servicio de traslado contratado. Derechos: Puede ejercer sus derechos de acceso, rectificación, supresión y otros de protección de datos dirigiendo su solicitud a palladiumtransfers@gmail.com o a Av. Maisonnave, 41 3ºB, 03003 Alicante (Alicante). Información adicional disponible en nuestra Política de Privacidad. / Controller: Palladium Transfers S.L. Purpose: Management of the contracted transfer service. Rights: You may exercise your rights of access, rectification, erasure, and other data protection rights by directing your request to palladiumtransfers@gmail.com or Av. Maisonnave, 41 3ºB, 03003 Alicante (Alicante). Additional info available in our Privacy Policy.</p>
+                            </div>
                         </div>
                     </div>
                 `

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
+import { LegalModals } from './components/LegalModals';
 
 const AiAssistant = React.lazy(() => import('./components/AiAssistant').then(module => ({ default: module.AiAssistant })));
 
@@ -44,6 +45,34 @@ export default function App() {
   const [roleReady, setRoleReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showLanding, setShowLanding] = useState(!window.location.hash.includes('type=recovery') && !window.location.href.includes('error=access_denied'));
+  const [publicLegalPath, setPublicLegalPath] = useState<'legal' | 'privacy' | 'cookies' | 'terms' | null>(null);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      
+      if (path === '/aviso-legal' || hash === '#/aviso-legal') {
+        setPublicLegalPath('legal');
+      } else if (path === '/politica-privacidad' || hash === '#/politica-privacidad') {
+        setPublicLegalPath('privacy');
+      } else if (path === '/politica-cookies' || hash === '#/politica-cookies') {
+        setPublicLegalPath('cookies');
+      } else if (path === '/terminos-condiciones' || hash === '#/terminos-condiciones') {
+        setPublicLegalPath('terms');
+      } else {
+        setPublicLegalPath(null);
+      }
+    };
+
+    handleLocationChange();
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
 
   // Inactivity and Auto-Refresh Timer
   useEffect(() => {
@@ -226,6 +255,23 @@ export default function App() {
     };
   }, []);
 
+  // Listen for AI Assistant events that require view changes
+  useEffect(() => {
+    const handleAiBooking = (e: any) => {
+      setCurrentView(prevView => {
+        if (prevView !== ViewState.RESERVAS) {
+          // Store data globally so ReservasView can read it when it finishes lazy loading
+          (window as any).__pendingAiBooking = e.detail;
+          return ViewState.RESERVAS;
+        }
+        return prevView;
+      });
+    };
+
+    window.addEventListener('open-booking-modal', handleAiBooking);
+    return () => window.removeEventListener('open-booking-modal', handleAiBooking);
+  }, []);
+
   // Safety Gate: Ensure clients don't see admin views
   useEffect(() => {
     const adminViews = [
@@ -243,6 +289,44 @@ export default function App() {
       setCurrentView(ViewState.CLIENT_PORTAL);
     }
   }, [userRole, currentView]);
+
+  if (publicLegalPath) {
+    return (
+      <div className="min-h-screen bg-brand-black text-brand-white p-6 relative overflow-hidden flex flex-col items-center justify-center selection:bg-brand-platinum/30 font-sans">
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-brand-gold/5 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-brand-platinum/5 rounded-full blur-[120px] pointer-events-none"></div>
+        
+        <div className="w-full max-w-4xl bg-brand-charcoal/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-10 border border-white/10 relative z-10 my-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between mb-8 pb-6 border-b border-white/10 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full border border-brand-gold/50 flex items-center justify-center">
+                <span className="text-brand-gold font-bold text-xs">P T</span>
+              </div>
+              <span className="font-light text-sm tracking-[0.2em] text-white">PALLADIUM TRANSFERS</span>
+            </div>
+            <button
+              onClick={() => {
+                window.history.pushState({}, '', '/');
+                window.dispatchEvent(new PopStateEvent('popstate'));
+              }}
+              className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest rounded-full transition-all border border-white/10 flex items-center gap-2 cursor-pointer"
+            >
+              <span className="material-icons-round text-sm">home</span>
+              {language === 'es' ? 'Volver al Inicio' : 'Back to Home'}
+            </button>
+          </div>
+          
+          <div className="overflow-y-auto max-h-[70vh] pr-4 custom-scrollbar text-slate-300">
+            <LegalModals type={publicLegalPath} language={language} onClose={() => {}} standalone={true} />
+          </div>
+          
+          <div className="mt-8 pt-6 border-t border-white/10 text-center text-[10px] text-brand-platinum/50 font-bold uppercase tracking-[0.2em]">
+            &copy; {new Date().getFullYear()} Palladium Transfers S.L. • VTC Autorizadas
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || (session && !roleReady)) {
     return (

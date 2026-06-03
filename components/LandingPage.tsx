@@ -392,13 +392,57 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap justify-center gap-16 mb-24 text-[10px] font-bold uppercase tracking-[0.5em] text-slate-400">
-                                    <button onClick={() => setActiveModal('legal')} className="hover:text-white transition-colors">{t.legal}</button>
-                                    <button onClick={() => setActiveModal('terms')} className="hover:text-white transition-colors">Términos y Condiciones</button>
-                                    <button onClick={() => setActiveModal('privacy')} className="hover:text-white transition-colors">{t.privacy}</button>
-                                    <button onClick={() => setActiveModal('cookies')} className="hover:text-white transition-colors">{t.cookies}</button>
+                                    <a
+                                        href="/aviso-legal"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/aviso-legal');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                            setActiveModal('legal');
+                                        }}
+                                        className="hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        {t.legal}
+                                    </a>
+                                    <a
+                                        href="/terminos-condiciones"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/terminos-condiciones');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                            setActiveModal('terms');
+                                        }}
+                                        className="hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        Términos y Condiciones
+                                    </a>
+                                    <a
+                                        href="/politica-privacidad"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/politica-privacidad');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                            setActiveModal('privacy');
+                                        }}
+                                        className="hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        {t.privacy}
+                                    </a>
+                                    <a
+                                        href="/politica-cookies"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            window.history.pushState({}, '', '/politica-cookies');
+                                            window.dispatchEvent(new PopStateEvent('popstate'));
+                                            setActiveModal('cookies');
+                                        }}
+                                        className="hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        {t.cookies}
+                                    </a>
                                 </div>
                                 <p className="text-slate-600 text-[9px] font-bold uppercase tracking-[0.6em]">
-                                    &copy; {new Date().getFullYear()} Palladium Transfers S.L. • Reserved to Excellence
+                                    &copy; {new Date().getFullYear()} Palladium Transfers S.L. • VTC Autorizadas • Reserved to Excellence
                                 </p>
                             </div>
                         </footer>
@@ -408,8 +452,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp, session, l
 
             {/* Legal Modals Component */}
             <React.Suspense fallback={null}>
-                <LegalModals type={activeModal} language={language} onClose={() => setActiveModal(null)} />
-                <CookieConsentBanner language={language} onReadMore={() => setActiveModal('cookies')} />
+                <LegalModals
+                    type={activeModal}
+                    language={language}
+                    onClose={() => {
+                        setActiveModal(null);
+                        window.history.pushState({}, '', '/');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                    }}
+                />
+                <CookieConsentBanner
+                    language={language}
+                    onReadMore={() => {
+                        window.history.pushState({}, '', '/politica-cookies');
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                        setActiveModal('cookies');
+                    }}
+                />
             </React.Suspense>
         </div >
     );

@@ -196,6 +196,12 @@ export const ReservasView: React.FC = () => {
          setIsModalOpen(true);
       };
 
+      // Check for pending bookings from other views (lazy loading failsafe)
+      if ((window as any).__pendingAiBooking) {
+         handleOpenBookingModal({ detail: (window as any).__pendingAiBooking });
+         (window as any).__pendingAiBooking = null;
+      }
+
       window.addEventListener('open-booking-modal', handleOpenBookingModal);
       return () => window.removeEventListener('open-booking-modal', handleOpenBookingModal);
    }, []);

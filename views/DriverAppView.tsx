@@ -373,7 +373,15 @@ export const DriverAppView: React.FC = () => {
    };
 
    const handleClockOut = async () => {
-      if (!currentLog) return;
+      if (!currentLog) {
+         if (activeDriver?.current_status !== 'Off') {
+            if (window.confirm("No se encontró un turno activo. ¿Forzar el cierre de sesión?")) {
+               await updateDriver(selectedDriverId!, { current_status: 'Off' });
+               alert("Sesión cerrada forzosamente.");
+            }
+         }
+         return;
+      }
       setPendingAction('clockOut');
       setCurrentKm(assignedVehicle?.km?.toString() || '');
       setKmModalOpen(true);
@@ -469,7 +477,15 @@ export const DriverAppView: React.FC = () => {
    };
 
    const handlePauseToggle = async () => {
-      if (!currentLog) return;
+      if (!currentLog) {
+         if (activeDriver?.current_status !== 'Off') {
+            if (window.confirm("No se encontró un turno activo. ¿Forzar el cierre de sesión?")) {
+               await updateDriver(selectedDriverId!, { current_status: 'Off' });
+               alert("Sesión cerrada forzosamente.");
+            }
+         }
+         return;
+      }
       
       let locationStr = null;
       try {

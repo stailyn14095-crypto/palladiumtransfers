@@ -13,6 +13,8 @@ export const Auth: React.FC<{ language?: Language }> = ({ language = 'es' }) => 
     const [isResetting, setIsResetting] = useState(false);
     const [recoveryMode, setRecoveryMode] = useState(false);
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+    const [privacyAccepted, setPrivacyAccepted] = useState(false);
+    const [marketingConsent, setMarketingConsent] = useState(false);
 
     const t = (key: string) => {
         const dict: Record<string, { es: string; en: string }> = {
@@ -69,6 +71,12 @@ export const Auth: React.FC<{ language?: Language }> = ({ language = 'es' }) => 
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!isLogin && !isResetting && !recoveryMode && !privacyAccepted) {
+            setMessage({ type: 'error', text: language === 'es' ? 'Debe aceptar la Política de Privacidad para registrarse.' : 'You must accept the Privacy Policy to register.' });
+            return;
+        }
+
         setLoading(true);
         setMessage(null);
 
@@ -101,6 +109,7 @@ export const Auth: React.FC<{ language?: Language }> = ({ language = 'es' }) => 
                             full_name: fullName,
                             phone: phone,
                             role: 'client',
+                            marketing_consent: marketingConsent ? 'SÍ' : 'NO'
                         }
                     }
                 });
@@ -221,6 +230,72 @@ export const Auth: React.FC<{ language?: Language }> = ({ language = 'es' }) => 
                                         className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-white placeholder-brand-platinum/50 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:bg-white/10 transition-all font-medium"
                                         placeholder="••••••••"
                                     />
+                                </div>
+                            </div>
+                        )}
+
+                        {!isLogin && !isResetting && !recoveryMode && (
+                            <div className="p-5 bg-white/5 border border-white/10 rounded-2xl text-xs space-y-4 animate-in fade-in duration-500">
+                                <p className="font-bold text-white uppercase tracking-wider text-[9px]">
+                                    {language === 'es' ? 'Información Básica sobre Protección de Datos' : 'Basic Data Protection Information'}
+                                </p>
+                                <div className="space-y-2 text-[10px] text-slate-400">
+                                    <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                        <span className="font-bold text-slate-500 uppercase tracking-widest text-[8px]">{language === 'es' ? 'Responsable' : 'Controller'}</span>
+                                        <span className="col-span-2 text-slate-300">Palladium Transfers S.L. (CIF: B26816025)</span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 border-b border-white/5 pb-1.5">
+                                        <span className="font-bold text-slate-500 uppercase tracking-widest text-[8px]">{language === 'es' ? 'Finalidad' : 'Purpose'}</span>
+                                        <span className="col-span-2 text-slate-300">
+                                            {language === 'es' ? 'Registro de usuario y gestión de servicios.' : 'User registration and service management.'}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-bold text-slate-500 uppercase tracking-widest text-[8px]">{language === 'es' ? 'Derechos' : 'Rights'}</span>
+                                        <span className="col-span-2 text-slate-300">
+                                            Acceso, rectificación, supresión en <a href="mailto:palladiumtransfers@gmail.com" className="text-brand-gold hover:underline">palladiumtransfers@gmail.com</a>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-3 border-t border-white/5">
+                                    <label className="flex items-start gap-3 cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={privacyAccepted}
+                                            onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                                            className="mt-0.5 w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-brand-gold focus:ring-brand-gold/50 cursor-pointer"
+                                        />
+                                        <span className="text-[10px] text-slate-300 select-none group-hover:text-white transition-colors">
+                                            {language === 'es' ? (
+                                                <>Acepto la <a href="/politica-privacidad" onClick={(e) => {
+                                                    e.preventDefault();
+                                                    window.history.pushState({}, '', '/politica-privacidad');
+                                                    window.dispatchEvent(new PopStateEvent('popstate'));
+                                                }} className="text-brand-gold hover:underline">Política de Privacidad</a> *</>
+                                            ) : (
+                                                <>I accept the <a href="/politica-privacidad" onClick={(e) => {
+                                                    e.preventDefault();
+                                                    window.history.pushState({}, '', '/politica-privacidad');
+                                                    window.dispatchEvent(new PopStateEvent('popstate'));
+                                                }} className="text-brand-gold hover:underline">Privacy Policy</a> *</>
+                                            )}
+                                        </span>
+                                    </label>
+
+                                    <label className="flex items-start gap-3 cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={marketingConsent}
+                                            onChange={(e) => setMarketingConsent(e.target.checked)}
+                                            className="mt-0.5 w-3.5 h-3.5 rounded border-white/10 bg-white/5 text-brand-gold focus:ring-brand-gold/50 cursor-pointer"
+                                        />
+                                        <span className="text-[10px] text-slate-400 select-none group-hover:text-white transition-colors">
+                                            {language === 'es' 
+                                                ? 'Deseo recibir ofertas y comunicaciones comerciales.'
+                                                : 'I wish to receive offers and commercial communications.'}
+                                        </span>
+                                    </label>
                                 </div>
                             </div>
                         )}
