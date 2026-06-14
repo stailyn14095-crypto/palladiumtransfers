@@ -21,7 +21,8 @@ const getTomorrowLocal = () => {
 
 import { suggestDriver, detectScheduleConflicts, getAssignedVehicleForBooking, calculateAvailableAt } from '../services/autoAssignment';
 import { supabase } from '../services/supabase';
-import { sendCancellationEmail } from '../services/emailService';
+import { sendCancellationEmail, sendVoucherEmail, sendInfoRequestEmail } from '../services/emailService';
+import { generateVoucherPDF } from '../utils/generateVoucherPDF';
 
 export const ReservasView: React.FC = () => {
    const [activeTab, setActiveTab] = useState<'list' | 'availability'>('list');
@@ -48,12 +49,70 @@ export const ReservasView: React.FC = () => {
    const [vehicleIdFilter, setVehicleIdFilter] = useState('Todos'); // Filter by specific vehicle (plate)
    const [showInactive, setShowInactive] = useState(false); // Toggle for old bookings (> 1 day)
 
+   const handleViewVoucher = (booking: any) => {
+      try {
+         const doc = generateVoucherPDF([booking]);
+         const blobUrl = doc.output('bloburl');
+         window.open(blobUrl, '_blank');
+      } catch (err) {
+         console.error("Error generating voucher PDF:", err);
+         alert("Error al generar el voucher en PDF.");
+      }
+   };
+
+   const handleEmailVoucher = async (booking: any) => {
+      try {
+         const doc = generateVoucherPDF([booking]);
+         const base64 = doc.output('datauristring').split(',')[1];
+         alert("Enviando correo con el voucher...");
+         const success = await sendVoucherEmail(booking, base64);
+         if (success) {
+            alert("Voucher enviado correctamente por correo al cliente.");
+         } else {
+            alert("No se pudo enviar el correo porque el cliente no tiene dirección de email.");
+         }
+      } catch (err) {
+         console.error("Error sending voucher email:", err);
+         alert("Ocurrió un error al enviar el voucher por correo.");
+      }
+   };
+
+   const handleRequestInfo = (booking: any) => {
+      setBookingToRequestInfo(booking);
+      setRequestInfoType('address');
+      setRequestInfoCustomText('');
+      setIsRequestInfoModalOpen(true);
+   };
+
+   const confirmSendRequestInfo = async () => {
+      if (!bookingToRequestInfo) return;
+      try {
+         setIsRequestInfoModalOpen(false);
+         alert("Enviando solicitud de información...");
+         const success = await sendInfoRequestEmail(bookingToRequestInfo, requestInfoType, requestInfoCustomText);
+         if (success) {
+            alert("Solicitud de información enviada correctamente al cliente.");
+         } else {
+            alert("No se pudo enviar el correo porque el cliente no tiene dirección de email.");
+         }
+      } catch (err) {
+         console.error("Error sending info request email:", err);
+         alert("Ocurrió un error al enviar el correo de solicitud.");
+      }
+   };
+
    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
    const [isModalOpen, setIsModalOpen] = useState(false);
    const [editingItem, setEditingItem] = useState<any>(null);
    // State to hold the current form data, used for dynamic field labels/options
    const [currentFormData, setCurrentFormData] = useState<any>({});
+
+   // Request Info Modal State
+   const [isRequestInfoModalOpen, setIsRequestInfoModalOpen] = useState(false);
+   const [bookingToRequestInfo, setBookingToRequestInfo] = useState<any>(null);
+   const [requestInfoType, setRequestInfoType] = useState('address');
+   const [requestInfoCustomText, setRequestInfoCustomText] = useState('');
 
    // Cancel Modal State
    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -1086,8 +1145,12 @@ export const ReservasView: React.FC = () => {
           if (shiftsThisDay.length > 0) {
               const uniqueVehicles = new Set(shiftsThisDay.map((s: any) => s.vehicle_id).filter(Boolean));
               const uniqueDrivers = new Set(shiftsThisDay.map((s: any) => s.driver_id).filter(Boolean));
-              // Ensure capacity meets at least the hardware allocated or personnel assigned
-              dayCapacity = Math.max(uniqueVehicles.size, uniqueDrivers.size, 1);
+              
+              const totalOpVehicles = vehicles?.filter((v: any) => v.status === 'Operativo').length || 1;
+              const calculatedCapacity = Math.max(uniqueVehicles.size, uniqueDrivers.size, 1);
+              
+              // Ensure capacity meets at least the hardware allocated or personnel assigned, but never exceeds actual fleet size
+              dayCapacity = Math.min(calculatedCapacity, totalOpVehicles);
           }
       }
 
@@ -1133,7 +1196,7 @@ export const ReservasView: React.FC = () => {
       return [
          { name: 'passenger', label: 'Pasajero', type: 'text', required: true, section: 'Información Básica' },
          { name: 'email', label: 'Email', type: 'email', required: true, section: 'Información Básica' },
-         { name: 'phone', label: 'Teléfono', type: 'text', section: 'Información Básica' },
+         { name: 'phone', label: 'Teléfono', type: 'text', required: true, section: 'Información Básica' },
          { name: 'pax_count', label: 'Pasajeros', type: 'number', required: true, section: 'Información Básica' },
 
          { name: 'trip_type', label: 'Tipo de Viaje', type: 'select', options: ['One Way', 'Round Trip'], optionLabels: ['Solo Ida', 'Ida y Vuelta'], required: true, section: 'Trayecto e Ida' },
@@ -1418,13 +1481,6 @@ export const ReservasView: React.FC = () => {
                          >
                             <span className="material-icons-round text-sm">bug_report</span> Test
                          </button>
-
-                         <button
-                            style={{ display: 'none' }}
-                           className="flex-1 sm:flex-none h-10 px-4 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all border border-purple-500/20"
-                        >
-                           <span className="material-icons-round text-sm">bug_report</span> Test
-                        </button>
                      </div>
                   </div>
 
@@ -1788,12 +1844,25 @@ export const ReservasView: React.FC = () => {
                                                                </label>
                                                             </div>
 
-                                                            <div className="flex gap-2 mt-4">
-                                                               <button className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors">
+                                                            <div className="grid grid-cols-2 gap-2 mt-4">
+                                                               <button
+                                                                  onClick={() => handleViewVoucher(b)}
+                                                                  className="py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition-colors"
+                                                               >
                                                                   Ver Voucher
                                                                </button>
-                                                               <button className="flex-1 py-2 bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold text-xs font-bold rounded-lg transition-colors border border-blue-500/20">
+                                                               <button
+                                                                  onClick={() => handleEmailVoucher(b)}
+                                                                  className="py-2 bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold text-xs font-bold rounded-lg transition-colors border border-blue-500/20"
+                                                               >
                                                                   Email Cliente
+                                                               </button>
+                                                               <button
+                                                                  onClick={() => handleRequestInfo(b)}
+                                                                  className="col-span-2 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs font-bold rounded-lg transition-colors border border-blue-500/20 flex items-center justify-center gap-1"
+                                                               >
+                                                                  <span className="material-icons-round text-sm">mail</span>
+                                                                  Solicitar Dirección/Vuelo
                                                                </button>
                                                             </div>
                                                          </div>
@@ -2020,6 +2089,95 @@ export const ReservasView: React.FC = () => {
                            className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all shadow-lg shadow-red-500/20 flex items-center gap-2"
                         >
                            Confirmar Cancelación
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            )
+         }
+
+         {
+            isRequestInfoModalOpen && bookingToRequestInfo && (
+               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsRequestInfoModalOpen(false)}></div>
+                  <div className="relative bg-brand-charcoal border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                     <div className="p-6 border-b border-white/5">
+                        <h3 className="text-xl font-light text-white flex items-center gap-3">
+                           <span className="material-icons-round text-blue-400">mail</span>
+                           Solicitar Información
+                        </h3>
+                     </div>
+
+                     <div className="p-6 space-y-6">
+                        <div>
+                           <p className="text-sm text-brand-platinum/80 mb-4">
+                              ¿Qué información necesitas solicitar a <strong className="text-white">{bookingToRequestInfo.passenger}</strong>?
+                           </p>
+                           
+                           <div className="space-y-3">
+                              <label className="flex items-center gap-3 p-3 bg-slate-800/30 border border-white/5 rounded-xl cursor-pointer hover:bg-slate-800/50 transition-colors">
+                                 <input 
+                                    type="radio" 
+                                    name="requestInfoType" 
+                                    value="address" 
+                                    checked={requestInfoType === 'address'} 
+                                    onChange={(e) => setRequestInfoType(e.target.value)}
+                                    className="w-4 h-4 text-brand-gold bg-slate-700 border-slate-600 focus:ring-brand-gold focus:ring-2"
+                                 />
+                                 <span className="text-sm font-bold text-white">Dirección de recogida / destino</span>
+                              </label>
+
+                              <label className="flex items-center gap-3 p-3 bg-slate-800/30 border border-white/5 rounded-xl cursor-pointer hover:bg-slate-800/50 transition-colors">
+                                 <input 
+                                    type="radio" 
+                                    name="requestInfoType" 
+                                    value="flight" 
+                                    checked={requestInfoType === 'flight'} 
+                                    onChange={(e) => setRequestInfoType(e.target.value)}
+                                    className="w-4 h-4 text-brand-gold bg-slate-700 border-slate-600 focus:ring-brand-gold focus:ring-2"
+                                 />
+                                 <span className="text-sm font-bold text-white">Vuelo (Confirmar número, fecha y hora)</span>
+                              </label>
+
+                              <label className="flex flex-col gap-3 p-3 bg-slate-800/30 border border-white/5 rounded-xl cursor-pointer hover:bg-slate-800/50 transition-colors">
+                                 <div className="flex items-center gap-3">
+                                    <input 
+                                       type="radio" 
+                                       name="requestInfoType" 
+                                       value="other" 
+                                       checked={requestInfoType === 'other'} 
+                                       onChange={(e) => setRequestInfoType(e.target.value)}
+                                       className="w-4 h-4 text-brand-gold bg-slate-700 border-slate-600 focus:ring-brand-gold focus:ring-2"
+                                    />
+                                    <span className="text-sm font-bold text-white">Otras opciones (Escribir mensaje)</span>
+                                 </div>
+                                 {requestInfoType === 'other' && (
+                                    <textarea 
+                                       placeholder="Escribe la información que necesitas solicitar..."
+                                       value={requestInfoCustomText}
+                                       onChange={(e) => setRequestInfoCustomText(e.target.value)}
+                                       className="w-full bg-slate-900 border border-white/10 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-brand-gold transition-colors min-h-[80px]"
+                                    ></textarea>
+                                 )}
+                              </label>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="p-6 border-t border-white/5 bg-slate-800/20 flex gap-3 justify-end rounded-b-2xl">
+                        <button
+                           onClick={() => setIsRequestInfoModalOpen(false)}
+                           className="px-5 py-2.5 rounded-xl text-brand-platinum/80 text-sm font-bold hover:bg-white/5 transition-colors"
+                        >
+                           Cancelar
+                        </button>
+                        <button
+                           onClick={confirmSendRequestInfo}
+                           disabled={requestInfoType === 'other' && !requestInfoCustomText.trim()}
+                           className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 text-white text-sm font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                        >
+                           <span className="material-icons-round text-sm">send</span>
+                           Enviar Correo
                         </button>
                      </div>
                   </div>

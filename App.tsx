@@ -479,9 +479,7 @@ export default function App() {
 
       {/* Gemini AI Assistant Widget */}
       <Suspense fallback={null}>
-        <div className="print:hidden">
-          <AiAssistant role={userRole} userName={session?.user?.email} />
-        </div>
+        {/* <AiAssistant role={userRole} userName={session?.user?.email} /> */}
       </Suspense>
     </div>
   );

@@ -39,8 +39,8 @@ const bookingTranslations = {
         email_label: 'Email (Acceso Invitado)',
         flight_label: 'Nº Vuelo',
         name_label: 'Nombre',
-        phone_label: 'Teléfono',
-        address_label: 'Dirección Exacta',
+        phone_label: 'Teléfono *',
+        address_label: 'Dirección Exacta *',
         extras_label: 'Añade Extras',
         back: 'Atrás',
         book_now: 'Reservar',
@@ -80,8 +80,8 @@ const bookingTranslations = {
         email_label: 'Email (Guest Access)',
         flight_label: 'Flight No.',
         name_label: 'Name',
-        phone_label: 'Phone',
-        address_label: 'Exact Address',
+        phone_label: 'Phone *',
+        address_label: 'Exact Address *',
         extras_label: 'Add Extras',
         back: 'Back',
         book_now: 'Book Now',
@@ -496,6 +496,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                     className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white placeholder-slate-700 text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
                                     onChange={handleChange}
                                     value={formData.phone}
+                                    required
                                 />
                             </div>
                         </div>
@@ -507,6 +508,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({ language = 'es', onSte
                                 className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-5 text-white placeholder-slate-700 text-sm font-bold focus:ring-1 focus:ring-brand-platinum/30 outline-none transition-all hover:bg-white/[0.08]"
                                 onChange={handleChange}
                                 value={formData.pickupAddress}
+                                required
                             />
                         </div>
 

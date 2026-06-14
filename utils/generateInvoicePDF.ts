@@ -47,10 +47,11 @@ export const generateInvoicePDF = async (invoice: any, options: { download?: boo
 
         // --- NEW HEADER LAYOUT ---
         // Left: Actual Logo Image
+        const yPos = 10;
         try {
-            doc.addImage(LOGO_BASE64, 'PNG', 15, 10, 50, 25);
+            const base64Data = LOGO_BASE64.split(',')[1] || LOGO_BASE64;
+            doc.addImage(base64Data, 'PNG', 20, yPos, 50, 20);
         } catch (e) {
-            console.error("Could not add logo to PDF:", e);
             // Fallback to text if logo fails
             doc.setFontSize(22);
             doc.setTextColor(primaryColor);

@@ -223,3 +223,184 @@ export const sendInvoiceEmail = async (invoice: any, client: any, pdfBase64: str
         throw error;
     }
 };
+
+export const sendVoucherEmail = async (booking: any, pdfBase64: string) => {
+    try {
+        if (!booking || !booking.email) {
+            console.warn("sendVoucherEmail: Booking missing email address, skipping.");
+            return false;
+        }
+
+        // Fetch email settings from system settings
+        const { data: settingsData } = await supabase
+            .from('system_settings')
+            .select('key, value')
+            .in('key', ['email_sender', 'admin_notification_email']);
+
+        let senderEmail = 'noreply@palladiumtransfers.com';
+        let adminEmail = null;
+
+        if (settingsData) {
+            const senderSetting = settingsData.find(s => s.key === 'email_sender');
+            if (senderSetting && senderSetting.value) senderEmail = senderSetting.value;
+
+            const adminSetting = settingsData.find(s => s.key === 'admin_notification_email');
+            if (adminSetting && adminSetting.value) adminEmail = adminSetting.value;
+        }
+
+        const bookingRef = booking.display_id || booking.id?.substring(0, 8).toUpperCase() || 'DESCONOCIDA';
+        const passengerName = booking.passenger || booking.client_name || 'Cliente';
+        const route = booking.route || `${booking.origin || ''} - ${booking.destination || ''}`;
+        const date = booking.pickup_date ? booking.pickup_date.split('T')[0] : '';
+        const time = booking.pickup_time || '';
+
+        const emailPayload: any = {
+            to: booking.email,
+            subject: `Confirmación de Reserva - ${bookingRef}`,
+            from: senderEmail,
+            attachments: [
+                {
+                    filename: `Voucher_Palladium_${bookingRef}.pdf`,
+                    content: pdfBase64,
+                    content_type: 'application/pdf'
+                }
+            ],
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
+                    <div style="background-color: #1a2533; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                        <img src="${LOGO_BASE64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
+                        <p style="color: #94a3b8; margin: 10px 0 0 0;">CONFIRMACIÓN DE RESERVA</p>
+                    </div>
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
+                        <h2 style="color: #1a2533; margin-top: 0;">¡Su reserva está confirmada!</h2>
+                        <p style="color: #475569; line-height: 1.6;">Hola ${passengerName},</p>
+                        <p style="color: #475569; line-height: 1.6;">Le confirmamos que su reserva con referencia <strong>${bookingRef}</strong> ha sido procesada con éxito.</p>
+                        
+                        <h3 style="color: #1a2533; margin-top: 30px;">Detalles del Traslado</h3>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; color: #475569;">
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Trayecto:</strong></td>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">${route}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Fecha y Hora:</strong></td>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">${date} a las ${time}h</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;"><strong>Precio:</strong></td>
+                                <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">${booking.price}€</td>
+                            </tr>
+                        </table>
+
+                        <p style="color: #475569; line-height: 1.6; margin-top: 20px;">El voucher en PDF adjunto contiene todos los detalles de su traslado.</p>
+                        <p style="color: #475569; line-height: 1.6;">Gracias por confiar en Palladium Transfers.</p>
+                        
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+                            Este es un mensaje automático generado por nuestro sistema de operaciones.
+                        </div>
+                    </div>
+                </div>
+            `
+        };
+
+        if (adminEmail) {
+            emailPayload.bcc = adminEmail;
+        }
+
+        const { error } = await supabase.functions.invoke('send-email-resend', {
+            body: emailPayload
+        });
+
+        if (error) throw error;
+        console.log(`Voucher confirmation email sent successfully for booking ${bookingRef}`);
+        return true;
+    } catch (error) {
+        console.error("Error sending voucher email:", error);
+        throw error;
+    }
+};
+
+export const sendInfoRequestEmail = async (booking: any, requestType: string = 'both', customText: string = '') => {
+    try {
+        if (!booking || !booking.email) {
+            console.warn("sendInfoRequestEmail: Booking missing email address, skipping.");
+            return false;
+        }
+
+        // Fetch email settings from system settings
+        const { data: settingsData } = await supabase
+            .from('system_settings')
+            .select('key, value')
+            .in('key', ['email_sender', 'admin_notification_email']);
+
+        let senderEmail = 'noreply@palladiumtransfers.com';
+
+        if (settingsData) {
+            const senderSetting = settingsData.find(s => s.key === 'email_sender');
+            if (senderSetting && senderSetting.value) senderEmail = senderSetting.value;
+        }
+
+        const bookingRef = booking.display_id || booking.id?.substring(0, 8).toUpperCase() || 'DESCONOCIDA';
+        const passengerName = booking.passenger || booking.client_name || 'Cliente';
+        const route = booking.route || `${booking.origin || ''} - ${booking.destination || ''}`;
+        const date = booking.pickup_date ? booking.pickup_date.split('T')[0] : '';
+        const time = booking.pickup_time || '';
+
+        let requiredItemsHtml = '';
+        if (requestType === 'address') {
+            requiredItemsHtml = `<li><strong>Dirección exacta de recogida o destino (Calle, número, hotel, apartamento, etc.)</strong></li>`;
+        } else if (requestType === 'flight') {
+            requiredItemsHtml = `<li><strong>Número de vuelo o tren y hora de llegada confirmada</strong></li>`;
+        } else if (requestType === 'other') {
+            requiredItemsHtml = `<li><strong>${customText || 'Información adicional requerida'}</strong></li>`;
+        } else {
+            requiredItemsHtml = `
+                <li><strong>Número de vuelo o tren de llegada/salida</strong></li>
+                <li><strong>Dirección exacta de recogida o destino (Calle, número, hotel, apartamento, etc.)</strong></li>
+            `;
+        }
+
+        const emailPayload: any = {
+            to: booking.email,
+            subject: `Información Pendiente para su Traslado - Reserva ${bookingRef}`,
+            from: senderEmail,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f6f9; padding: 20px;">
+                    <div style="background-color: #1b3a4b; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                        <img src="${LOGO_BASE64}" alt="Palladium Transfers Logo" style="max-height: 120px; margin-bottom: 20px;" />
+                        <p style="color: #94a3b8; margin: 10px 0 0 0;">INFORMACIÓN PENDIENTE DE SU RESERVA</p>
+                    </div>
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 0 0 10px 10px;">
+                        <h2 style="color: #1a2533; margin-top: 0;">Detalles necesarios para su servicio</h2>
+                        <p style="color: #475569; line-height: 1.6;">Hola ${passengerName},</p>
+                        <p style="color: #475569; line-height: 1.6;">Para poder garantizar la correcta prestación de su servicio de traslado con referencia <strong>${bookingRef}</strong> el día <strong>${date}</strong> a las <strong>${time}h</strong>, necesitamos que nos facilite los siguientes detalles pendientes:</p>
+                        
+                        <div style="margin: 20px 0; padding: 20px; background-color: #f8fafc; border-left: 4px solid #B3932F; border-radius: 4px;">
+                            <ul style="margin: 0; padding-left: 20px; color: #475569; line-height: 1.8;">
+                                ${requiredItemsHtml}
+                            </ul>
+                        </div>
+
+                        <p style="color: #475569; line-height: 1.6;">Por favor, responda directamente a este correo o acceda a su panel de cliente para indicarnos estos datos lo antes posible.</p>
+                        <p style="color: #475569; line-height: 1.6; margin-top: 20px;">Muchas gracias por su colaboración.</p>
+                        
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+                            Este es un mensaje automático generado por nuestro sistema de operaciones.
+                        </div>
+                    </div>
+                </div>
+            `
+        };
+
+        const { error } = await supabase.functions.invoke('send-email-resend', {
+            body: emailPayload
+        });
+
+        if (error) throw error;
+        console.log(`Information request email sent successfully for booking ${bookingRef}`);
+        return true;
+    } catch (error) {
+        console.error("Error sending info request email:", error);
+        throw error;
+    }
+};

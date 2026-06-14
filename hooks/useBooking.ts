@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { jsPDF } from 'jspdf';
 import { useToast } from '../components/ui/Toast';
-import { calculateAvailableAt } from '../services/autoAssignment';
+import { calculateAvailableAt, estimateTravelTime } from '../services/autoAssignment';
+import { generateVoucherPDF } from '../utils/generateVoucherPDF';
 
 const LOGO_BASE64 = 'data:image/png;base64,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';
 
@@ -284,105 +285,7 @@ export const useBooking = (language: string = 'es') => {
     };
 
     const generateVoucher = (bookings: any[]) => {
-        const doc = new jsPDF();
-        const primaryColor = [20, 30, 43];
-        const accentColor = [59, 130, 246];
-
-        // Removed base64 image due to PNG signature parsing errors. We will draw text.
-
-        let fileWidth = 50;
-        let fileHeight = 50 * (180 / 440); // Maintain aspect ratio: height = width * (SVG height / SVG width)
-
-        bookings.forEach((booking, index) => {
-            if (index > 0) doc.addPage();
-
-            // Header Background
-            doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-            doc.rect(0, 0, 210, 40, 'F');
-
-            // Palladium Transfers Logo (Text Representation)
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(22);
-            doc.setFont('helvetica', 'normal');
-            doc.text('PALLADIUM TRANSFERS', 105, 18, { align: 'center' });
-
-            doc.setTextColor(219, 179, 94); // Gold color from SVG #dbb35e
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            doc.text('EXCELLENCE IN MOTION', 105, 26, { align: 'center' });
-
-            // Accent Line
-            doc.setDrawColor(219, 179, 94);
-            doc.setLineWidth(0.5);
-            doc.line(10, 33, 200, 33);
-
-            // Title
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'normal');
-            doc.text('VOUCHER DE RESERVA', 20, 38);
-
-            // Booking Details
-            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text(index === 0 ? 'DATOS DEL TRAYECTO (IDA)' : 'DATOS DEL TRAYECTO (VUELTA)', 20, 55);
-
-            doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2]);
-            doc.setLineWidth(1);
-            doc.line(20, 58, 190, 58);
-
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'normal');
-
-            const startY = 70;
-            const lineSpacing = 10;
-
-            const rawNotes = booking.notes || '';
-            const extrasMatch = rawNotes.match(/Extras: (.*?)\./);
-            const extrasText = extrasMatch ? extrasMatch[1] : 'Ninguno';
-
-            const userNotesMatch = rawNotes.match(/Notas: (.*)/);
-            const userNotesText = userNotesMatch ? userNotesMatch[1] : 'Sin notas adicionales';
-
-            const details = [
-                ['Referencia:', booking.id?.substring(0, 8).toUpperCase() || 'PENDIENTE'],
-                ['Pasajero:', booking.passenger],
-                ['Email:', booking.email],
-                ['Teléfono:', booking.phone || 'N/A'],
-                ['Origen:', booking.origin],
-                ['Destino:', booking.destination],
-                ['Fecha:', booking.pickup_date],
-                ['Hora:', booking.pickup_time],
-                ['Vuelo:', booking.flight_number || 'N/A'],
-                ['Dirección:', booking.pickup_address || 'Punto de encuentro estándar'],
-                ['Extras:', extrasText],
-                ['Precio:', `${booking.price}€`],
-                ['Notas:', userNotesText]
-            ];
-
-            details.forEach((detail, i) => {
-                doc.setFont('helvetica', 'bold');
-                doc.text(detail[0], 20, startY + (i * lineSpacing));
-                doc.setFont('helvetica', 'normal');
-                doc.text(detail[1], 60, startY + (i * lineSpacing));
-            });
-
-            // Footer
-            doc.setFontSize(9);
-            doc.setTextColor(100, 100, 100);
-            const footerY = 265;
-            doc.text('Gracias por confiar en Palladium Transfers.', 105, footerY, { align: 'center' });
-            doc.text('Puede solicitar cambios en su reserva directamente desde su Portal de Cliente.', 105, footerY + 5, { align: 'center' });
-            doc.setFont('helvetica', 'bold');
-            doc.text('* Cambios de hora solo permitidos hasta 24h antes. Para cambios urgentes (<24h),', 105, footerY + 12, { align: 'center' });
-            doc.text('contacte a reservas@palladiumtransfers.com.', 105, footerY + 16, { align: 'center' });
-            doc.setFont('helvetica', 'normal');
-            doc.text('Este documento sirve como comprobante de su reserva.', 105, footerY + 23, { align: 'center' });
-        });
-
-        // doc.save is removed because it can interrupt the mobile browser flow 
-        // and cancel the subsequent email fetch request
+        const doc = generateVoucherPDF(bookings);
         return doc.output('datauristring').split(',')[1];
     };
 
@@ -413,7 +316,7 @@ export const useBooking = (language: string = 'es') => {
                 return new Date(`${dateStr}T${t}`).getTime();
             };
 
-            const validateAvailabilityForTime = async (checkDate: string, checkTime: string): Promise<boolean> => {
+            const validateAvailabilityForTime = async (checkDate: string, checkTime: string, requestedOrigin: string): Promise<boolean> => {
                 const checkTimeMs = parseShiftDateTime(checkDate, checkTime);
                 let dynamicCapacity = TOTAL_FLEET;
 
@@ -431,7 +334,8 @@ export const useBooking = (language: string = 'es') => {
                     const shiftsThisDay = activeShifts.filter((s: any) => s.date === checkDate);
                     const uniqueVehicles = new Set(shiftsThisDay.map((s: any) => s.vehicle_id).filter(Boolean));
                     const uniqueDrivers = new Set(shiftsThisDay.map((s: any) => s.driver_id).filter(Boolean));
-                    dynamicCapacity = Math.max(uniqueVehicles.size, uniqueDrivers.size, 1);
+                    const calculatedCapacity = Math.max(uniqueVehicles.size, uniqueDrivers.size, 1);
+                    dynamicCapacity = Math.min(calculatedCapacity, TOTAL_FLEET);
                 }
 
                 if (dynamicCapacity === 0) {
@@ -454,7 +358,16 @@ export const useBooking = (language: string = 'es') => {
                         const bStartMs = new Date(`${bStartStr}T${b.pickup_time}`).getTime();
                         
                         try {
-                            const bEndMs = calculateAvailableAt(b).getTime();
+                            const bDropoffMs = calculateAvailableAt(b).getTime();
+                            
+                            let deadheadMs = 0;
+                            if (requestedOrigin && b.destination) {
+                                const deadheadMinutes = estimateTravelTime(b.destination, requestedOrigin);
+                                deadheadMs = deadheadMinutes * 60000;
+                            }
+                            
+                            const bEndMs = bDropoffMs + deadheadMs;
+
                             if (checkTimeMs >= bStartMs && checkTimeMs < bEndMs) {
                                 console.log(`Overlap found: ${b.id} ${b.pickup_time} -> End: ${new Date(bEndMs).toISOString()}`);
                                 overlappingCount++;
@@ -474,7 +387,7 @@ export const useBooking = (language: string = 'es') => {
             };
 
             // Run outbound validation
-            const isOutboundAvailable = await validateAvailabilityForTime(formData.date, formData.time);
+            const isOutboundAvailable = await validateAvailabilityForTime(formData.date, formData.time, formData.origin);
             if (!isOutboundAvailable) {
                 showToast(`DISPONIBILIDAD AGOTADA: La flota está operando al límite en el horario seleccionado (${formData.time})`, 'error');
                 setLoading(false);
@@ -483,7 +396,7 @@ export const useBooking = (language: string = 'es') => {
 
             // If Round Trip, run inbound validation
             if (formData.tripType === 'Round Trip' && formData.returnDate && formData.returnTime) {
-                const isInboundAvailable = await validateAvailabilityForTime(formData.returnDate, formData.returnTime);
+                const isInboundAvailable = await validateAvailabilityForTime(formData.returnDate, formData.returnTime, formData.destination);
                 if (!isInboundAvailable) {
                     showToast(`DISPONIBILIDAD AGOTADA: La flota está operando al límite en el horario de vuelta (${formData.returnTime})`, 'error');
                     setLoading(false);
@@ -581,10 +494,11 @@ export const useBooking = (language: string = 'es') => {
                 });
             }
 
-            const { error } = await supabase.from('bookings').insert(bookingsToInsert);
+            const { data: insertedData, error } = await supabase.from('bookings').insert(bookingsToInsert).select();
             if (error) throw error;
 
-            const base64Voucher = generateVoucher(bookingsToInsert);
+            const finalBookings = insertedData || bookingsToInsert;
+            const base64Voucher = generateVoucher(finalBookings);
 
             // Fetch email settings from system settings (safely)
             const { data: settingsData } = await supabase
@@ -603,7 +517,7 @@ export const useBooking = (language: string = 'es') => {
                 if (adminSetting && adminSetting.value) adminEmail = adminSetting.value;
             }
 
-            const bookingRef = bookingsToInsert[0].id?.substring(0, 8).toUpperCase() || 'NUEVA';
+            const bookingRef = finalBookings[0].display_id || finalBookings[0].id?.substring(0, 8).toUpperCase() || 'NUEVA';
 
             const logoSvg = `
             <svg viewBox="0 0 440 180" fill="none" xmlns="http://www.w3.org/2000/svg">
