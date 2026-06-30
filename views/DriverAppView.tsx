@@ -31,8 +31,20 @@ export const DriverAppView: React.FC = () => {
    const [myUserId, setMyUserId] = useState<string | null>(null);
 
    const { data: drivers, updateItem: updateDriver } = useSupabaseData('drivers');
-   const { data: allBookings, updateItem: updateBooking } = useSupabaseData('bookings');
+   const { data: allBookings, updateItem: updateBooking, addItem: addBooking } = useSupabaseData('bookings');
    const { data: shifts } = useSupabaseData('shifts');
+
+   // Create Reservation State
+   const [createResModalOpen, setCreateResModalOpen] = useState(false);
+   const [newRes, setNewRes] = useState({
+      origin: '',
+      destination: '',
+      origin_address: '',
+      pax: '1',
+      driver_price: '',
+      client_name: 'Palladium Transfers S.L.',
+      email: 'palladiumtransfers@gmail.com'
+   });
    const { data: vehicles, updateItem: updateVehicle } = useSupabaseData('vehicles');
    const { data: correctionRequests, refresh: refreshRequests } = useSupabaseData('time_correction_requests', { orderBy: 'created_at', ascending: false });
    const { data: myLogs, refresh: refreshLogs } = useSupabaseData('driver_logs', { orderBy: 'clock_in', ascending: false });
@@ -204,6 +216,46 @@ export const DriverAppView: React.FC = () => {
       return s.driver_id === selectedDriverId && s.date === today;
    });
    const assignedVehicle = vehicles?.find((v: any) => v.id === todayShift?.vehicle_id);
+
+   const handleCreateReservation = async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+         const now = new Date();
+         const pickupDate = now.toISOString().split('T')[0];
+         now.setMinutes(now.getMinutes() + 15);
+         const pickupTime = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+
+         const booking = {
+            client_id: 'e2954bc3-fb9f-4702-b371-e910663b7f9e',
+            client_name: 'Palladium Transfers S.L.',
+            passenger: newRes.client_name,
+            email: newRes.email,
+            phone: '600000000', // ficticio
+            origin: newRes.origin,
+            destination: newRes.destination,
+            route: `${newRes.origin} - ${newRes.destination}`,
+            origin_address: newRes.origin_address,
+            destination_address: newRes.origin_address, // Set same address for both so it appears wherever needed
+            pickup_address: newRes.origin_address,
+            pickup_date: pickupDate,
+            pickup_time: pickupTime,
+            time: new Date(`${pickupDate}T${pickupTime}`).toISOString(),
+            driver_price: parseFloat(newRes.driver_price) || 0,
+            status: 'Pending',
+            driver_id: activeDriver?.id || null,
+            payment_method: 'Efectivo',
+            notes: `Creado desde App Conductor. PAX: ${newRes.pax}. Vehículo: ${assignedVehicle?.plate || 'Ninguno'}`,
+            created_at: new Date().toISOString()
+         };
+         
+         await addBooking(booking);
+         setCreateResModalOpen(false);
+         setNewRes({ ...newRes, origin: '', destination: '', origin_address: '', pax: '1', driver_price: '' });
+         alert("Reserva creada y autoasignada correctamente.");
+      } catch (err: any) {
+         alert("Error al crear la reserva: " + err.message);
+      }
+   };
 
    // Compartir Coche Logic
    const sharedVehicleAlerts: string[] = [];
@@ -1193,6 +1245,13 @@ export const DriverAppView: React.FC = () => {
          {activeTab === 'services' ? (
             /* Assignments */
             <div className="relative z-10 p-4 md:p-8 space-y-6 md:space-y-8">
+               <button
+                  onClick={() => setCreateResModalOpen(true)}
+                  className="w-full py-4 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-[12px] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 mb-4"
+               >
+                  <span className="material-icons-round">add_circle</span>
+                  Crear Reserva Rápida
+               </button>
                {(() => {
                   const sortedActiveBookings = [...driverBookings].sort((a: any, b: any) => {
                      const aDateStr = a.pickup_date.split('T')[0];
@@ -1881,6 +1940,115 @@ export const DriverAppView: React.FC = () => {
                         </button>
                      </div>
                   </div>
+               </div>
+            </div>
+         )}
+
+         {/* Create Reservation Modal */}
+         {createResModalOpen && (
+            <div className="fixed inset-0 z-[100] bg-brand-black/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+               <div className="bg-brand-charcoal w-full max-w-md rounded-[32px] border border-white/5 shadow-2xl p-6 sm:p-8 animate-in zoom-in-95 duration-200 my-8">
+                  <div className="text-center mb-6">
+                     <h2 className="text-xl font-black text-white px-4">Crear Reserva</h2>
+                     <p className="text-xs text-brand-platinum/50 mt-2">Autoasignación inmediata</p>
+                  </div>
+
+                  <form onSubmit={handleCreateReservation} className="space-y-4 text-left">
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Municipio de Origen</label>
+                        <select
+                           required
+                           value={newRes.origin}
+                           onChange={(e) => setNewRes({ ...newRes, origin: e.target.value })}
+                           className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all appearance-none"
+                        >
+                           <option value="">Selecciona Origen...</option>
+                           {municipalities?.map((m: any) => (
+                              <option key={m.id} value={m.name}>{m.name}</option>
+                           ))}
+                        </select>
+                     </div>
+
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Municipio de Destino</label>
+                        <select
+                           required
+                           value={newRes.destination}
+                           onChange={(e) => setNewRes({ ...newRes, destination: e.target.value })}
+                           className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all appearance-none"
+                        >
+                           <option value="">Selecciona Destino...</option>
+                           {municipalities?.map((m: any) => (
+                              <option key={m.id} value={m.name}>{m.name}</option>
+                           ))}
+                        </select>
+                     </div>
+
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Dirección (recogida o destino)</label>
+                        <input
+                           required
+                           type="text"
+                           value={newRes.origin_address}
+                           onChange={(e) => setNewRes({ ...newRes, origin_address: e.target.value })}
+                           className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all placeholder-white/20"
+                           placeholder="Hotel, apartamento, calle y número..."
+                        />
+                     </div>
+
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Nombre</label>
+                        <input
+                           required
+                           type="text"
+                           value={newRes.client_name}
+                           onChange={(e) => setNewRes({ ...newRes, client_name: e.target.value })}
+                           className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all placeholder-white/20"
+                        />
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                           <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">PAX</label>
+                           <input
+                              required
+                              type="number"
+                              min="1"
+                              value={newRes.pax}
+                              onChange={(e) => setNewRes({ ...newRes, pax: e.target.value })}
+                              className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all"
+                           />
+                        </div>
+                        <div className="space-y-1.5">
+                           <label className="text-[10px] font-bold text-brand-platinum uppercase tracking-widest pl-1">Cobro Efectivo (€)</label>
+                           <input
+                              required
+                              type="number"
+                              step="0.01"
+                              value={newRes.driver_price}
+                              onChange={(e) => setNewRes({ ...newRes, driver_price: e.target.value })}
+                              className="w-full bg-brand-black border border-white/5 rounded-2xl px-4 py-4 text-sm font-bold text-white focus:border-emerald-500 outline-none transition-all"
+                              placeholder="0.00"
+                           />
+                        </div>
+                     </div>
+
+                     <div className="pt-4 grid gap-3">
+                        <button
+                           type="submit"
+                           className="w-full py-4 bg-emerald-500 text-brand-black rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-emerald-400 active:scale-95 shadow-lg shadow-emerald-500/20 transition-all"
+                        >
+                           Crear Reserva
+                        </button>
+                        <button
+                           type="button"
+                           onClick={() => setCreateResModalOpen(false)}
+                           className="w-full py-3 text-brand-platinum/50 hover:text-white font-bold uppercase text-[10px] tracking-widest transition-all"
+                        >
+                           Cancelar
+                        </button>
+                     </div>
+                  </form>
                </div>
             </div>
          )}
